@@ -52,7 +52,8 @@ configure_live_build() {
         --backports false \
         --apt-recommends false \
         --apt-indices false \
-        --memtest none \
+        --initramfs live-boot                                                            \
+        --linux-packages linux-image                                                     \
         --bootappend-live "boot=live components quiet splash locales=pt_BR.UTF-8 username=live user-fullname=User hostname=Debian13 autologin" \
         --debian-installer live \
         --debian-installer-gui true \
@@ -114,6 +115,11 @@ efibootmgr
 # Locale
 locales
 console-setup
+
+# Sistema Live e Configuração
+live-boot
+live-config
+live-config-systemd
 
 # Firmware
 firmware-linux-free

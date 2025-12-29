@@ -202,7 +202,7 @@ d-i apt-setup/security_host string security.debian.org
 
 # Seleção de pacotes (mínimo + SSH + ZFS para compilação)
 tasksel tasksel/first multiselect standard, ssh-server
-d-i pkgsel/include string openssh-server sudo curl wget git vim htop live-build debootstrap squashfs-tools xorriso isolinux syslinux-efi mtools dosfstools rsync jq zfsutils-linux zfs-dkms linux-headers-amd64 dkms
+d-i pkgsel/include string openssh-server sudo curl gnupg wget git vim htop live-build live-config debootstrap squashfs-tools xorriso isolinux syslinux-efi mtools dosfstools rsync jq zfsutils-linux zfs-dkms linux-headers-amd64 dkms
 
 # Aceitar licença ZFS automaticamente
 zfs-dkms zfs-dkms/note-incompatible-licenses note
