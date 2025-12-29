@@ -1,0 +1,6 @@
+.ssh/
+logs/
+output/
+images/
+*.iso
+*.qcow2

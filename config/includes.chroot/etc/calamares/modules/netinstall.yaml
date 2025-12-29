@@ -1,0 +1,128 @@
+# =============================================================================
+# Perfis de Instalação Debian-ZFS
+# Este arquivo define os grupos de pacotes para seleção no Calamares
+# =============================================================================
+
+- name: "Perfil Server"
+  description: "Instalação mínima para servidores (modo texto, headless)"
+  critical: true
+  preselect: false
+  packages:
+    # Base
+    - linux-image-amd64
+    - linux-headers-amd64
+    - systemd
+    - dbus
+    
+    # ZFS
+    - zfsutils-linux
+    - zfs-dkms
+    - zfs-initramfs
+    
+    # Rede
+    - network-manager
+    - openssh-server
+    - curl
+    - wget
+    
+    # Ferramentas servidor
+    - vim
+    - nano
+    - htop
+    - tmux
+    - git
+    - rsync
+    - sudo
+    - screen
+    - mc
+    - ncdu
+    
+    # Monitoramento
+    - iotop
+    - iftop
+    - glances
+    
+    # Segurança
+    - fail2ban
+    - ufw
+    
+    # Particionamento
+    - gdisk
+    - parted
+    - dosfstools
+    - efibootmgr
+
+- name: "Perfil Workstation"
+  description: "Estação de trabalho com KDE Plasma minimalista"
+  critical: true
+  preselect: true
+  packages:
+    # Base (inclui tudo do Server)
+    - linux-image-amd64
+    - linux-headers-amd64
+    - systemd
+    - dbus
+    
+    # ZFS
+    - zfsutils-linux
+    - zfs-dkms
+    - zfs-initramfs
+    
+    # Rede e ferramentas
+    - network-manager
+    - openssh-server
+    - curl
+    - wget
+    - vim
+    - nano
+    - htop
+    - git
+    - rsync
+    - sudo
+    
+    # Particionamento
+    - gdisk
+    - parted
+    - dosfstools
+    - efibootmgr
+    
+    # KDE Plasma Core
+    - plasma-desktop
+    - plasma-workspace
+    - sddm
+    - sddm-theme-breeze
+    - kwin-x11
+    
+    # Componentes Plasma
+    - plasma-nm
+    - plasma-pa
+    - powerdevil
+    - bluedevil
+    - systemsettings
+    
+    # Aplicativos Qt
+    - dolphin
+    - dolphin-plugins
+    - konsole
+    - kate
+    - gwenview
+    - ark
+    - kcalc
+    - spectacle
+    - partitionmanager
+    
+    # Navegador
+    - firefox-esr
+    
+    # Áudio
+    - pipewire
+    - pipewire-pulse
+    - wireplumber
+    
+    # Tema e fontes
+    - breeze
+    - breeze-icon-theme
+    - breeze-cursor-theme
+    - fonts-noto
+    - fonts-noto-color-emoji
+    - plasma-widgets-addons
