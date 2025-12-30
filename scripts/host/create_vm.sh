@@ -31,9 +31,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-log_info()  { echo -e "${BLUE}[INFO]${NC} $*" >&2; }
-log_ok()    { echo -e "${GREEN}[OK]${NC} $*" >&2; }
-log_warn()  { echo -e "${YELLOW}[WARN]${NC} $*" >&2; }
+log_info() { echo -e "${BLUE}[INFO]${NC} $*" >&2; }
+log_ok() { echo -e "${GREEN}[OK]${NC} $*" >&2; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $*" >&2; }
 log_error() { echo -e "${RED}[ERRO]${NC} $*" >&2; }
 
 # =============================================================================
@@ -41,109 +41,109 @@ log_error() { echo -e "${RED}[ERRO]${NC} $*" >&2; }
 # =============================================================================
 
 check_root() {
-    if [[ $EUID -ne 0 ]]; then
-        log_error "Execute como root: sudo $0"
-        exit 1
-    fi
+	if [[ ${EUID} -ne 0 ]]; then
+		log_error "Execute como root: sudo $0"
+		exit 1
+	fi
 }
 
 cleanup_existing_vm() {
-    log_info "Verificando VM existente..."
-    
-    if virsh list --all 2>/dev/null | grep -q "${VM_NAME}"; then
-        local vm_state
-        vm_state=$(virsh domstate "${VM_NAME}" 2>/dev/null || echo "desconhecido")
-        
-        echo ""
-        log_warn "VM '${VM_NAME}' já existe (Estado: ${vm_state})"
-        echo ""
-        echo "O que deseja fazer?"
-        echo "  1) Parar e excluir a VM (recriar do zero)"
-        echo "  2) Cancelar (manter a VM como está)"
-        echo ""
-        read -p "Escolha [1/2]: " choice
-        
-        case "$choice" in
-            1)
-                log_info "Parando e removendo VM..."
-                virsh destroy "${VM_NAME}" 2>/dev/null || true
-                virsh undefine "${VM_NAME}" --remove-all-storage 2>/dev/null || true
-                rm -rf "${PRESEED_DIR}" 2>/dev/null || true
-                rm -f "${VM_DISK_PATH}" 2>/dev/null || true
-                log_ok "VM removida com sucesso"
-                ;;
-            2|*)
-                log_info "Operação cancelada pelo usuário."
-                exit 0
-                ;;
-        esac
-    fi
-    
-    # Limpar arquivos residuais
-    rm -f "${VM_DISK_PATH}" 2>/dev/null || true
-    rm -rf "${PRESEED_DIR}" 2>/dev/null || true
-    
-    log_ok "Limpeza concluída"
+	log_info "Verificando VM existente..."
+
+	if virsh list --all 2>/dev/null | grep -q "${VM_NAME}"; then
+		local vm_state
+		vm_state=$(virsh domstate "${VM_NAME}" 2>/dev/null || echo "desconhecido")
+
+		echo ""
+		log_warn "VM '${VM_NAME}' já existe (Estado: ${vm_state})"
+		echo ""
+		echo "O que deseja fazer?"
+		echo "  1) Parar e excluir a VM (recriar do zero)"
+		echo "  2) Cancelar (manter a VM como está)"
+		echo ""
+		read -r -p "Escolha [1/2]: " choice
+
+		case "${choice}" in
+		1)
+			log_info "Parando e removendo VM..."
+			virsh destroy "${VM_NAME}" 2>/dev/null || true
+			virsh undefine "${VM_NAME}" --remove-all-storage 2>/dev/null || true
+			rm -rf "${PRESEED_DIR}" 2>/dev/null || true
+			rm -f "${VM_DISK_PATH}" 2>/dev/null || true
+			log_ok "VM removida com sucesso"
+			;;
+		2 | *)
+			log_info "Operação cancelada pelo usuário."
+			exit 0
+			;;
+		esac
+	fi
+
+	# Limpar arquivos residuais
+	rm -f "${VM_DISK_PATH}" 2>/dev/null || true
+	rm -rf "${PRESEED_DIR}" 2>/dev/null || true
+
+	log_ok "Limpeza concluída"
 }
 
 download_iso() {
-    log_info "Verificando ISO do Debian..."
-    
-    mkdir -p "${IMAGES_DIR}"
-    
-    if [[ -f "${DEBIAN_ISO}" ]]; then
-        log_ok "ISO já existe: ${DEBIAN_ISO}"
-        return 0
-    fi
-    
-    log_info "Baixando ISO netinst do Debian 13..."
-    log_info "URL: ${DEBIAN_ISO_URL}"
-    
-    wget -q --show-progress -O "${DEBIAN_ISO}" "${DEBIAN_ISO_URL}"
-    
-    log_ok "ISO baixada: ${DEBIAN_ISO}"
+	log_info "Verificando ISO do Debian..."
+
+	mkdir -p "${IMAGES_DIR}"
+
+	if [[ -f ${DEBIAN_ISO} ]]; then
+		log_ok "ISO já existe: ${DEBIAN_ISO}"
+		return 0
+	fi
+
+	log_info "Baixando ISO netinst do Debian 13..."
+	log_info "URL: ${DEBIAN_ISO_URL}"
+
+	wget -q --show-progress -O "${DEBIAN_ISO}" "${DEBIAN_ISO_URL}"
+
+	log_ok "ISO baixada: ${DEBIAN_ISO}"
 }
 
 generate_ssh_key() {
-    local ssh_dir="${PROJECT_ROOT}/.ssh"
-    local key_path="${ssh_dir}/vm_key"
-    
-    mkdir -p "${ssh_dir}"
-    
-    if [[ ! -f "${key_path}" ]]; then
-        echo -e "${BLUE}[INFO]${NC} Gerando chave SSH..." >&2
-        ssh-keygen -t ed25519 -f "${key_path}" -N "" -C "build-vm" >/dev/null
-        chmod 600 "${key_path}"
-        chmod 644 "${key_path}.pub"
-    fi
-    
-    echo -e "${GREEN}[OK]${NC} Chave SSH: ${key_path}" >&2
-    echo "${key_path}"
+	local ssh_dir="${PROJECT_ROOT}/.ssh"
+	local key_path="${ssh_dir}/vm_key"
+
+	mkdir -p "${ssh_dir}"
+
+	if [[ ! -f ${key_path} ]]; then
+		echo -e "${BLUE}[INFO]${NC} Gerando chave SSH..." >&2
+		ssh-keygen -t ed25519 -f "${key_path}" -N "" -C "build-vm" >/dev/null
+		chmod 600 "${key_path}"
+		chmod 644 "${key_path}.pub"
+	fi
+
+	echo -e "${GREEN}[OK]${NC} Chave SSH: ${key_path}" >&2
+	echo "${key_path}"
 }
 
 create_preseed_config() {
-    log_info "Criando configuração preseed..."
-    
-    local internal_ssh_key_path="$1"
-    local internal_pub_key
-    internal_pub_key=$(cat "${internal_ssh_key_path}.pub")
-    
-    # Coletar todas as chaves públicas do usuário no host para garantir acesso sem senha
-    local user_pub_keys=""
-    if ls "${HOME}/.ssh"/*.pub &>/dev/null; then
-        log_info "Detectadas chaves SSH do usuário em ~/.ssh/, incluindo na VM..."
-        user_pub_keys=$(cat "${HOME}/.ssh"/*.pub)
-    fi
-    
-    # Unir chaves (interna + usuário)
-    local all_authorized_keys="${internal_pub_key}"
-    if [[ -n "${user_pub_keys}" ]]; then
-        all_authorized_keys="${all_authorized_keys}\n${user_pub_keys}"
-    fi
-    
-    mkdir -p "${PRESEED_DIR}"
-    
-    cat > "${PRESEED_DIR}/preseed.cfg" << EOF
+	log_info "Criando configuração preseed..."
+
+	local internal_ssh_key_path="$1"
+	local internal_pub_key
+	internal_pub_key=$(cat "${internal_ssh_key_path}.pub")
+
+	# Coletar todas as chaves públicas do usuário no host para garantir acesso sem senha
+	local user_pub_keys=""
+	if ls "${HOME}/.ssh"/*.pub &>/dev/null; then
+		log_info "Detectadas chaves SSH do usuário em ~/.ssh/, incluindo na VM..."
+		user_pub_keys=$(cat "${HOME}/.ssh"/*.pub)
+	fi
+
+	# Unir chaves (interna + usuário)
+	local all_authorized_keys="${internal_pub_key}"
+	if [[ -n ${user_pub_keys} ]]; then
+		all_authorized_keys="${all_authorized_keys}\n${user_pub_keys}"
+	fi
+
+	mkdir -p "${PRESEED_DIR}"
+
+	cat >"${PRESEED_DIR}/preseed.cfg" <<EOF
 # =============================================================================
 # Preseed para Debian 13 - VM de Build ISO
 # Instalação completamente automatizada
@@ -233,92 +233,91 @@ d-i preseed/late_command string \
     echo "VM configurada com sucesso!" > /target/root/vm_ready.txt
 EOF
 
-    log_ok "Preseed criado: ${PRESEED_DIR}/preseed.cfg"
+	log_ok "Preseed criado: ${PRESEED_DIR}/preseed.cfg"
 }
 
 create_vm_disk() {
-    log_info "Criando disco da VM..."
-    
-    qemu-img create -f qcow2 "${VM_DISK_PATH}" "${VM_DISK_SIZE}G"
-    
-    log_ok "Disco criado: ${VM_DISK_PATH} (${VM_DISK_SIZE}G)"
+	log_info "Criando disco da VM..."
+
+	qemu-img create -f qcow2 "${VM_DISK_PATH}" "${VM_DISK_SIZE}G"
+
+	log_ok "Disco criado: ${VM_DISK_PATH} (${VM_DISK_SIZE}G)"
 }
 
 start_installation() {
-    log_info "Iniciando instalação automatizada..."
-    log_info "Este processo leva ~15-20 minutos..."
-    
-    local shared_dir="${PROJECT_ROOT}"
-    # O diretório compartilhado agora é a raiz do projeto para permitir acesso direto aos scripts
-    chmod 777 "${shared_dir}"
-    
-    # Iniciar VM com instalação preseed + virtiofs (modo BIOS)
-    virt-install \
-        --name "${VM_NAME}" \
-        --memory "${VM_MEMORY}" \
-        --vcpus "${VM_VCPUS}" \
-        --disk "path=${VM_DISK_PATH},format=qcow2,bus=virtio" \
-        --location "${DEBIAN_ISO}" \
-        --os-variant debian12 \
-        --network network=default,model=virtio \
-        --graphics none \
-        --console pty,target_type=serial \
-        --filesystem "source=${shared_dir},target=build-iso,driver.type=virtiofs" \
-        --memorybacking source.type=memfd,access.mode=shared \
-        --extra-args "auto=true priority=critical preseed/file=/preseed.cfg debian-installer/locale=pt_BR.UTF-8 debian-installer/language=pt debian-installer/country=BR keyboard-configuration/xkb-keymap=br console=tty0 console=ttyS0,115200n8" \
-        --initrd-inject="${PRESEED_DIR}/preseed.cfg" \
-        --noautoconsole \
-        --wait -1
-    
-    log_ok "Instalação concluída!"
+	log_info "Iniciando instalação automatizada..."
+	log_info "Este processo leva ~15-20 minutos..."
+
+	local shared_dir="${PROJECT_ROOT}"
+	# O diretório compartilhado agora é a raiz do projeto para permitir acesso direto aos scripts
+	chmod 777 "${shared_dir}"
+
+	# Iniciar VM com instalação preseed + virtiofs (modo BIOS)
+	virt-install \
+		--name "${VM_NAME}" \
+		--memory "${VM_MEMORY}" \
+		--vcpus "${VM_VCPUS}" \
+		--disk "path=${VM_DISK_PATH},format=qcow2,bus=virtio" \
+		--location "${DEBIAN_ISO}" \
+		--os-variant debian12 \
+		--network network=default,model=virtio \
+		--graphics none \
+		--console pty,target_type=serial \
+		--filesystem "source=${shared_dir},target=build-iso,driver.type=virtiofs" \
+		--memorybacking source.type=memfd,access.mode=shared \
+		--extra-args "auto=true priority=critical preseed/file=/preseed.cfg debian-installer/locale=pt_BR.UTF-8 debian-installer/language=pt debian-installer/country=BR keyboard-configuration/xkb-keymap=br console=tty0 console=ttyS0,115200n8" \
+		--initrd-inject="${PRESEED_DIR}/preseed.cfg" \
+		--noautoconsole \
+		--wait -1
+
+	log_ok "Instalação concluída!"
 }
 
 wait_for_vm() {
-    log_info "Aguardando VM reiniciar..."
+	log_info "Aguardando VM reiniciar..."
 
-    sleep 30s
-    
-    local ssh_key="${PROJECT_ROOT}/.ssh/vm_key"
-    local max_attempts=60
-    local attempt=1
-    local vm_ip=""
+	sleep 30s
 
+	local ssh_key="${PROJECT_ROOT}/.ssh/vm_key"
+	local max_attempts=60
+	local attempt=1
+	local vm_ip=""
 
-    sleep 30s
+	sleep 30s
 
-    while [[ $attempt -le $max_attempts ]]; do
-        vm_ip=$(virsh domifaddr "${VM_NAME}" 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | sort -u || echo "")
-        
-        if [[ -n "${vm_ip}" ]]; then
-            if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o BatchMode=yes \
-                   -i "${ssh_key}" root@"${vm_ip}" "test -f /root/vm_ready.txt" &>/dev/null; then
-                echo ""
-                log_ok "VM pronta! IP: ${vm_ip}"
-                echo "${vm_ip}"
-                return 0
-            fi
-        fi
-        
-        echo -n "."
-        sleep 10
-        ((attempt++))
-    done
-    
-    echo ""
-    log_error "Timeout aguardando VM"
-    return 1
+	while [[ ${attempt} -le ${max_attempts} ]]; do
+		vm_ip=$(virsh domifaddr "${VM_NAME}" 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | sort -u || echo "")
+
+		if [[ -n ${vm_ip} ]]; then
+			if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o BatchMode=yes \
+				-i "${ssh_key}" root@"${vm_ip}" "test -f /root/vm_ready.txt" &>/dev/null; then
+				echo ""
+				log_ok "VM pronta! IP: ${vm_ip}"
+				echo "${vm_ip}"
+				return 0
+			fi
+		fi
+
+		echo -n "."
+		sleep 10
+		((attempt++))
+	done
+
+	echo ""
+	log_error "Timeout aguardando VM"
+	return 1
 }
 
 save_vm_info() {
-    local vm_ip="$1"
-    
-    cat > "${PROJECT_ROOT}/.vm_info" << EOF
+	local vm_ip="$1"
+
+	cat >"${PROJECT_ROOT}/.vm_info" <<EOF
 VM_NAME=${VM_NAME}
 VM_IP=${vm_ip}
 SSH_KEY=${PROJECT_ROOT}/.ssh/vm_key
 EOF
-    
-    log_ok "Informações salvas em .vm_info"
+
+	log_ok "Informações salvas em .vm_info"
 }
 
 # =============================================================================
@@ -326,31 +325,31 @@ EOF
 # =============================================================================
 
 main() {
-    echo "============================================="
-    echo " Criando VM Debian 13 (Preseed Automatizado)"
-    echo "============================================="
-    
-    check_root
-    cleanup_existing_vm
-    download_iso
-    
-    local ssh_key_path
-    ssh_key_path=$(generate_ssh_key)
-    
-    create_preseed_config "${ssh_key_path}"
-    create_vm_disk
-    start_installation
-    
-    local vm_ip
-    vm_ip=$(wait_for_vm)
-    
-    save_vm_info "${vm_ip}"
-    
-    echo ""
-    log_ok "VM criada com sucesso!"
-    echo ""
-    log_info "Para acessar: ssh -i ${PROJECT_ROOT}/.ssh/vm_key root@${vm_ip}"
-    log_info "Senha root: root"
+	echo "============================================="
+	echo " Criando VM Debian 13 (Preseed Automatizado)"
+	echo "============================================="
+
+	check_root
+	cleanup_existing_vm
+	download_iso
+
+	local ssh_key_path
+	ssh_key_path=$(generate_ssh_key)
+
+	create_preseed_config "${ssh_key_path}"
+	create_vm_disk
+	start_installation
+
+	local vm_ip
+	vm_ip=$(wait_for_vm)
+
+	save_vm_info "${vm_ip}"
+
+	echo ""
+	log_ok "VM criada com sucesso!"
+	echo ""
+	log_info "Para acessar: ssh -i ${PROJECT_ROOT}/.ssh/vm_key root@${vm_ip}"
+	log_info "Senha root: root"
 }
 
 main "$@"
