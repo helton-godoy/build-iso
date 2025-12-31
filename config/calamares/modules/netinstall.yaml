@@ -13,18 +13,18 @@
     - linux-headers-amd64
     - systemd
     - dbus
-    
+
     # ZFS
     - zfsutils-linux
     - zfs-dkms
     - zfs-initramfs
-    
+
     # Rede
     - network-manager
     - openssh-server
     - curl
     - wget
-    
+
     # Ferramentas servidor
     - vim
     - nano
@@ -36,16 +36,16 @@
     - screen
     - mc
     - ncdu
-    
+
     # Monitoramento
     - iotop
     - iftop
     - glances
-    
+
     # Segurança
     - fail2ban
     - ufw
-    
+
     # Particionamento
     - gdisk
     - parted
@@ -62,12 +62,12 @@
     - linux-headers-amd64
     - systemd
     - dbus
-    
+
     # ZFS
     - zfsutils-linux
     - zfs-dkms
     - zfs-initramfs
-    
+
     # Rede e ferramentas
     - network-manager
     - openssh-server
@@ -79,27 +79,27 @@
     - git
     - rsync
     - sudo
-    
+
     # Particionamento
     - gdisk
     - parted
     - dosfstools
     - efibootmgr
-    
+
     # KDE Plasma Core
     - plasma-desktop
     - plasma-workspace
     - sddm
     - sddm-theme-breeze
     - kwin-x11
-    
+
     # Componentes Plasma
     - plasma-nm
     - plasma-pa
     - powerdevil
     - bluedevil
     - systemsettings
-    
+
     # Aplicativos Qt
     - dolphin
     - dolphin-plugins
@@ -110,15 +110,15 @@
     - kcalc
     - spectacle
     - partitionmanager
-    
+
     # Navegador
     - firefox-esr
-    
+
     # Áudio
     - pipewire
     - pipewire-pulse
     - wireplumber
-    
+
     # Tema e fontes
     - breeze
     - breeze-icon-theme

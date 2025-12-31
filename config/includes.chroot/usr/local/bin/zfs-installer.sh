@@ -9,14 +9,13 @@ set -e
 target_disk=${1:-"/dev/sda"}
 mount_point=${2:-"/tmp/calamares-root"}
 pool_name=${3:-"zroot"}
-host_name=${4:-"debian-zfs"}
 
 # Detecção automática de fallback se o disco informado não existir
-if [ ! -b "${target_disk}" ]; then
+if [[ ! -b ${target_disk} ]]; then
 	echo "Aviso: ${target_disk} não encontrado. Tentando detectar disco disponível..."
 	# Tenta detectar vda, sda, nvme0n1 (excluindo loop, sr, ram)
 	DETECTED_DISK=$(lsblk -d -n -o NAME,TYPE | awk '$2=="disk" && $1!~/^(loop|sr|ram)/ {print "/dev/"$1}' | head -n 1)
-	if [ -n "$DETECTED_DISK" ]; then
+	if [[ -n ${DETECTED_DISK} ]]; then
 		echo "Disco detectado: ${DETECTED_DISK}"
 		target_disk="${DETECTED_DISK}"
 	else
@@ -42,7 +41,7 @@ sleep 2
 
 # Obter nomes das partições robustamente
 # Detecta sufixo 'p' para nvme/mmc
-if [[ "${target_disk}" =~ nvme|mmcblk|loop ]]; then
+if [[ ${target_disk} =~ nvme|mmcblk|loop ]]; then
 	part_efi="${target_disk}p1"
 	part_zfs="${target_disk}p2"
 else

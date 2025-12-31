@@ -17,6 +17,7 @@ sudo ./scripts/host/build_master.sh
 ```
 
 O script irá automaticamente:
+
 1. Instalar KVM/libvirt (se necessário)
 2. Criar VM Debian 13 headless
 3. Executar build da ISO
@@ -24,24 +25,24 @@ O script irá automaticamente:
 
 ## Comandos
 
-| Comando | Descrição |
-|---------|-----------|
-| `build` | Build completo (padrão) |
-| `setup` | Apenas configurar host |
-| `create-vm` | Apenas criar VM |
-| `status` | Mostrar status da VM |
-| `ssh` | Conectar na VM |
-| `stop` | Parar VM |
-| `destroy` | Remover VM |
+| Comando     | Descrição               |
+| ----------- | ----------------------- |
+| `build`     | Build completo (padrão) |
+| `setup`     | Apenas configurar host  |
+| `create-vm` | Apenas criar VM         |
+| `status`    | Mostrar status da VM    |
+| `ssh`       | Conectar na VM          |
+| `stop`      | Parar VM                |
+| `destroy`   | Remover VM              |
 
 ## Perfis de Instalação
 
 A ISO gerada oferece dois perfis via Calamares:
 
-| Perfil | Descrição |
-|--------|-----------|
-| **Server** | Modo texto, headless, SSH |
-| **Workstation** | KDE Plasma minimalista |
+| Perfil          | Descrição                 |
+| --------------- | ------------------------- |
+| **Server**      | Modo texto, headless, SSH |
+| **Workstation** | KDE Plasma minimalista    |
 
 Ambos com suporte a ZFS como sistema de arquivos.
 

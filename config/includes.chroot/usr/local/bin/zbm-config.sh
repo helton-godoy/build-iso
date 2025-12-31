@@ -12,8 +12,9 @@ override_efi_part=$2
 
 # Recuperar informações salvas pelo zfs-installer.sh
 INFO_FILE="/tmp/zfs_install_info"
-if [ -f "$INFO_FILE" ]; then
-	source "$INFO_FILE"
+# shellcheck disable=SC1090,SC2153
+if [[ -f ${INFO_FILE} ]]; then
+	source "${INFO_FILE}"
 	echo "Carregado estado da instalação: TARGET_DISK=${TARGET_DISK}, EFI_PART=${EFI_PART}"
 
 	# Se carregou do arquivo, usamos essas variáveis
@@ -26,7 +27,7 @@ else
 	echo "Aviso: Informação de estado não encontrada. Usando argumentos: ${efi_part}"
 fi
 
-if [ ! -b "${efi_part}" ]; then
+if [[ ! -b ${efi_part} ]]; then
 	echo "Erro: Partição EFI ${efi_part} não encontrada ou inválida!"
 	exit 1
 fi
@@ -44,7 +45,7 @@ cp /usr/share/zfsbootmenu/zfsbootmenu.EFI "${target_root}/boot/efi/EFI/ZBM/zfsbo
 # 3. Registrar na NVRAM com efibootmgr
 # Assumindo partição 1 para EFI conforme zfs-installer.sh
 efibootmgr -c -d "${target_disk}" -p 1 \
-	-L "ZFSBootMenu" -l "\\EFI\\ZBM\\zfsbootmenu.EFI"
+	-L "ZFSBootMenu" -l '\EFI\ZBM\zfsbootmenu.EFI'
 
 # 4. Configurações ZFS para o Menu e Initramfs
 # Garantir que o hostid seja consistente

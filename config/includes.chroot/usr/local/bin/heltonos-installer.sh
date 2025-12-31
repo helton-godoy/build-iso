@@ -8,7 +8,7 @@ set -e
 
 # --- CONFIGURAÇÃO ---
 LOG_FILE="/var/log/heltonos-install.log"
-exec > >(tee -a "$LOG_FILE") 2>&1
+exec > >(tee -a "${LOG_FILE}") 2>&1
 
 function log() {
 	echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
@@ -32,7 +32,7 @@ clear
 gum style --foreground "#00FFFF" --border double --margin "1" --padding "0 2" "🧭 Instalador HeltonOS (Debian 13 | ZFS | ZBM)"
 
 # Validar modo de boot
-if [ -d "/sys/firmware/efi" ]; then
+if [[ -d "/sys/firmware/efi" ]]; then
 	BOOT_MODE="UEFI"
 else
 	BOOT_MODE="BIOS"
@@ -44,41 +44,41 @@ fi
 # Filtrar loop, sr (cdrom), e ram
 DISKS=$(lsblk -d -n -o NAME,SIZE,MODEL,TYPE | awk '$4=="disk" && $1!~/^(loop|sr|ram)/ {print "/dev/"$1 " (" $2 " - " $3 ")"}')
 
-if [ -z "$DISKS" ]; then
+if [[ -z ${DISKS} ]]; then
 	error_exit "Nenhum disco físico detectado no sistema."
 fi
 
 gum style --foreground "#FFD700" "Selecione o(s) disco(s) para instalação:"
-SELECTED_DISKS_RAW=$(gum choose --no-limit --height 10 $DISKS)
+SELECTED_DISKS_RAW=$(gum choose --no-limit --height 10 "${DISKS}")
 
-if [ -z "$SELECTED_DISKS_RAW" ]; then
+if [[ -z ${SELECTED_DISKS_RAW} ]]; then
 	error_exit "Nenhum disco selecionado. Instalação cancelada."
 fi
 
 # Processar seleção
 TARGET_DISKS=()
 while IFS= read -r line; do
-	disk=$(echo "$line" | awk '{print $1}')
-	TARGET_DISKS+=("$disk")
-done <<<"$SELECTED_DISKS_RAW"
+	disk=$(echo "${line}" | awk '{print $1}')
+	TARGET_DISKS+=("${disk}")
+done <<<"${SELECTED_DISKS_RAW}"
 
 NUM_DISKS=${#TARGET_DISKS[@]}
 log "Discos selecionados: ${TARGET_DISKS[*]}"
 
 # Configuração de RAID
 RAID_TYPE=""
-if [ "$NUM_DISKS" -gt 1 ]; then
+if [[ ${NUM_DISKS} -gt 1 ]]; then
 	RAID_TYPE=$(gum choose --header "Selecione o nível de RAID ZFS:" "mirror" "raidz1" "raidz2" "raid10 (striped mirror)")
-	if [ "$RAID_TYPE" == "raid10 (striped mirror)" ]; then RAID_TYPE="raid10"; fi
+	if [[ ${RAID_TYPE} == "raid10 (striped mirror)" ]]; then RAID_TYPE="raid10"; fi
 fi
 
 # Opções de Bootloader
 USE_ZBM=true
 USE_GRUB=false
 
-if [ "$BOOT_MODE" == "UEFI" ]; then
+if [[ ${BOOT_MODE} == "UEFI" ]]; then
 	BOOTLOADER_CHOICE=$(gum choose --header "Selecione o Bootloader Principal:" "ZFSBootMenu (Recomendado)" "Grub (Apenas)" "Ambos (ZBM + Grub Fallback)")
-	case "$BOOTLOADER_CHOICE" in
+	case "${BOOTLOADER_CHOICE}" in
 	"ZFSBootMenu (Recomendado)")
 		USE_ZBM=true
 		USE_GRUB=false
@@ -100,7 +100,7 @@ fi
 
 # Encriptação
 ENCRYPT=$(gum choose --header "Encriptar o disco (Native ZFS Encryption)?" "Não" "Sim")
-if [ "$ENCRYPT" == "Sim" ]; then
+if [[ ${ENCRYPT} == "Sim" ]]; then
 	gum style "A senha será solicitada durante a criação do pool."
 fi
 
@@ -116,8 +116,8 @@ gum style --border double "Resumo da Instalação"
 echo "Discos: ${TARGET_DISKS[*]}"
 echo "RAID: ${RAID_TYPE:-Single}"
 echo "Bootloader: ZBM=${USE_ZBM}, GRUB=${USE_GRUB}"
-echo "Ecriptação: $ENCRYPT"
-echo "Hostname: $HOSTNAME"
+echo "Encriptação: ${ENCRYPT}"
+echo "Hostname: ${HOSTNAME}"
 echo "---"
 gum style --foreground "#FF0000" "ATENÇÃO: DADOS SERÃO APAGADOS PERMANENTEMENTE!"
 gum confirm "Iniciar Instalação?" || exit 0
@@ -132,7 +132,6 @@ gum confirm "Iniciar Instalação?" || exit 0
 # P3: bpool (1G ou 2G) - Compatibilidade Grub/ZBM
 # P4: rpool (Resto)
 
-PART_BIOS=1
 PART_EFI=2
 PART_BPOOL=3
 PART_RPOOL=4
@@ -140,43 +139,40 @@ PART_RPOOL=4
 gum spin --title "Limpando e particionando discos..." -- bash -c "sleep 2"
 
 for disk in "${TARGET_DISKS[@]}"; do
-	log "Preparando $disk..."
-	wipefs -a "$disk"
-	sgdisk --zap-all "$disk"
+	log "Preparando ${disk}..."
+	wipefs -a "${disk}"
+	sgdisk --zap-all "${disk}"
 
 	# Criar partições
 	# 1: Tratamento Legacy (se necessário)
-	if [ "$BOOT_MODE" == "BIOS" ]; then
-		sgdisk -a1 -n1:24K:+1000K -t1:EF02 "$disk" # BIOS Boot
+	if [[ ${BOOT_MODE} == "BIOS" ]]; then
+		sgdisk -a1 -n1:24K:+1000K -t1:EF02 "${disk}" # BIOS Boot
 	else
 		# Espaço reservado/alinhamento
 		:
 	fi
 
 	# 2: EFI (Sempre criada para compatibilidade e ZBM)
-	sgdisk -n2:1M:+512M -t2:EF00 "$disk"
+	sgdisk -n2:1M:+512M -t2:EF00 "${disk}"
 
 	# 3: bpool (Boot Pool)
 	# Aumentar para 2G para caber kernels + initramfs + backups ZBM
-	sgdisk -n3:0:+2G -t3:BF01 "$disk"
+	sgdisk -n3:0:+2G -t3:BF01 "${disk}"
 
 	# 4: rpool (Root Pool)
-	sgdisk -n4:0:0 -t4:BF00 "$disk"
+	sgdisk -n4:0:0 -t4:BF00 "${disk}"
 
 	# Notificar kernel
-	partprobe "$disk" || true
+	partprobe "${disk}" || true
 done
 
 sleep 2
 
 # Construir lista de vdevs com sufixos corretos
-BPOOL_VDEVS=""
-RPOOL_VDEVS=""
-
 # Detecção de sufixo (pX para nvme/mmc, X para sd/vd)
 get_part_suffix() {
 	local disk=$1
-	if [[ "$disk" =~ nvme|mmcblk|loop ]]; then echo "p"; else echo ""; fi
+	if [[ ${disk} =~ nvme|mmcblk|loop ]]; then echo "p"; else echo ""; fi
 }
 
 # Tratamento de RAID para string do zpool
@@ -184,25 +180,25 @@ construct_vdev_list() {
 	local part_num=$1
 	local vdev_list=""
 
-	if [ "$RAID_TYPE" == "mirror" ] || [ "$RAID_TYPE" == "raidz1" ] || [ "$RAID_TYPE" == "raidz2" ]; then
-		vdev_list="$RAID_TYPE"
-	elif [ "$RAID_TYPE" == "raid10" ]; then
+	if [[ ${RAID_TYPE} == "mirror" ]] || [[ ${RAID_TYPE} == "raidz1" ]] || [[ ${RAID_TYPE} == "raidz2" ]]; then
+		vdev_list="${RAID_TYPE}"
+	elif [[ ${RAID_TYPE} == "raid10" ]]; then
 		# Complexo, simplificado para mirror pares se raid10 (não implementado full lógica aqui, fallback mirror)
 		vdev_list="mirror"
 	fi
 
 	for disk in "${TARGET_DISKS[@]}"; do
-		suffix=$(get_part_suffix "$disk")
-		vdev_list="$vdev_list $disk${suffix}${part_num}"
+		suffix=$(get_part_suffix "${disk}")
+		vdev_list="${vdev_list} ${disk}${suffix}${part_num}"
 	done
-	echo "$vdev_list"
+	echo "${vdev_list}"
 }
 
-BPOOL_ARGS=$(construct_vdev_list $PART_BPOOL)
-RPOOL_ARGS=$(construct_vdev_list $PART_RPOOL)
+BPOOL_ARGS=$(construct_vdev_list "${PART_BPOOL}")
+RPOOL_ARGS=$(construct_vdev_list "${PART_RPOOL}")
 
-log "Criando bpool com args: $BPOOL_ARGS"
-log "Criando rpool com args: $RPOOL_ARGS"
+log "Criando bpool com args: ${BPOOL_ARGS}"
+log "Criando rpool com args: ${RPOOL_ARGS}"
 
 # Criar bpool
 # Features conservadoras para compatibilidade Grub/ZBM
@@ -217,25 +213,25 @@ zpool create -f \
 	-O normalization=formD \
 	-O relatime=on \
 	-O canmount=off -O mountpoint=/boot -R /mnt \
-	bpool $BPOOL_ARGS
+	bpool "${BPOOL_ARGS}"
 
 # Criar rpool
 RPOOL_OPTS="-O acltype=posixacl -O xattr=sa -O dnodesize=auto -O compression=lz4 -O normalization=formD -O relatime=on -O canmount=off -O mountpoint=/ -R /mnt"
 
-if [ "$ENCRYPT" == "Sim" ]; then
+if [[ ${ENCRYPT} == "Sim" ]]; then
 	gum style "Digite a senha de encriptação para o ZFS (rpool):"
 	zpool create -f \
 		-o ashift=12 \
 		-o autotrim=on \
 		-O encryption=on -O keylocation=prompt -O keyformat=passphrase \
-		$RPOOL_OPTS \
-		rpool $RPOOL_ARGS
+		"${RPOOL_OPTS}" \
+		rpool "${RPOOL_ARGS}"
 else
 	zpool create -f \
 		-o ashift=12 \
 		-o autotrim=on \
-		$RPOOL_OPTS \
-		rpool $RPOOL_ARGS
+		"${RPOOL_OPTS}" \
+		rpool "${RPOOL_ARGS}"
 fi
 
 # Datasets
@@ -278,10 +274,10 @@ gum spin --title "Baixando pacotes base Debian Trixie..." -- \
 # =============================================================================
 
 # Arquivos de Configuração Básicos
-echo "$HOSTNAME" >/mnt/etc/hostname
+echo "${HOSTNAME}" >/mnt/etc/hostname
 cat <<EOF >/mnt/etc/hosts
 127.0.0.1 localhost
-127.0.1.1 $HOSTNAME
+127.0.1.1 ${HOSTNAME}
 EOF
 
 # Network (Copiando interfaces do live ou padrao simples)
@@ -386,7 +382,7 @@ EOF_CHROOT
 chmod +x /mnt/tmp/install_internal.sh
 
 log "Executando configuração no chroot..."
-gum spin --title "Configurando sistema no chroot..." -- chroot /mnt /tmp/install_internal.sh
+gum spin --title "Configurando sistema no chroot..." -- chroot /mnt env USERNAME="${USERNAME}" PASSWORD="${PASSWORD}" ROOT_PASSWORD="${ROOT_PASSWORD}" /tmp/install_internal.sh
 
 # =============================================================================
 # 5. INSTALAÇÃO DE BOOTLOADER
@@ -395,24 +391,24 @@ gum spin --title "Configurando sistema no chroot..." -- chroot /mnt /tmp/install
 # Montagem de EFI
 # Vamos montar a partição EFI do primeiro disco em /boot/efi no chroot
 FIRST_DISK=${TARGET_DISKS[0]}
-SUFFIX=$(get_part_suffix "$FIRST_DISK")
+SUFFIX=$(get_part_suffix "${FIRST_DISK}")
 EFI_PART="${FIRST_DISK}${SUFFIX}${PART_EFI}"
 
-log "Formatando e montando EFI: $EFI_PART"
-mkfs.vfat -F32 "$EFI_PART"
+log "Formatando e montando EFI: ${EFI_PART}"
+mkfs.vfat -F32 "${EFI_PART}"
 mkdir -p /mnt/boot/efi
-mount "$EFI_PART" /mnt/boot/efi
+mount "${EFI_PART}" /mnt/boot/efi
 
 # Gerar fstab (básico para EFI, o resto é ZFS automount)
-echo "UUID=$(blkid -s UUID -o value $EFI_PART) /boot/efi vfat defaults 0 0" >/mnt/etc/fstab
+echo "UUID=$(blkid -s UUID -o value "${EFI_PART}") /boot/efi vfat defaults 0 0" >/mnt/etc/fstab
 
 # --- ZFSBOOTMENU ---
-if [ "$USE_ZBM" == "true" ]; then
+if [[ ${USE_ZBM} == "true" ]]; then
 	log "Instalando ZFSBootMenu..."
 	mkdir -p /mnt/boot/efi/EFI/ZBM
 
 	# 1. Tentar copiar da ISO (local)
-	if [ -f "/usr/share/zfsbootmenu/zfsbootmenu.EFI" ]; then
+	if [[ -f "/usr/share/zfsbootmenu/zfsbootmenu.EFI" ]]; then
 		cp /usr/share/zfsbootmenu/zfsbootmenu.EFI /mnt/boot/efi/EFI/ZBM/zfsbootmenu.EFI
 	else
 		# 2. Download Fallback
@@ -426,7 +422,7 @@ if [ "$USE_ZBM" == "true" ]; then
 	efibootmgr -B -L "ZFSBootMenu" || true
 	# Criar nova
 	# Precisamos do device path para efibootmgr (-d disk -p part)
-	efibootmgr -c -d "$FIRST_DISK" -p "$PART_EFI" -L "ZFSBootMenu" -l "\\EFI\\ZBM\\zfsbootmenu.EFI"
+	efibootmgr -c -d "${FIRST_DISK}" -p "${PART_EFI}" -L "ZFSBootMenu" -l '\EFI\ZBM\zfsbootmenu.EFI'
 
 	# Configurar propriedades ZBM no dataset ROOT
 	# ZBM usa org.zfsbootmenu:commandline para argumentos do kernel
@@ -435,13 +431,13 @@ if [ "$USE_ZBM" == "true" ]; then
 	zfs set org.zfsbootmenu:dodes="true" rpool/ROOT/debian # Tentativa de setup automático chave
 
 	# Se encriptado, garantir que ZBM pergunte a senha
-	if [ "$ENCRYPT" == "Sim" ]; then
+	if [[ ${ENCRYPT} == "Sim" ]]; then
 		zfs set org.zfsbootmenu:keysource="rpool" rpool/ROOT/debian
 	fi
 fi
 
 # --- GRUB ---
-if [ "$USE_GRUB" == "true" ]; then
+if [[ ${USE_GRUB} == "true" ]]; then
 	log "Instalando Grub..."
 	gum spin --title "Instalando Grub..." -- bash -c "
         chroot /mnt apt-get install -y grub-efi-amd64 shim-signed grub-pc-bin

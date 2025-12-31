@@ -35,20 +35,20 @@ check_deps() {
 	local cmds=(mmdebstrap mksquashfs xorriso mcopy mkfs.vfat grub-mkrescue curl git rsync)
 
 	for cmd in "${cmds[@]}"; do
-		if ! command -v "$cmd" &>/dev/null; then
-			log_error "Comando ausente: $cmd"
+		if ! command -v "${cmd}" &>/dev/null; then
+			log_error "Comando ausente: ${cmd}"
 			log_info "Instale as dependências: apt install mmdebstrap squashfs-tools xorriso mtools dosfstools grub-pc-bin grub-efi-amd64-bin curl git rsync"
 			exit 1
 		fi
 	done
 
 	# Verificação específica para módulos do GRUB (pacotes bin)
-	if [ ! -d "/usr/lib/grub/i386-pc" ]; then
+	if [[ ! -d "/usr/lib/grub/i386-pc" ]]; then
 		log_error "Módulos GRUB PC (BIOS) ausentes."
 		log_info "Instale: apt install grub-pc-bin"
 		exit 1
 	fi
-	if [ ! -d "/usr/lib/grub/x86_64-efi" ]; then
+	if [[ ! -d "/usr/lib/grub/x86_64-efi" ]]; then
 		log_error "Módulos GRUB EFI ausentes."
 		log_info "Instale: apt install grub-efi-amd64-bin"
 		exit 1
@@ -115,7 +115,8 @@ build_rootfs() {
 	# Combinar listas
 	local ALL_PKGS=("${PKG_BASE[@]}" "${PKG_SERVER[@]}" "${PKG_WORKSTATION[@]}" "${PKG_CALAMARES[@]}")
 	# Converter array para string separada por vírgula
-	local PKG_STR=$(
+	local PKG_STR
+	PKG_STR=$(
 		IFS=,
 		echo "${ALL_PKGS[*]}"
 	)
@@ -124,6 +125,7 @@ build_rootfs() {
 	# --mode=root: Executado como root
 	# --components: main contrib non-free non-free-firmware
 
+	# shellcheck disable=SC2016
 	mmdebstrap \
 		--mode=root \
 		--architectures="${ARCH}" \
@@ -166,11 +168,12 @@ configure_rootfs() {
 	chmod 640 "${R}/etc/shadow" 2>/dev/null || true
 
 	# Gerar hash da senha 'live'
-	local PASS_HASH=$(openssl passwd -6 "live")
+	local PASS_HASH
+	PASS_HASH=$(openssl passwd -6 "live")
 
-	chroot "$R" useradd -m -G sudo,cdrom,dip,plugdev,netdev,audio,video -s /bin/bash -p "${PASS_HASH}" user || true
+	chroot "${R}" useradd -m -G sudo,cdrom,dip,plugdev,netdev,audio,video -s /bin/bash -p "${PASS_HASH}" user || true
 	# Caso o usuário já exista (re-run), garantir a senha
-	chroot "$R" usermod -p "${PASS_HASH}" user
+	chroot "${R}" usermod -p "${PASS_HASH}" user
 
 	# SDDM Autologin (KDE)
 	mkdir -p "${R}/etc/sddm.conf.d"
@@ -184,14 +187,14 @@ EOF
 	# ZFSBootMenu (Download se não existir)
 	local ZBM_DIR="${R}/usr/share/zfsbootmenu"
 	mkdir -p "${ZBM_DIR}"
-	if [ ! -f "${ZBM_DIR}/zfsbootmenu.EFI" ]; then
+	if [[ ! -f "${ZBM_DIR}/zfsbootmenu.EFI" ]]; then
 		log_info "Baixando ZFSBootMenu..."
 		curl -L -o "${ZBM_DIR}/zfsbootmenu.EFI" \
 			"https://github.com/zbm-dev/zfsbootmenu/releases/latest/download/zfsbootmenu-x86_64-vmlinuz.EFI" || log_warn "Falha download ZBM"
 	fi
 
 	# Limpeza
-	chroot "$R" apt-get clean
+	chroot "${R}" apt-get clean
 	rm -rf "${R}/var/lib/apt/lists/*"
 	rm -rf "${R}/tmp/*"
 
@@ -211,14 +214,14 @@ copy_installer_files() {
 	local REPO_ROOT="/root/build-iso"
 
 	# 1. Overlay includes.chroot (scripts, zbm-config, etc)
-	if [ -d "${REPO_ROOT}/config/includes.chroot" ]; then
+	if [[ -d "${REPO_ROOT}/config/includes.chroot" ]]; then
 		log_info "Aplicando overlay includes.chroot..."
 		rsync -avK "${REPO_ROOT}/config/includes.chroot/" "${R}/"
 	fi
 
 	# 2. Configurações do Calamares
 	mkdir -p "${R}/etc/calamares"
-	if [ -d "${REPO_ROOT}/config/calamares" ]; then
+	if [[ -d "${REPO_ROOT}/config/calamares" ]]; then
 		log_info "Copiando configurações do Calamares..."
 		# Copiar recursivamente
 		rsync -avK "${REPO_ROOT}/config/calamares/" "${R}/etc/calamares/"
@@ -239,8 +242,10 @@ pack_rootfs() {
 
 	# Copiar Kernel e Initrd para diretório live
 	# Encontrar versão mais recente instalada
-	local KERNEL_V=$(ls "${BUILD_DIR}/rootfs/boot/vmlinuz-"* | sort -V | tail -n1 | sed 's/.*vmlinuz-//')
-	log_info "Kernel versão: $KERNEL_V"
+	local KERNEL_V
+	# shellcheck disable=SC2012
+	KERNEL_V=$(ls "${BUILD_DIR}/rootfs/boot/vmlinuz-"* | sort -V | tail -n1 | sed 's/.*vmlinuz-//')
+	log_info "Kernel versão: ${KERNEL_V}"
 
 	cp "${BUILD_DIR}/rootfs/boot/vmlinuz-${KERNEL_V}" "${BUILD_DIR}/iso/live/vmlinuz"
 	cp "${BUILD_DIR}/rootfs/boot/initrd.img-${KERNEL_V}" "${BUILD_DIR}/iso/live/initrd.img"
@@ -279,7 +284,7 @@ build_iso() {
 	# grub-mkrescue usa o diretório iso como raiz
 
 	# Garantir que o diretório de saída existe
-	if [ ! -d "${OUTPUT_DIR}" ]; then
+	if [[ ! -d ${OUTPUT_DIR} ]]; then
 		log_warn "Diretório de saída não encontrado. Recriando: ${OUTPUT_DIR}"
 		mkdir -p "${OUTPUT_DIR}"
 	fi
@@ -302,7 +307,7 @@ build_iso() {
 # =============================================================================
 
 main() {
-	if [ "$(id -u)" -ne 0 ]; then
+	if [[ "$(id -u)" -ne 0 ]]; then
 		log_error "Este script precisa rodar como root!"
 		exit 1
 	fi
