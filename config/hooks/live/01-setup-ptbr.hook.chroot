@@ -1,0 +1,21 @@
+#!/bin/bash
+set -e
+
+echo "🇧🇷 Configurando Locale PT-BR e Teclado ABNT2..."
+
+# Gera locale
+echo "pt_BR.UTF-8 UTF-8" >> /etc/locale.gen
+locale-gen pt_BR.UTF-8
+update-locale LANG=pt_BR.UTF-8
+
+echo 'LANG="pt_BR.UTF-8"' > /etc/default/locale
+
+# Configura teclado ABNT2
+cat <<TECLADO > /etc/default/keyboard
+XKBMODEL="abnt2"
+XKBLAYOUT="br"
+XKBVARIANT=""
+XKBOPTIONS=""
+TECLADO
+
+echo "✅ Locale e Teclado configurados."

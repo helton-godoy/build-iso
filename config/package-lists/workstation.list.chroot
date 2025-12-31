@@ -1,0 +1,25 @@
+# ----- Desktop Environment (KDE Plasma) -----
+kde-plasma-desktop
+plasma-desktop
+plasma-nm
+plasma-pa
+kwin-x11
+sddm
+xorg
+
+# ----- Apps -----
+konsole
+dolphin
+kate
+gparted
+firefox-esr
+firefox-esr-l10n-pt-br
+ark
+kde-spectacle
+gwenview
+
+# ----- Accessibility/Fonts -----
+fonts-noto-color-emoji
+fonts-liberation
+fonts-dejavu
+papirus-icon-theme

@@ -1,0 +1,7 @@
+🛠 HeltonOS Live System
+📦 Kernel: $(uname -r)
+👤 User: live (password: live)
+📡 Network: DHCP enabled by default
+
+🚀 Instalação:
+Execute 'sudo heltonos-installer.sh' para iniciar o assistente.

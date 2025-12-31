@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+echo "🖥️ Configurando framebuffer e console..."
+
+# Carregar módulos de framebuffer no boot
+echo -e "fbcon\nvesafb\nsimplefb\nefifb" >> /etc/modules
+
+# Configurar fonte e layout do console
+cat <<EOF > /etc/default/console-setup
+ACTIVE_CONSOLES="/dev/tty[1-6]"
+CHARMAP="UTF-8"
+CODESET="Lat15"
+FONTFACE="Terminus"
+FONTSIZE="16"
+XKBMODEL="abnt2"
+XKBLAYOUT="br"
+XKBVARIANT=""
+XKBOPTIONS=""
+EOF
+
+echo "✅ Framebuffer e Console configurados."

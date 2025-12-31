@@ -1,0 +1,75 @@
+# ----- Kernel & ZFS -----
+linux-image-amd64
+linux-headers-amd64
+zfs-dkms
+zfsutils-linux
+zfs-initramfs
+grub-pc-bin
+grub-efi-amd64-bin
+efibootmgr
+gdisk
+
+# ----- System & Live -----
+live-boot
+live-config
+live-tools
+sudo
+debootstrap
+parted
+bash-completion
+systemd-timesyncd
+ca-certificates
+gnupg
+
+# ----- Network -----
+systemd-networkd
+iproute2
+iputils-ping
+curl
+wget
+openssh-server
+dnsutils
+netcat-openbsd
+ethtool
+network-manager
+network-manager-gnome
+
+# ----- Tools -----
+htop
+btop
+screen
+tmux
+rsync
+git
+nano
+micro
+pciutils
+usbutils
+lshw
+lm-sensors
+smartmontools
+nvme-cli
+dosfstools
+zip
+unzip
+7zip
+zstd
+
+# ----- Localization (PT-BR) -----
+locales
+console-setup
+keyboard-configuration
+manpages-pt-br
+manpages-pt-br-dev
+task-portuguese
+task-brazilian-portuguese
+aspell-pt-br
+ibrazilian
+wbrazilian
+
+# ----- TUI Tools -----
+gum
+dialog
+whiptail
+lolcat
+figlet

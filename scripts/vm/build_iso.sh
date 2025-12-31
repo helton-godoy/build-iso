@@ -1,16 +1,19 @@
 #!/bin/bash
 # =============================================================================
-# build_iso.sh - Gera ISO Debian com perfis Server/Workstation
+# build_iso.sh - Gera ISO Debian com perfis Server/Workstation (mmdebstrap)
 # Executa DENTRO da VM de build
 # =============================================================================
 
 set -euo pipefail
 
 # Configurações
-BUILD_DIR="/root/build-iso/output/live-build"
+BUILD_DIR="/root/build-iso/work"
 OUTPUT_DIR="/root/build-iso/output/ISO"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 ISO_NAME="debian-zfs-${TIMESTAMP}.iso"
+DEBIAN_RELEASE="trixie"
+ARCH="amd64"
+HOSTNAME="debian-live"
 
 # Cores
 RED='\033[0;31m'
@@ -19,406 +22,279 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-log_info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
-log_ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
-log_warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+log_info() { echo -e "${BLUE}[INFO]${NC} $*"; }
+log_ok() { echo -e "${GREEN}[OK]${NC} $*"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 log_error() { echo -e "${RED}[ERRO]${NC} $*" >&2; }
 
 # =============================================================================
-# CONFIGURAÇÃO DO LIVE-BUILD
+# CHECAGEM DE DEPENDÊNCIAS
 # =============================================================================
+check_deps() {
+	# Comandos binários para verificar
+	local cmds=(mmdebstrap mksquashfs xorriso mcopy mkfs.vfat grub-mkrescue curl git rsync)
 
-setup_build_env() {
-    log_info "Configurando ambiente de build..."
-    
-    # Limpar build anterior
-    rm -rf "${BUILD_DIR}"
-    mkdir -p "${BUILD_DIR}" "${OUTPUT_DIR}"
-    cd "${BUILD_DIR}"
-    
-    log_ok "Ambiente preparado"
-}
+	for cmd in "${cmds[@]}"; do
+		if ! command -v "$cmd" &>/dev/null; then
+			log_error "Comando ausente: $cmd"
+			log_info "Instale as dependências: apt install mmdebstrap squashfs-tools xorriso mtools dosfstools grub-pc-bin grub-efi-amd64-bin curl git rsync"
+			exit 1
+		fi
+	done
 
-configure_live_build() {
-    log_info "Configurando live-build..."
-    
-    lb config \
-        --binary-images iso-hybrid \
-        --mode debian \
-        --distribution trixie \
-        --archive-areas "main contrib non-free non-free-firmware" \
-        --updates true \
-        --security true \
-        --backports false \
-        --apt-recommends false \
-        --apt-indices false \
-        --initramfs live-boot                                                            \
-        --linux-packages linux-image                                                     \
-        --bootappend-live "boot=live components quiet splash locales=pt_BR.UTF-8 username=live user-fullname=User hostname=Debian13 autologin" \
-        --debian-installer live \
-        --debian-installer-gui true \
-        --iso-application "Debian-ZFS-ISO" \
-        --iso-publisher "Helton Godoy" \
-        --iso-volume "Debian-ZFS-${TIMESTAMP}"
-    
-    log_ok "live-build configurado"
+	# Verificação específica para módulos do GRUB (pacotes bin)
+	if [ ! -d "/usr/lib/grub/i386-pc" ]; then
+		log_error "Módulos GRUB PC (BIOS) ausentes."
+		log_info "Instale: apt install grub-pc-bin"
+		exit 1
+	fi
+	if [ ! -d "/usr/lib/grub/x86_64-efi" ]; then
+		log_error "Módulos GRUB EFI ausentes."
+		log_info "Instale: apt install grub-efi-amd64-bin"
+		exit 1
+	fi
 }
 
 # =============================================================================
-# PACOTES BASE (comum a ambos perfis)
+# DEFINIÇÃO DE PACOTES
 # =============================================================================
 
-add_base_packages() {
-    log_info "Adicionando pacotes base..."
+PKG_BASE=(
+	# ZFS
+	zfsutils-linux zfs-dkms zfs-initramfs zfs-zed libpam-zfs libzfsbootenv1linux libzfslinux-dev
+	# Kernel
+	linux-image-amd64 linux-headers-amd64 dkms
+	# Rede
+	network-manager isc-dhcp-client iputils-ping iproute2 openssh-server dnsutils nmap mtr iperf iperf3 nload ncdu
+	# Tools
+	keyboard-configuration coreutils bash bash-completion ca-certificates gnupg nano htop curl wget
+	tmux git gum lolcat figlet rsync tar zip unzip ethtool pciutils usbutils numactl hwloc smartmontools
+	nvme-cli lshw lm-sensors
+	# Compressão & Particionamento
+	zstd lz4 lzop gdisk parted dosfstools efibootmgr
+	# Locale
+	locales console-setup manpages-pt-br manpages-pt-br-dev task-portuguese task-brazilian-portuguese
+	aspell-pt-br ibrazilian wbrazilian info info2man
+	# Live System
+	live-boot live-config live-config-systemd squashfs-tools grub-pc-bin grub-efi-amd64-bin
+	# Firmware
+	firmware-linux-free firmware-linux-nonfree
+	# Intel
+	intel-microcode thermald msr-tools
+)
 
-    mkdir -p config/package-lists
+PKG_SERVER=(
+	htop iotop iftop nmon glances sudo screen mc ncdu tree dpkg-dev build-essential
+	logrotate rsyslog fail2ban ufw nfs-common cifs-utils
+)
 
-    cat > config/package-lists/base.list.chroot << 'EOF'
-# ======================
-# PACOTES BASE (Comum)
-# ======================
+PKG_WORKSTATION=(
+	plasma-desktop plasma-workspace sddm sddm-theme-breeze kwin-x11 plasma-nm plasma-pa powerdevil bluedevil
+	dolphin dolphin-plugins konsole kate firefox-esr gwenview ark kcalc partitionmanager systemsettings
+	pipewire pipewire-pulse wireplumber fonts-noto fonts-noto-color-emoji breeze breeze-icon-theme
+	breeze-cursor-theme plasma-widgets-addons
+)
 
-# ZFS
-zfsutils-linux
-zfs-dkms
-zfs-initramfs
+PKG_CALAMARES=(
+	calamares calamares-settings-debian os-prober cryptsetup kpartx
+)
 
-# Kernel e build
-linux-image-amd64
-linux-headers-amd64
-dkms
+# =============================================================================
+# FUNÇÕES DE BUILD
+# =============================================================================
 
-# Rede
-network-manager
-openssh-server
-curl
-wget
+setup_env() {
+	log_info "Limpando ambiente de build..."
+	rm -rf "${BUILD_DIR}"
+	mkdir -p "${BUILD_DIR}/rootfs" "${BUILD_DIR}/iso/live" "${BUILD_DIR}/iso/boot/grub" "${OUTPUT_DIR}"
+}
 
-# Ferramentas essenciais
-vim
-nano
-htop
-tmux
-git
-rsync
+build_rootfs() {
+	log_info "Iniciando bootstrap do sistema (${DEBIAN_RELEASE})..."
 
-# Compressão
-zstd
-lz4
+	# Combinar listas
+	local ALL_PKGS=("${PKG_BASE[@]}" "${PKG_SERVER[@]}" "${PKG_WORKSTATION[@]}" "${PKG_CALAMARES[@]}")
+	# Converter array para string separada por vírgula
+	local PKG_STR=$(
+		IFS=,
+		echo "${ALL_PKGS[*]}"
+	)
 
-# Particionamento
-gdisk
-parted
-dosfstools
-efibootmgr
+	# mmdebstrap
+	# --mode=root: Executado como root
+	# --components: main contrib non-free non-free-firmware
 
-# Locale
-locales
-console-setup
+	mmdebstrap \
+		--mode=root \
+		--architectures="${ARCH}" \
+		--format=directory \
+		--include="${PKG_STR}" \
+		--components="main contrib non-free non-free-firmware" \
+		--customize-hook='chroot "$1" systemctl enable sddm || true' \
+		--customize-hook='chroot "$1" locale-gen pt_BR.UTF-8' \
+		--customize-hook='echo "pt_BR.UTF-8 UTF-8" > "$1/etc/locale.gen"' \
+		--customize-hook='chroot "$1" locale-gen' \
+		"${DEBIAN_RELEASE}" \
+		"${BUILD_DIR}/rootfs" \
+		"https://debian.c3sl.ufpr.br/debian/"
 
-# Sistema Live e Configuração
-live-boot
-live-config
-live-config-systemd
+	log_ok "Rootfs criado com sucesso!"
+}
 
-# Firmware
-firmware-linux-free
+configure_rootfs() {
+	log_info "Configurando Rootfs..."
+	local R="${BUILD_DIR}/rootfs"
+
+	# ---------------------------------------------------------
+	# Montar sistemas de arquivos virtuais para o chroot funcionar
+	# ---------------------------------------------------------
+	log_info "Montando /proc, /sys, /dev..."
+	mount -t proc proc "${R}/proc"
+	mount -t sysfs sys "${R}/sys"
+	mount --bind /dev "${R}/dev"
+	mount --bind /dev/pts "${R}/dev/pts"
+
+	# Hostname
+	echo "${HOSTNAME}" >"${R}/etc/hostname"
+	echo "127.0.0.1 localhost ${HOSTNAME}" >"${R}/etc/hosts"
+
+	# Configurar usuário live
+	# live-config deve cuidar disso, mas podemos forçar grupos
+	log_info "Criando usuário 'user'..."
+
+	# Garantir que shadow exista e tenha permissões
+	chmod 640 "${R}/etc/shadow" 2>/dev/null || true
+
+	# Gerar hash da senha 'live'
+	local PASS_HASH=$(openssl passwd -6 "live")
+
+	chroot "$R" useradd -m -G sudo,cdrom,dip,plugdev,netdev,audio,video -s /bin/bash -p "${PASS_HASH}" user || true
+	# Caso o usuário já exista (re-run), garantir a senha
+	chroot "$R" usermod -p "${PASS_HASH}" user
+
+	# SDDM Autologin (KDE)
+	mkdir -p "${R}/etc/sddm.conf.d"
+	cat >"${R}/etc/sddm.conf.d/autologin.conf" <<EOF
+[Autologin]
+User=user
+Session=plasma
+Relogin=false
 EOF
 
-    log_ok "Pacotes base adicionados"
+	# ZFSBootMenu (Download se não existir)
+	local ZBM_DIR="${R}/usr/share/zfsbootmenu"
+	mkdir -p "${ZBM_DIR}"
+	if [ ! -f "${ZBM_DIR}/zfsbootmenu.EFI" ]; then
+		log_info "Baixando ZFSBootMenu..."
+		curl -L -o "${ZBM_DIR}/zfsbootmenu.EFI" \
+			"https://github.com/zbm-dev/zfsbootmenu/releases/latest/download/zfsbootmenu-x86_64-vmlinuz.EFI" || log_warn "Falha download ZBM"
+	fi
+
+	# Limpeza
+	chroot "$R" apt-get clean
+	rm -rf "${R}/var/lib/apt/lists/*"
+	rm -rf "${R}/tmp/*"
+
+	# ---------------------------------------------------------
+	# Desmontar
+	# ---------------------------------------------------------
+	log_info "Desmontando /proc, /sys, /dev..."
+	umount "${R}/dev/pts" || true
+	umount "${R}/dev" || true
+	umount "${R}/sys" || true
+	umount "${R}/proc" || true
 }
 
-# =============================================================================
-# PACOTES SERVIDOR
-# =============================================================================
+copy_installer_files() {
+	log_info "Copiando arquivos do instalador e configurações..."
+	local R="${BUILD_DIR}/rootfs"
+	local REPO_ROOT="/root/build-iso"
 
-add_server_packages() {
-    log_info "Adicionando pacotes Server..."
+	# 1. Overlay includes.chroot (scripts, zbm-config, etc)
+	if [ -d "${REPO_ROOT}/config/includes.chroot" ]; then
+		log_info "Aplicando overlay includes.chroot..."
+		rsync -avK "${REPO_ROOT}/config/includes.chroot/" "${R}/"
+	fi
 
-    cat > config/package-lists/server.list.chroot << 'EOF'
-# ======================
-# PERFIL SERVER
-# Modo texto, headless
-# ======================
+	# 2. Configurações do Calamares
+	mkdir -p "${R}/etc/calamares"
+	if [ -d "${REPO_ROOT}/config/calamares" ]; then
+		log_info "Copiando configurações do Calamares..."
+		# Copiar recursivamente
+		rsync -avK "${REPO_ROOT}/config/calamares/" "${R}/etc/calamares/"
+	fi
 
-# Monitoramento
-iotop
-iftop
-nmon
-glances
+	# 3. Permissões de execução para scripts
+	chmod +x "${R}/usr/local/bin/"*.sh 2>/dev/null || true
+	chmod +x "${R}/usr/bin/"* 2>/dev/null || true
+}
 
-# Administração
-sudo
-screen
-mc
-ncdu
-tree
+pack_rootfs() {
+	# Certificar que copiou antes de empacotar
+	copy_installer_files
 
-# Logs
-logrotate
-rsyslog
+	log_info "Criando SquashFS..."
+	mksquashfs "${BUILD_DIR}/rootfs" "${BUILD_DIR}/iso/live/filesystem.squashfs" -comp zstd -b 1048576
+	chmod 444 "${BUILD_DIR}/iso/live/filesystem.squashfs"
 
-# Segurança
-fail2ban
-ufw
+	# Copiar Kernel e Initrd para diretório live
+	# Encontrar versão mais recente instalada
+	local KERNEL_V=$(ls "${BUILD_DIR}/rootfs/boot/vmlinuz-"* | sort -V | tail -n1 | sed 's/.*vmlinuz-//')
+	log_info "Kernel versão: $KERNEL_V"
 
-# NFS/SMB (opcional)
-nfs-common
-cifs-utils
+	cp "${BUILD_DIR}/rootfs/boot/vmlinuz-${KERNEL_V}" "${BUILD_DIR}/iso/live/vmlinuz"
+	cp "${BUILD_DIR}/rootfs/boot/initrd.img-${KERNEL_V}" "${BUILD_DIR}/iso/live/initrd.img"
+}
+
+create_grub_cfg() {
+	log_info "Criando configuração GRUB..."
+
+	cat >"${BUILD_DIR}/iso/boot/grub/grub.cfg" <<EOF
+set default=0
+set timeout=10
+
+menuentry "Debian Live (${DEBIAN_RELEASE}) - KDE/Server" {
+    linux /live/vmlinuz boot=live components quiet splash username=user hostname=${HOSTNAME} autologin
+    initrd /live/initrd.img
+}
+
+menuentry "Debian Live (Failsafe)" {
+    linux /live/vmlinuz boot=live components memtest noapic noapm nodma nomce nolapic nomodeset nosmp nosplash vga=normal
+    initrd /live/initrd.img
+}
 EOF
-
-    log_ok "Pacotes Server adicionados"
 }
 
-# =============================================================================
-# PACOTES WORKSTATION
-# =============================================================================
+build_iso() {
+	log_info "Gerando arquivo ISO..."
 
-add_workstation_packages() {
-    log_info "Adicionando pacotes Workstation (KDE Plasma)..."
+	# Criar imagem EFI para boot
+	# Necessitamos de um arquivo FAT com EFI/BOOT/BOOTx64.EFI
 
-    cat > config/package-lists/workstation.list.chroot << 'EOF'
-# ================================
-# PERFIL WORKSTATION
-# KDE Plasma Minimalista (Qt only)
-# ================================
+	mkdir -p "${BUILD_DIR}/efi_tmp/EFI/BOOT"
+	# Grub modules standalone
+	# Gerar core.efi? Ou usar grub-mkrescue que faz tudo?
 
-# Core Plasma
-plasma-desktop
-plasma-workspace
-sddm
-sddm-theme-breeze
+	# Vamos usar grub-mkrescue, muito mais simples
+	# grub-mkrescue usa o diretório iso como raiz
 
-# Componentes Plasma
-kwin-x11
-plasma-nm
-plasma-pa
-powerdevil
-bluedevil
+	# Garantir que o diretório de saída existe
+	if [ ! -d "${OUTPUT_DIR}" ]; then
+		log_warn "Diretório de saída não encontrado. Recriando: ${OUTPUT_DIR}"
+		mkdir -p "${OUTPUT_DIR}"
+	fi
 
-# Gerenciador de arquivos
-dolphin
-dolphin-plugins
+	grub-mkrescue -o "${OUTPUT_DIR}/${ISO_NAME}" \
+		"${BUILD_DIR}/iso" \
+		--modules="linux part_msdos part_gpt iso9660" \
+		-V "DEBIAN_LIVE"
 
-# Terminal
-konsole
+	log_ok "ISO GERADA: ${OUTPUT_DIR}/${ISO_NAME}"
 
-# Editor de texto
-kate
-
-# Navegador
-firefox-esr
-
-# Visualizador de imagens
-gwenview
-
-# Utilitários Qt
-ark
-kcalc
-partitionmanager
-
-# Configurações
-systemsettings
-
-# Áudio
-pipewire
-pipewire-pulse
-wireplumber
-
-# Fontes
-fonts-noto
-fonts-noto-color-emoji
-
-# Tema
-breeze
-breeze-icon-theme
-breeze-cursor-theme
-
-# Widgets
-plasma-widgets-addons
-EOF
-
-    log_ok "Pacotes Workstation adicionados"
-}
-
-# =============================================================================
-# CALAMARES (Instalador)
-# =============================================================================
-
-add_calamares() {
-    log_info "Adicionando Calamares..."
-    
-    cat > config/package-lists/calamares.list.chroot << 'EOF'
-# Instalador
-calamares
-calamares-settings-debian
-
-# Dependências
-os-prober
-cryptsetup
-kpartx
-EOF
-
-    log_ok "Calamares adicionado"
-}
-
-# =============================================================================
-# HOOKS DE CONFIGURAÇÃO
-# =============================================================================
-
-# =============================================================================
-# ZFSBOOTMENU
-# =============================================================================
-
-prepare_zfsbootmenu() {
-    log_info "Preparando ZFSBootMenu..."
-    
-    local zbm_dir="config/includes.chroot/usr/share/zfsbootmenu"
-    mkdir -p "${zbm_dir}"
-    
-    # Download do ZFSBootMenu EFI (Release estável)
-    # Usaremos x86_64 vmlinuz.EFI
-    local zbm_url="https://github.com/zbm-dev/zfsbootmenu/releases/latest/download/zfsbootmenu-x86_64-vmlinuz.EFI"
-    
-    if curl -L -o "${zbm_dir}/zfsbootmenu.EFI" "${zbm_url}"; then
-        log_ok "ZFSBootMenu EFI baixado com sucesso"
-    else
-        log_warn "Falha ao baixar ZFSBootMenu. O instalador precisará baixar durante o processo."
-    fi
-}
-
-add_hooks() {
-    log_info "Adicionando hooks de configuração..."
-    
-    mkdir -p config/hooks/normal
-    
-    # Hook ZFS
-    cat > config/hooks/normal/0100-setup-zfs.hook.chroot << 'ZFSHOOK'
-#!/bin/bash
-set -e
-echo "Configurando ZFS..."
-
-# Garantir repos
-if ! grep -q "contrib" /etc/apt/sources.list 2>/dev/null; then
-    sed -i 's/main/main contrib non-free non-free-firmware/g' /etc/apt/sources.list
-fi
-
-apt-get update
-apt-get install -y zfsutils-linux zfs-dkms zfs-initramfs
-
-# Compilar módulos
-dkms autoinstall || true
-
-# Atualizar initramfs
-update-initramfs -u -k all
-
-# Habilitar serviços
-systemctl enable zfs-import-cache.service || true
-systemctl enable zfs-mount.service || true
-systemctl enable zfs.target || true
-
-echo "ZFS configurado!"
-ZFSHOOK
-
-    # Hook KDE (para Workstation)
-    cat > config/hooks/normal/0200-setup-kde.hook.chroot << 'KDEHOOK'
-#!/bin/bash
-set -e
-
-# Verificar se KDE está instalado
-if ! dpkg -l | grep -q plasma-desktop; then
-    echo "KDE não instalado, pulando configuração..."
-    exit 0
-fi
-
-echo "Configurando KDE Plasma..."
-
-# Habilitar SDDM
-systemctl enable sddm.service
-
-# Configurar SDDM
-mkdir -p /etc/sddm.conf.d
-cat > /etc/sddm.conf.d/kde_settings.conf << 'SDDMCONF'
-[Theme]
-Current=breeze
-
-[General]
-HaltCommand=/usr/bin/systemctl poweroff
-RebootCommand=/usr/bin/systemctl reboot
-SDDMCONF
-
-# Tema Breeze Dark padrão
-mkdir -p /etc/skel/.config
-cat > /etc/skel/.config/kdeglobals << 'KDEGLOBALS'
-[General]
-ColorScheme=BreezeDark
-Name=Breeze Dark
-
-[KDE]
-LookAndFeelPackage=org.kde.breezedark.desktop
-KDEGLOBALS
-
-# Limpar GTK desnecessário
-apt-get autoremove --purge -y gnome-keyring 2>/dev/null || true
-apt-get clean
-
-echo "KDE configurado!"
-KDEHOOK
-
-    # Hook de locale
-    cat > config/hooks/normal/0050-setup-locale.hook.chroot << 'LOCALEHOOK'
-#!/bin/bash
-set -e
-echo "Configurando locale pt_BR..."
-
-echo "pt_BR.UTF-8 UTF-8" > /etc/locale.gen
-locale-gen
-update-locale LANG=pt_BR.UTF-8
-
-ln -sf /usr/share/zoneinfo/America/Cuiaba /etc/localtime
-
-echo "Locale configurado!"
-LOCALEHOOK
-
-    chmod +x config/hooks/normal/*.hook.chroot
-    
-    log_ok "Hooks adicionados"
-}
-
-# =============================================================================
-# BUILD
-# =============================================================================
-
-run_build() {
-    log_info "Iniciando build da ISO..."
-    log_info "Este processo pode demorar 30-60 minutos..."
-    
-    cd "${BUILD_DIR}"
-    
-    if lb build 2>&1 | tee /root/build.log; then
-        log_ok "Build concluído!"
-    else
-        log_error "Build falhou. Verifique /root/build.log"
-        exit 1
-    fi
-    
-    # Mover ISO
-    if ls *.iso 1>/dev/null 2>&1; then
-        mv *.iso "${OUTPUT_DIR}/${ISO_NAME}"
-        cd "${OUTPUT_DIR}"
-        
-        sha256sum "${ISO_NAME}" > "${ISO_NAME}.sha256"
-        
-        local size
-        size=$(du -h "${ISO_NAME}" | cut -f1)
-        
-        log_ok "ISO gerada: ${OUTPUT_DIR}/${ISO_NAME}"
-        log_info "Tamanho: ${size}"
-        log_info "SHA256: $(cat ${ISO_NAME}.sha256)"
-    else
-        log_error "Nenhuma ISO gerada!"
-        exit 1
-    fi
+	# Calcular Checksum
+	cd "${OUTPUT_DIR}"
+	sha256sum "${ISO_NAME}" >"${ISO_NAME}.sha256"
+	log_info "SHA256: $(cat "${ISO_NAME}.sha256")"
 }
 
 # =============================================================================
@@ -426,27 +302,18 @@ run_build() {
 # =============================================================================
 
 main() {
-    echo "============================================="
-    echo " Build de ISO Debian-ZFS"
-    echo " Perfis: Server + Workstation"
-    echo "============================================="
-    
-    setup_build_env
-    configure_live_build
-    
-    # Adicionar todos os pacotes (Calamares selecionará perfil)
-    add_base_packages
-    add_server_packages
-    add_workstation_packages
-    add_calamares
-    prepare_zfsbootmenu
-    add_hooks
-    
-    run_build
-    
-    echo ""
-    log_ok "Build completo!"
-    log_info "ISO disponível em: ${OUTPUT_DIR}/${ISO_NAME}"
+	if [ "$(id -u)" -ne 0 ]; then
+		log_error "Este script precisa rodar como root!"
+		exit 1
+	fi
+
+	check_deps
+	setup_env
+	build_rootfs
+	configure_rootfs
+	pack_rootfs
+	create_grub_cfg
+	build_iso
 }
 
 main "$@"

@@ -1,0 +1,11 @@
+# ----- ZFSBootMenu Build Dependencies (Optional/Fallback) -----
+build-essential
+golang-go
+kmod
+libbash
+libudev-dev
+fzf
+skopeo
+jq
+mbuffer
+pv

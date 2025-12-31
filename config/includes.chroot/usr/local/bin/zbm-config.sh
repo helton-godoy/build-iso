@@ -8,7 +8,28 @@ set -e
 # O Calamares monta o alvo em /tmp/calamares-root-... ou similar.
 # Passaremos o caminho como argumento.
 target_root=$1
-efi_part=$2
+override_efi_part=$2
+
+# Recuperar informações salvas pelo zfs-installer.sh
+INFO_FILE="/tmp/zfs_install_info"
+if [ -f "$INFO_FILE" ]; then
+	source "$INFO_FILE"
+	echo "Carregado estado da instalação: TARGET_DISK=${TARGET_DISK}, EFI_PART=${EFI_PART}"
+
+	# Se carregou do arquivo, usamos essas variáveis
+	efi_part="${EFI_PART}"
+	target_disk="${TARGET_DISK}"
+else
+	# Fallback para o argumento (comportamento antigo, mas frágil)
+	efi_part="${override_efi_part}"
+	target_disk="$(echo "${efi_part}" | sed 's/[0-9]*$//' | sed 's/p$//')"
+	echo "Aviso: Informação de estado não encontrada. Usando argumentos: ${efi_part}"
+fi
+
+if [ ! -b "${efi_part}" ]; then
+	echo "Erro: Partição EFI ${efi_part} não encontrada ou inválida!"
+	exit 1
+fi
 
 echo "Configurando ZFSBootMenu em ${target_root}..."
 
@@ -21,12 +42,13 @@ mkdir -p "${target_root}/boot/efi/EFI/ZBM"
 cp /usr/share/zfsbootmenu/zfsbootmenu.EFI "${target_root}/boot/efi/EFI/ZBM/zfsbootmenu.EFI"
 
 # 3. Registrar na NVRAM com efibootmgr
-efibootmgr -c -d "$(echo "${efi_part}" | sed 's/[0-9]$//')" -p "$(echo "${efi_part}" | grep -o '[0-9]$')" \
-    -L "ZFSBootMenu" -l "\\EFI\\ZBM\\zfsbootmenu.EFI"
+# Assumindo partição 1 para EFI conforme zfs-installer.sh
+efibootmgr -c -d "${target_disk}" -p 1 \
+	-L "ZFSBootMenu" -l "\\EFI\\ZBM\\zfsbootmenu.EFI"
 
 # 4. Configurações ZFS para o Menu e Initramfs
 # Garantir que o hostid seja consistente
-hostid > "${target_root}/etc/hostid"
+hostid >"${target_root}/etc/hostid"
 
 # Chroot para configurar o sistema instalado
 chroot "${target_root}" /usr/sbin/update-initramfs -u -k all
