@@ -217,8 +217,8 @@ USAGE:
     sudo $0 [COMANDO]
 
 COMANDOS:
-    build       Executar build completo (padrão)
-    only-build  Executar apenas o build na VM (sem desligar)
+    build           Executar build completo (padrão)
+    only-build-iso  Executar apenas o build na VM (sem desligar)
     setup       Apenas configurar host
     create-vm   Apenas criar VM
     status      Mostrar status da VM
@@ -277,7 +277,7 @@ cmd_build() {
 	ls -lh "${PROJECT_ROOT}/output/"*.iso 2>/dev/null || true
 }
 
-cmd_only_build() {
+cmd_only_build_iso() {
 	ensure_vm_running
 
 	local ip_list
@@ -352,7 +352,7 @@ main() {
 
 	case "${cmd}" in
 	build) cmd_build ;;
-	only-build | rebuild) cmd_only_build ;;
+	only-build-iso | rebuild) cmd_only_build_iso ;;
 	setup) bash "${SCRIPT_DIR}/setup_host.sh" ;;
 	create-vm) bash "${SCRIPT_DIR}/create_vm.sh" ;;
 	status) cmd_status ;;
