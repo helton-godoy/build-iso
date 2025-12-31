@@ -1,0 +1,24 @@
+# Palavras em português que são intencionais e devem ser ignoradas pelo codespell
+# Este projeto é brasileiro e usa documentação/comentários em português
+
+# Palavras comuns em português (falsos positivos para inglês)
+comando
+comandos
+controle
+erro
+erros
+funcional
+atual
+nome
+nomes
+termo
+oficial
+instale
+ser
+leve
+mata
+essencial
+cliente
+pares
+componentes
+considere

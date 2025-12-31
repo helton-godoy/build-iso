@@ -98,7 +98,6 @@ get_vm_ip() {
 wait_for_ssh() {
 	local ip_list="$1"
 	local ssh_key="${PROJECT_ROOT}/.ssh/vm_key"
-	local validated_ip=""
 
 	while true; do
 		if [[ -n ${ip_list} ]]; then
@@ -119,7 +118,7 @@ wait_for_ssh() {
 		echo "" >&2 # Log para stderr
 		log_error "Não foi possível conectar a nenhum IP detectado automaticamente." >&2
 		echo -e "${YELLOW}Por favor, verifique o IP no Virt-Manager e informe-o manualmente.${NC}" >&2
-		read -p "IP da VM (ou 'c' para cancelar): " manual_ip </dev/tty
+		read -r -p "IP da VM (ou 'c' para cancelar): " manual_ip </dev/tty
 
 		if [[ ${manual_ip} == "c" ]]; then
 			log_error "Operação cancelada pelo usuário." >&2

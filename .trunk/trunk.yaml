@@ -24,8 +24,31 @@ lint:
     - markdownlint@0.47.0
     - osv-scanner@1.9.1
     - prettier@3.7.4
-    - proselint@0.13.0
     - shellcheck@0.11.0
     - shfmt@3.6.0
     - trufflehog@3.92.4
     - yamllint@1.37.1
+  definitions:
+    - name: codespell
+      commands:
+        - name: lint
+          run: codespell --ignore-words ${workspace}/.codespellignore ${target}
+  ignore:
+    - linters: [shellcheck]
+      paths:
+        - docs/notes/** # Arquivos de notas/estudo
+        - config/includes.chroot/** # Scripts de instalação do chroot
+    - linters: [yamllint]
+      paths:
+        - config/live-build/** # Configuração live-build
+        - config/includes.chroot/etc/calamares/** # Configuração do instalador
+        - config/calamares/** # Configuração do instalador (segunda cópia)
+    - linters: [codespell]
+      paths:
+        - docs/notes/** # Documentação/notas em português
+        - "*.md" # Arquivos markdown com texto em português
+        - config/calamares/** # Configuração com texto em português
+        - config/includes.chroot/** # Scripts com comentários em português
+    - linters: [markdownlint]
+      paths:
+        - TRUNK_STATUS_REPORT.md # Relatório gerado
