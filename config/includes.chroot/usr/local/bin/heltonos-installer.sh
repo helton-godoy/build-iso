@@ -42,7 +42,9 @@ fi
 
 # Listar discos
 # Filtrar loop, sr (cdrom), e ram
-DISKS=$(lsblk -d -n -o NAME,SIZE,MODEL,TYPE | awk '$4=="disk" && $1!~/^(loop|sr|ram)/ {print "/dev/"$1 " (" $2 " - " $3 ")"}')
+# NOTA: MODEL pode conter espaços, então colocamos TYPE antes de MODEL
+# para garantir que o campo TYPE esteja em posição fixa ($3)
+DISKS=$(lsblk -d -n -o NAME,SIZE,TYPE,MODEL | awk '$3=="disk" && $1!~/^(loop|sr|ram)/ { model=$4; for(i=5;i<=NF;i++) model=model" "$i; print "/dev/"$1 " (" $2 " - " model ")"}')
 
 if [[ -z ${DISKS} ]]; then
 	error_exit "Nenhum disco físico detectado no sistema."
