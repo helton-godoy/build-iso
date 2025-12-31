@@ -218,6 +218,7 @@ USAGE:
 
 COMANDOS:
     build       Executar build completo (padrão)
+    only-build  Executar apenas o build na VM (sem desligar)
     setup       Apenas configurar host
     create-vm   Apenas criar VM
     status      Mostrar status da VM
@@ -276,6 +277,25 @@ cmd_build() {
 	ls -lh "${PROJECT_ROOT}/output/"*.iso 2>/dev/null || true
 }
 
+cmd_only_build() {
+	ensure_vm_running
+
+	local ip_list
+	# shellcheck disable=SC2310
+	if ! ip_list=$(get_vm_ip); then ip_list=""; fi
+
+	local vm_ip
+	vm_ip=$(wait_for_ssh "${ip_list}")
+
+	log_step "Executando build na VM (apenas compilação)"
+	run_build_in_vm "${vm_ip}"
+
+	log_step "Copiando resultado"
+	copy_iso_from_vm "${vm_ip}"
+
+	log_ok "Build concluído! A VM continua em execução."
+}
+
 cmd_status() {
 	if virsh list --all | grep -q "${VM_NAME}"; then
 		virsh dominfo "${VM_NAME}"
@@ -332,6 +352,7 @@ main() {
 
 	case "${cmd}" in
 	build) cmd_build ;;
+	only-build | rebuild) cmd_only_build ;;
 	setup) bash "${SCRIPT_DIR}/setup_host.sh" ;;
 	create-vm) bash "${SCRIPT_DIR}/create_vm.sh" ;;
 	status) cmd_status ;;
