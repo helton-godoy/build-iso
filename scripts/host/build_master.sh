@@ -167,8 +167,16 @@ run_build_in_vm() {
 	log_info "Executando build na VM..."
 	log_info "Este processo pode demorar 30-60 minutos..."
 
+	# Executar ssh e tee, mas verificar o status do ssh
+	# shellcheck disable=SC2312 # PIPESTATUS[0] handles the ssh exit code
 	ssh -o StrictHostKeyChecking=no -i "${ssh_key}" root@"${vm_ip}" \
 		"/root/build-iso/scripts/vm/build_iso.sh" 2>&1 | tee "${PROJECT_ROOT}/logs/build-$(date +%Y%m%d-%H%M%S).log"
+
+	# Verificar o status de saída do primeiro comando no pipe (ssh)
+	if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+		log_error "O build na VM falhou!"
+		exit 1
+	fi
 
 	log_ok "Build concluído"
 }
@@ -238,7 +246,8 @@ cmd_build() {
 	ensure_vm_running
 
 	local ip_list
-	ip_list=$(get_vm_ip || echo "")
+	# shellcheck disable=SC2310
+	if ! ip_list=$(get_vm_ip); then ip_list=""; fi
 
 	local vm_ip
 	vm_ip=$(wait_for_ssh "${ip_list}")
@@ -272,7 +281,10 @@ cmd_status() {
 		virsh dominfo "${VM_NAME}"
 		echo ""
 		local vm_ip
-		vm_ip=$(get_vm_ip 2>/dev/null || echo "não disponível")
+		# shellcheck disable=SC2310
+		if ! vm_ip=$(get_vm_ip); then
+			vm_ip="não disponível"
+		fi
 		log_info "IP: ${vm_ip}"
 	else
 		log_warn "VM ${VM_NAME} não existe"
@@ -283,7 +295,8 @@ cmd_ssh() {
 	ensure_vm_running
 
 	local ip_list
-	ip_list=$(get_vm_ip || echo "")
+	# shellcheck disable=SC2310
+	if ! ip_list=$(get_vm_ip); then ip_list=""; fi
 
 	local vm_ip
 	vm_ip=$(wait_for_ssh "${ip_list}")

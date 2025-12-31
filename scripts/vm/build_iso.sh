@@ -76,7 +76,7 @@ PKG_BASE=(
 	locales console-setup manpages-pt-br manpages-pt-br-dev task-portuguese task-brazilian-portuguese
 	aspell-pt-br ibrazilian wbrazilian info info2man
 	# Live System
-	live-boot live-config live-config-systemd squashfs-tools grub-pc-bin grub-efi-amd64-bin
+	live-boot live-config live-config-systemd squashfs-tools grub-pc-bin grub-efi-amd64-bin mmdebstrap
 	# Firmware
 	firmware-linux-free firmware-linux-nonfree
 	# Intel
@@ -184,14 +184,7 @@ Session=plasma
 Relogin=false
 EOF
 
-	# ZFSBootMenu (Download se não existir)
-	local ZBM_DIR="${R}/usr/share/zfsbootmenu"
-	mkdir -p "${ZBM_DIR}"
-	if [[ ! -f "${ZBM_DIR}/zfsbootmenu.EFI" ]]; then
-		log_info "Baixando ZFSBootMenu..."
-		curl -L -o "${ZBM_DIR}/zfsbootmenu.EFI" \
-			"https://github.com/zbm-dev/zfsbootmenu/releases/latest/download/zfsbootmenu-x86_64-vmlinuz.EFI" || log_warn "Falha download ZBM"
-	fi
+	# ZFSBootMenu será baixado via hook config/hooks/live/00-fetch-zfsbootmenu.hook.chroot
 
 	# Limpeza
 	chroot "${R}" apt-get clean
@@ -230,6 +223,21 @@ copy_installer_files() {
 	# 3. Permissões de execução para scripts
 	chmod +x "${R}/usr/local/bin/"*.sh 2>/dev/null || true
 	chmod +x "${R}/usr/bin/"* 2>/dev/null || true
+
+	# 4. Executar Hooks de Customização (config/hooks/live/*.hook.chroot)
+	if [[ -d "${REPO_ROOT}/config/hooks/live" ]]; then
+		log_info "Executando hooks de customização..."
+		for hook in "${REPO_ROOT}/config/hooks/live/"*.hook.chroot; do
+			if [[ -x ${hook} ]]; then
+				log_info "Rodando hook: $(basename "${hook}")"
+				# Alguns hooks precisam de variáveis de ambiente ou ser rodados via chroot
+				# Copiar para dentro do chroot temporariamente para garantir execução correta
+				cp "${hook}" "${R}/tmp/current_hook.sh"
+				chroot "${R}" /bin/bash /tmp/current_hook.sh
+				rm "${R}/tmp/current_hook.sh"
+			fi
+		done
+	fi
 }
 
 pack_rootfs() {
@@ -299,7 +307,8 @@ build_iso() {
 	# Calcular Checksum
 	cd "${OUTPUT_DIR}"
 	sha256sum "${ISO_NAME}" >"${ISO_NAME}.sha256"
-	log_info "SHA256: $(cat "${ISO_NAME}.sha256")"
+	checksum=$(cat "${ISO_NAME}.sha256")
+	log_info "SHA256: ${checksum}"
 }
 
 # =============================================================================
@@ -307,7 +316,8 @@ build_iso() {
 # =============================================================================
 
 main() {
-	if [[ "$(id -u)" -ne 0 ]]; then
+	current_uid=$(id -u)
+	if [[ ${current_uid} -ne 0 ]]; then
 		log_error "Este script precisa rodar como root!"
 		exit 1
 	fi

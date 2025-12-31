@@ -43,9 +43,16 @@ mkdir -p "${target_root}/boot/efi/EFI/ZBM"
 cp /usr/share/zfsbootmenu/zfsbootmenu.EFI "${target_root}/boot/efi/EFI/ZBM/zfsbootmenu.EFI"
 
 # 3. Registrar na NVRAM com efibootmgr
-# Assumindo partição 1 para EFI conforme zfs-installer.sh
-efibootmgr -c -d "${target_disk}" -p 1 \
-	-L "ZFSBootMenu" -l '\EFI\ZBM\zfsbootmenu.EFI'
+echo "Limpando entradas UEFI antigas e registrando nova..."
+for num in $(efibootmgr | grep "ZFSBootMenu" | awk '{print $1}' | sed 's/Boot//' | sed 's/\*//'); do
+	efibootmgr -b "${num}" -B || true
+done
+efibootmgr -c -d "${target_disk}" -p "${PART_EFI:-1}" -L "ZFSBootMenu" -l '\EFI\ZBM\zfsbootmenu.EFI'
+
+# 3.1. Configurar caminho de fallback (Removable Path)
+echo "Configurando caminho de fallback UEFI..."
+mkdir -p "${target_root}/boot/efi/EFI/BOOT"
+cp "${target_root}/boot/efi/EFI/ZBM/zfsbootmenu.EFI" "${target_root}/boot/efi/EFI/BOOT/BOOTX64.EFI"
 
 # 4. Configurações ZFS para o Menu e Initramfs
 # Garantir que o hostid seja consistente

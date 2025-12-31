@@ -106,15 +106,44 @@ if [[ ${ENCRYPT} == "Sim" ]]; then
 	gum style "A senha será solicitada durante a criação do pool."
 fi
 
+# Perfil de Instalação
+INSTALL_PROFILE=$(gum choose --header "Selecione o perfil de instalação:" \
+	"SERVER (Somente linha de comando)" \
+	"WORKSTATION (KDE Plasma Minimalista)")
+
+case "${INSTALL_PROFILE}" in
+"SERVER"*)
+	PROFILE_TYPE="server"
+	;;
+"WORKSTATION"*)
+	PROFILE_TYPE="workstation"
+	;;
+*)
+	PROFILE_TYPE="server"
+	;;
+esac
+
 # Configuração de Usuário
 HOSTNAME=$(gum input --placeholder "Hostname (ex: heltonos)" --value "heltonos")
-USERNAME=$(gum input --placeholder "Usuário (ex: helton)")
+USERNAME=$(gum input --placeholder "Usuário (ex: helton)" --value "helton")
 PASSWORD=$(gum input --password --placeholder "Senha de Usuário")
 ROOT_PASSWORD=$(gum input --password --placeholder "Senha de Root")
+
+# Validar campos obrigatórios
+if [[ -z ${USERNAME} ]]; then
+	error_exit "Nome de usuário não pode estar vazio."
+fi
+if [[ -z ${PASSWORD} ]]; then
+	error_exit "Senha de usuário não pode estar vazia."
+fi
+if [[ -z ${ROOT_PASSWORD} ]]; then
+	error_exit "Senha de root não pode estar vazia."
+fi
 
 # Resumo
 clear
 gum style --border double "Resumo da Instalação"
+echo "Perfil: ${INSTALL_PROFILE}"
 echo "Discos: ${TARGET_DISKS[*]}"
 echo "RAID: ${RAID_TYPE:-Single}"
 echo "Bootloader: ZBM=${USE_ZBM}, GRUB=${USE_GRUB}"
@@ -140,9 +169,93 @@ PART_RPOOL=4
 
 gum spin --title "Limpando e particionando discos..." -- bash -c "sleep 2"
 
+# Limpar recursos existentes (pools ZFS, partições montadas)
+log "Limpando recursos existentes..."
+
+# Desmontar bind mounts do chroot primeiro (se existirem)
+for mount_point in /mnt/dev /mnt/proc /mnt/sys /mnt/run /mnt/boot/efi; do
+	umount -lf "${mount_point}" 2>/dev/null || true
+done
+
+# Desmontar todos os datasets ZFS
+zfs unmount -a 2>/dev/null || true
+
+# Desmontar qualquer coisa em /mnt
+umount -lR /mnt 2>/dev/null || true
+
+# Destruir pools existentes FORÇADAMENTE
+for pool in bpool rpool; do
+	if zpool list "${pool}" &>/dev/null; then
+		log "Destruindo pool existente: ${pool}"
+		# Desmontar datasets do pool primeiro
+		zfs unmount -a -f 2>/dev/null || true
+		# Destruir o pool
+		zpool destroy -f "${pool}" 2>/dev/null || true
+	fi
+done
+
+# Verificar novamente e forçar mais ainda se necessário
+for pool in bpool rpool; do
+	if zpool list "${pool}" &>/dev/null; then
+		log "Pool ${pool} ainda existe, forçando exportação..."
+		zpool export -f "${pool}" 2>/dev/null || true
+	fi
+done
+
+# Tentar importar e destruir pools órfãos que possam existir nos discos
+for disk in "${TARGET_DISKS[@]}"; do
+	# Importar pools órfãos do disco e destruir
+	for pool in $(zpool import -d "${disk}" 2>/dev/null | grep "pool:" | awk '{print $2}'); do
+		log "Destruindo pool órfão: ${pool}"
+		zpool import -f -d "${disk}" "${pool}" 2>/dev/null || true
+		zpool destroy -f "${pool}" 2>/dev/null || true
+	done
+done
+
+# Desmontar partições dos discos selecionados
+for disk in "${TARGET_DISKS[@]}"; do
+	log "Liberando ${disk}..."
+
+	# Desmontar todas as partições do disco
+	for part in "${disk}"*; do
+		umount -lf "${part}" 2>/dev/null || true
+	done
+
+	# Remover do device-mapper se existir
+	dmsetup remove_all 2>/dev/null || true
+
+	# Limpar labels ZFS de cada partição
+	for part in "${disk}"*; do
+		if [[ -b ${part} ]]; then
+			zpool labelclear -f "${part}" 2>/dev/null || true
+		fi
+	done
+
+	# Limpar label no disco inteiro também
+	zpool labelclear -f "${disk}" 2>/dev/null || true
+done
+
+# Pequena pausa para o kernel liberar recursos
+sleep 1
+
 for disk in "${TARGET_DISKS[@]}"; do
 	log "Preparando ${disk}..."
-	wipefs -a "${disk}"
+
+	# Limpar completamente o disco (zera os primeiros e últimos MB onde ZFS guarda labels)
+	log "Limpando labels ZFS com dd..."
+	dd if=/dev/zero of="${disk}" bs=1M count=10 status=none 2>/dev/null || true
+
+	# Obter tamanho do disco e zerar o final também (ZFS guarda labels no fim)
+	DISK_SIZE=$(blockdev --getsize64 "${disk}" 2>/dev/null || echo 0)
+	if [[ ${DISK_SIZE} -gt 10485760 ]]; then
+		# Zerar últimos 10MB
+		dd if=/dev/zero of="${disk}" bs=1M count=10 seek=$((DISK_SIZE / 1048576 - 10)) status=none 2>/dev/null || true
+	fi
+
+	# Agora wipefs para garantir
+	wipefs -af "${disk}" 2>/dev/null || true
+
+	# Criar nova tabela de partições
 	sgdisk --zap-all "${disk}"
 
 	# Criar partições
@@ -164,11 +277,31 @@ for disk in "${TARGET_DISKS[@]}"; do
 	# 4: rpool (Root Pool)
 	sgdisk -n4:0:0 -t4:BF00 "${disk}"
 
-	# Notificar kernel
-	partprobe "${disk}" || true
+	# Notificar kernel e sincronizar
+	sync
+	partprobe "${disk}" 2>/dev/null || true
+	udevadm settle --timeout=10 2>/dev/null || true
 done
 
-sleep 2
+# Aguardar partições ficarem disponíveis
+log "Aguardando partições..."
+sleep 3
+
+# Limpar labels ZFS nas novas partições (por segurança)
+for disk in "${TARGET_DISKS[@]}"; do
+	suffix=""
+	if [[ ${disk} =~ nvme|mmcblk|loop ]]; then suffix="p"; fi
+
+	for partnum in 3 4; do
+		part="${disk}${suffix}${partnum}"
+		if [[ -b ${part} ]]; then
+			zpool labelclear -f "${part}" 2>/dev/null || true
+			wipefs -af "${part}" 2>/dev/null || true
+		fi
+	done
+done
+
+sleep 1
 
 # Construir lista de vdevs com sufixos corretos
 # Detecção de sufixo (pX para nvme/mmc, X para sd/vd)
@@ -191,7 +324,11 @@ construct_vdev_list() {
 
 	for disk in "${TARGET_DISKS[@]}"; do
 		suffix=$(get_part_suffix "${disk}")
-		vdev_list="${vdev_list} ${disk}${suffix}${part_num}"
+		if [[ -z ${vdev_list} ]]; then
+			vdev_list="${disk}${suffix}${part_num}"
+		else
+			vdev_list="${vdev_list} ${disk}${suffix}${part_num}"
+		fi
 	done
 	echo "${vdev_list}"
 }
@@ -204,6 +341,7 @@ log "Criando rpool com args: ${RPOOL_ARGS}"
 
 # Criar bpool
 # Features conservadoras para compatibilidade Grub/ZBM
+# shellcheck disable=SC2086 # Word splitting intencional para BPOOL_ARGS
 zpool create -f \
 	-o ashift=12 \
 	-o autotrim=on \
@@ -215,25 +353,36 @@ zpool create -f \
 	-O normalization=formD \
 	-O relatime=on \
 	-O canmount=off -O mountpoint=/boot -R /mnt \
-	bpool "${BPOOL_ARGS}"
+	bpool ${BPOOL_ARGS}
 
 # Criar rpool
-RPOOL_OPTS="-O acltype=posixacl -O xattr=sa -O dnodesize=auto -O compression=lz4 -O normalization=formD -O relatime=on -O canmount=off -O mountpoint=/ -R /mnt"
+RPOOL_OPTS=(
+	-O acltype=posixacl
+	-O xattr=sa
+	-O dnodesize=auto
+	-O compression=lz4
+	-O normalization=formD
+	-O relatime=on
+	-O canmount=off
+	-O mountpoint=/
+	-R /mnt
+)
 
+# shellcheck disable=SC2086 # Word splitting intencional para RPOOL_ARGS
 if [[ ${ENCRYPT} == "Sim" ]]; then
 	gum style "Digite a senha de encriptação para o ZFS (rpool):"
 	zpool create -f \
 		-o ashift=12 \
 		-o autotrim=on \
 		-O encryption=on -O keylocation=prompt -O keyformat=passphrase \
-		"${RPOOL_OPTS}" \
-		rpool "${RPOOL_ARGS}"
+		"${RPOOL_OPTS[@]}" \
+		rpool ${RPOOL_ARGS}
 else
 	zpool create -f \
 		-o ashift=12 \
 		-o autotrim=on \
-		"${RPOOL_OPTS}" \
-		rpool "${RPOOL_ARGS}"
+		"${RPOOL_OPTS[@]}" \
+		rpool ${RPOOL_ARGS}
 fi
 
 # Datasets
@@ -262,18 +411,67 @@ zfs create -o mountpoint=/srv rpool/srv
 zpool set bootfs=rpool/ROOT/debian rpool
 
 # =============================================================================
-# 3. INSTALAÇÃO DO SISTEMA BASE (DEBOOTSTRAP)
+# 3. INSTALAÇÃO DO SISTEMA BASE (MMDEBSTRAP)
 # =============================================================================
-mkdir -p /mnt/run /mnt/etc/zfs
-cp /etc/zfs/zpool.cache /mnt/etc/zfs/
 
-log "Iniciando debootstrap (trixie)..."
-gum spin --title "Baixando pacotes base Debian Trixie..." -- \
-	debootstrap trixie /mnt http://deb.debian.org/debian
+log "Iniciando mmdebstrap (trixie) - Perfil: ${PROFILE_TYPE}..."
+
+# Pacotes base comuns a todos os perfis
+BASE_PACKAGES="systemd-sysv,systemd-timesyncd,locales,keyboard-configuration,console-setup"
+BASE_PACKAGES+=",linux-image-amd64,linux-headers-amd64,firmware-linux,firmware-linux-nonfree"
+BASE_PACKAGES+=",zfs-dkms,zfsutils-linux,zfs-initramfs,zfs-zed"
+BASE_PACKAGES+=",sudo,curl,wget,vim,git,dosfstools,efibootmgr,network-manager,cron"
+
+# Pacotes específicos por perfil
+if [[ ${PROFILE_TYPE} == "workstation" ]]; then
+	gum style --foreground "#FFD700" "⏳ Instalando sistema WORKSTATION com KDE Plasma..."
+	gum style --foreground "#888888" "   (Este processo pode levar 15-30 minutos dependendo da conexão)"
+
+	# KDE Plasma minimalista + aplicativos essenciais
+	DESKTOP_PACKAGES="plasma-desktop,sddm,konsole,dolphin,kate,ark,kcalc"
+	DESKTOP_PACKAGES+=",plasma-nm,plasma-pa,powerdevil,bluedevil"
+	DESKTOP_PACKAGES+=",breeze-gtk-theme,kde-spectacle,gwenview,okular"
+	DESKTOP_PACKAGES+=",pipewire,pipewire-audio,wireplumber"
+	DESKTOP_PACKAGES+=",fonts-noto,fonts-liberation2"
+
+	INCLUDE_PACKAGES="${BASE_PACKAGES},${DESKTOP_PACKAGES}"
+else
+	gum style --foreground "#FFD700" "⏳ Instalando sistema SERVER (CLI)..."
+	gum style --foreground "#888888" "   (Este processo pode levar 5-10 minutos dependendo da conexão)"
+
+	# Servidor: apenas ferramentas CLI essenciais
+	SERVER_PACKAGES="htop,tmux,rsync,openssh-server,ca-certificates"
+	INCLUDE_PACKAGES="${BASE_PACKAGES},${SERVER_PACKAGES}"
+fi
+
+echo ""
+
+# Executar mmdebstrap com saída visível
+# --skip=check/empty: /mnt já tem datasets ZFS montados, não está vazio
+mmdebstrap \
+	--variant=apt \
+	--components="main,contrib,non-free,non-free-firmware" \
+	--include="${INCLUDE_PACKAGES}" \
+	--skip=check/empty \
+	trixie /mnt http://deb.debian.org/debian 2>&1 |
+	tee -a "${LOG_FILE}" |
+	grep -E "^I:|^W:|^E:|Retrieving|Unpacking|Setting up|Processing|done\.$"
+
+# Verificar se mmdebstrap teve sucesso (PIPESTATUS[0] é o exit code do mmdebstrap)
+MMDEBSTRAP_EXIT=${PIPESTATUS[0]}
+if [[ ${MMDEBSTRAP_EXIT} -eq 0 ]]; then
+	gum style --foreground "#00FF00" "✓ Sistema base instalado com sucesso!"
+else
+	error_exit "Falha no mmdebstrap (exit code: ${MMDEBSTRAP_EXIT}). Verifique ${LOG_FILE} para detalhes."
+fi
 
 # =============================================================================
 # 4. CONFIGURAÇÃO DO SISTEMA
 # =============================================================================
+
+# Copiar cache ZFS para o sistema instalado
+mkdir -p /mnt/run /mnt/etc/zfs /mnt/etc/network
+cp /etc/zfs/zpool.cache /mnt/etc/zfs/
 
 # Arquivos de Configuração Básicos
 echo "${HOSTNAME}" >/mnt/etc/hostname
@@ -310,18 +508,21 @@ set -e
 
 # Configurar Locale e Timezone
 echo "Configurando locales..."
-apt-get update
-apt-get install -y locales keyboard-configuration console-setup
 echo "pt_BR.UTF-8 UTF-8" > /etc/locale.gen
 locale-gen
 update-locale LANG=pt_BR.UTF-8
 echo "America/Sao_Paulo" > /etc/timezone
 dpkg-reconfigure -f noninteractive tzdata
 
-# Instalar Kernel e ZFS
-echo "Instalando Kernel e ZFS..."
-apt-get install -y linux-image-amd64 linux-headers-amd64 systemd-sysv systemd-timesyncd firmware-linux firmware-linux-nonfree
-apt-get install -y zfs-dkms zfsutils-linux zfs-initramfs zfs-zed zfs-auto-snapshot
+# Configurar teclado brasileiro
+cat <<KEYBOARD > /etc/default/keyboard
+XKBMODEL="pc105"
+XKBLAYOUT="br"
+XKBVARIANT="abnt2"
+XKBOPTIONS=""
+BACKSPACE="guess"
+KEYBOARD
+setupcon --force
 
 # Configurar ZFS Import
 echo "Habilitando zfs-import-bpool..."
@@ -350,8 +551,36 @@ echo "$USERNAME:$PASSWORD" | chpasswd
 echo "root:$ROOT_PASSWORD" | chpasswd
 usermod -aG sudo,video,audio,netdev,plugdev "$USERNAME"
 
-# Ferramentas extras
-apt-get install -y sudo curl wget vim git dosfstools efibootmgr network-manager cron
+# Habilitar serviços essenciais
+systemctl enable NetworkManager
+
+# Configurações específicas por perfil
+if [[ "$PROFILE_TYPE" == "workstation" ]]; then
+	echo "Configurando ambiente WORKSTATION (KDE Plasma)..."
+
+	# Habilitar SDDM
+	systemctl enable sddm
+
+	# Configurar SDDM
+	mkdir -p /etc/sddm.conf.d
+	cat <<SDDM > /etc/sddm.conf.d/kde_settings.conf
+[Theme]
+Current=breeze
+
+[General]
+Numlock=on
+SDDM
+
+	# Adicionar usuário a grupos do KDE
+	usermod -aG render "$USERNAME"
+
+	# Habilitar PipeWire
+	systemctl --global enable pipewire pipewire-pulse wireplumber || true
+else
+	echo "Configurando ambiente SERVER..."
+	# Habilitar SSH
+	systemctl enable ssh
+fi
 
 # --- ZFS Shadow Copy (Samba Compatibility) ---
 echo "Configurando script de snapshots Shadow Copy..."
@@ -384,7 +613,16 @@ EOF_CHROOT
 chmod +x /mnt/tmp/install_internal.sh
 
 log "Executando configuração no chroot..."
-gum spin --title "Configurando sistema no chroot..." -- chroot /mnt env USERNAME="${USERNAME}" PASSWORD="${PASSWORD}" ROOT_PASSWORD="${ROOT_PASSWORD}" /tmp/install_internal.sh
+gum style --foreground "#FFD700" "⏳ Configurando sistema (locales, usuários, serviços)..."
+gum style --foreground "#888888" "   (Este processo deve levar 1-3 minutos)"
+echo ""
+
+if chroot /mnt env USERNAME="${USERNAME}" PASSWORD="${PASSWORD}" ROOT_PASSWORD="${ROOT_PASSWORD}" PROFILE_TYPE="${PROFILE_TYPE}" /tmp/install_internal.sh 2>&1 |
+	tee -a "${LOG_FILE}"; then
+	gum style --foreground "#00FF00" "✓ Configuração do chroot concluída!"
+else
+	error_exit "Falha na configuração do chroot. Verifique ${LOG_FILE} para detalhes."
+fi
 
 # =============================================================================
 # 5. INSTALAÇÃO DE BOOTLOADER
@@ -420,11 +658,22 @@ if [[ ${USE_ZBM} == "true" ]]; then
 	fi
 
 	# Adicionar entrada UEFI
-	# Remover entrada antiga se existir
-	efibootmgr -B -L "ZFSBootMenu" || true
-	# Criar nova
+	# Remover entradas antigas se existirem para evitar duplicatas ou lixo
+	log "Limpando entradas UEFI antigas..."
+	for num in $(efibootmgr | grep "ZFSBootMenu" | awk '{print $1}' | sed 's/Boot//' | sed 's/\*//'); do
+		efibootmgr -b "${num}" -B || true
+	done
+
+	# Criar nova entrada
 	# Precisamos do device path para efibootmgr (-d disk -p part)
+	log "Registrando ZFSBootMenu na NVRAM..."
 	efibootmgr -c -d "${FIRST_DISK}" -p "${PART_EFI}" -L "ZFSBootMenu" -l '\EFI\ZBM\zfsbootmenu.EFI'
+
+	# 3. Copiar para o caminho de fallback (Removable Path)
+	# Essencial para VMs e sistemas que perdem a NVRAM ou não seguem a ordem de boot estritamente.
+	log "Configurando caminho de fallback UEFI (/EFI/BOOT/BOOTX64.EFI)..."
+	mkdir -p /mnt/boot/efi/EFI/BOOT
+	cp /mnt/boot/efi/EFI/ZBM/zfsbootmenu.EFI /mnt/boot/efi/EFI/BOOT/BOOTX64.EFI
 
 	# Configurar propriedades ZBM no dataset ROOT
 	# ZBM usa org.zfsbootmenu:commandline para argumentos do kernel
@@ -464,10 +713,31 @@ log "Criando snapshot inicial (@install)..."
 zfs snapshot -r rpool/ROOT/debian@install
 zfs snapshot -r bpool/BOOT/debian@install
 
-# Umount
+# Desmontagem
 log "Desmontando..."
-umount -R /mnt
-zpool export -a
+
+# Sincronizar sistemas de arquivos
+sync
+
+# Desmontar bind mounts do chroot primeiro
+umount -lf /mnt/dev 2>/dev/null || true
+umount -lf /mnt/proc 2>/dev/null || true
+umount -lf /mnt/sys 2>/dev/null || true
+umount -lf /mnt/run 2>/dev/null || true
+
+# Desmontar EFI
+umount -f /mnt/boot/efi 2>/dev/null || true
+
+# Desmontar recursivamente /mnt
+umount -R /mnt 2>/dev/null || umount -lR /mnt 2>/dev/null || true
+
+# Pequena pausa para o sistema liberar recursos
+sleep 2
+
+# Exportar pools ZFS
+log "Exportando pools ZFS..."
+zpool export bpool 2>/dev/null || zpool export -f bpool 2>/dev/null || true
+zpool export rpool 2>/dev/null || zpool export -f rpool 2>/dev/null || true
 
 gum style --border double --foreground "#00FF00" --margin "1" "✅ Instalação Concluída com Sucesso!"
 gum style "Reinicie o sistema e selecione 'ZFSBootMenu' (se instalado) na BIOS/UEFI."
