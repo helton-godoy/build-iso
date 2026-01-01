@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # Configurações
-BUILD_DIR="/tmp/build-iso-work"
+BUILD_DIR="/root/build-iso-work"
 OUTPUT_DIR="/root/build-iso/output/ISO"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 ISO_NAME="debian-zfs-${TIMESTAMP}.iso"
@@ -138,12 +138,15 @@ build_rootfs() {
 		echo "${ALL_PKGS[*]}"
 	)
 
+	# ---------------------------------------------------------
 	# mmdebstrap
-	# --mode=root: Executado como root
-	# --components: main contrib non-free non-free-firmware
+	# ---------------------------------------------------------
+	# Garantir TMPDIR local para evitar falta de espaço em /tmp (tmpfs)
+	local LOCAL_TMP="${BUILD_DIR}/tmp"
+	mkdir -p "${LOCAL_TMP}"
 
 	# shellcheck disable=SC2016
-	mmdebstrap \
+	TMPDIR="${LOCAL_TMP}" mmdebstrap \
 		--mode=root \
 		--architectures="${ARCH}" \
 		--format=directory \
@@ -155,7 +158,10 @@ build_rootfs() {
 		--customize-hook='chroot "$1" locale-gen' \
 		"${DEBIAN_RELEASE}" \
 		"${BUILD_DIR}/rootfs" \
-		"https://debian.c3sl.ufpr.br/debian/"
+		"https://debian.c3sl.ufpr.br/debian/" || {
+		log_error "mmdebstrap falhou!"
+		exit 1
+	}
 
 	log_ok "Rootfs criado com sucesso!"
 }
