@@ -339,14 +339,34 @@ RPOOL_ARGS=$(construct_vdev_list "${PART_RPOOL}")
 log "Criando bpool com args: ${BPOOL_ARGS}"
 log "Criando rpool com args: ${RPOOL_ARGS}"
 
+# Features seguras para ZFSBootMenu v2.3.0
+ZBM_BPOOL_FEATURES=(
+	-d
+	-o feature@async_destroy=enabled
+	-o feature@empty_bpobj=enabled
+	-o feature@lz4_compress=enabled
+	-o feature@bookmarks=enabled
+	-o feature@multi_vdev_crash_dump=enabled
+	-o feature@spacemap_histogram=enabled
+	-o feature@enabled_txg=enabled
+	-o feature@hole_birth=enabled
+	-o feature@extensible_dataset=enabled
+	-o feature@embedded_data=enabled
+	-o feature@filesystem_limits=enabled
+	-o feature@large_blocks=enabled
+	-o feature@sha512=enabled
+	-o feature@skein=enabled
+	-o feature@edonr=enabled
+	-o feature@userobj_accounting=enabled
+)
+
 # Criar bpool
-# Features conservadoras para compatibilidade Grub/ZBM
 # shellcheck disable=SC2086 # Word splitting intencional para BPOOL_ARGS
 zpool create -f \
 	-o ashift=12 \
 	-o autotrim=on \
-	-o compatibility=grub2 \
 	-o cachefile=/etc/zfs/zpool.cache \
+	"${ZBM_BPOOL_FEATURES[@]}" \
 	-O devices=off \
 	-O acltype=posixacl -O xattr=sa \
 	-O compression=lz4 \
@@ -368,13 +388,28 @@ RPOOL_OPTS=(
 	-R /mnt
 )
 
-# Features a desativar por incompatibilidade com ZFSBootMenu 2.3.0
-ZBM_COMPAT=(
-	-o feature@raidz_expansion=disabled
-	-o feature@fast_dedup=disabled
-	-o feature@large_microzap=disabled
-	-o feature@longname=disabled
-	-o feature@redaction_list_spill=disabled
+# Features seguras para ZFSBootMenu v2.3.0 (incluindo encriptação)
+ZBM_RPOOL_FEATURES=(
+	-d
+	-o feature@async_destroy=enabled
+	-o feature@empty_bpobj=enabled
+	-o feature@lz4_compress=enabled
+	-o feature@bookmarks=enabled
+	-o feature@multi_vdev_crash_dump=enabled
+	-o feature@spacemap_histogram=enabled
+	-o feature@enabled_txg=enabled
+	-o feature@hole_birth=enabled
+	-o feature@extensible_dataset=enabled
+	-o feature@embedded_data=enabled
+	-o feature@filesystem_limits=enabled
+	-o feature@large_blocks=enabled
+	-o feature@sha512=enabled
+	-o feature@skein=enabled
+	-o feature@edonr=enabled
+	-o feature@userobj_accounting=enabled
+	-o feature@encryption=enabled
+	-o feature@project_quota=enabled
+	-o feature@resilver_defer=enabled
 )
 
 # shellcheck disable=SC2086 # Word splitting intencional para RPOOL_ARGS
@@ -383,7 +418,7 @@ if [[ ${ENCRYPT} == "Sim" ]]; then
 	zpool create -f \
 		-o ashift=12 \
 		-o autotrim=on \
-		"${ZBM_COMPAT[@]}" \
+		"${ZBM_RPOOL_FEATURES[@]}" \
 		-O encryption=on -O keylocation=prompt -O keyformat=passphrase \
 		"${RPOOL_OPTS[@]}" \
 		rpool ${RPOOL_ARGS}
@@ -391,7 +426,7 @@ else
 	zpool create -f \
 		-o ashift=12 \
 		-o autotrim=on \
-		"${ZBM_COMPAT[@]}" \
+		"${ZBM_RPOOL_FEATURES[@]}" \
 		"${RPOOL_OPTS[@]}" \
 		rpool ${RPOOL_ARGS}
 fi
@@ -402,8 +437,9 @@ zfs create -o canmount=off -o mountpoint=none rpool/ROOT
 zfs create -o canmount=noauto -o mountpoint=/ rpool/ROOT/debian
 zfs mount rpool/ROOT/debian
 
-zfs create -o mountpoint=/boot bpool/BOOT
+zfs create -o mountpoint=none bpool/BOOT
 zfs create -o mountpoint=/boot bpool/BOOT/debian
+zfs mount bpool/BOOT/debian
 
 # Datasets padrão
 zfs create -o mountpoint=/home rpool/home
@@ -426,8 +462,19 @@ zfs set org.zfsbootmenu:bootfs=bpool/BOOT/debian rpool/ROOT/debian
 zfs set org.zfsbootmenu:commandline="quiet loglevel=3" rpool/ROOT/debian
 
 # Depuração: Verificar se datasets estão montados e se há espaço
-log "Verificando montagens:"
-df -h | grep /mnt || true
+log "Verificando montagens ZFS..."
+zfs mount
+
+# Verificações Críticas de Montagem
+if ! mountpoint -q /mnt; then
+	error_exit "Erro Crítico: /mnt não está montado! Abortando mmdebstrap."
+fi
+if ! mountpoint -q /mnt/boot; then
+	error_exit "Erro Crítico: /mnt/boot (bpool) não está montado! Abortando mmdebstrap."
+fi
+
+log "Status dos Pools:"
+zpool list -v
 
 # =============================================================================
 # 3. INSTALAÇÃO DO SISTEMA BASE (MMDEBSTRAP)
@@ -756,8 +803,10 @@ umount -R /mnt 2>/dev/null || umount -lR /mnt 2>/dev/null || true
 # Pequena pausa para o sistema liberar recursos
 sleep 2
 
-# Exportar pools ZFS
-log "Exportando pools ZFS..."
+# Exportar pools ZFS (Sincronização Final)
+log "Exportando pools ZFS e sincronizando dados..."
+zpool list # Logar status final
+sync
 zpool export bpool 2>/dev/null || zpool export -f bpool 2>/dev/null || true
 zpool export rpool 2>/dev/null || zpool export -f rpool 2>/dev/null || true
 
