@@ -3,7 +3,7 @@ set -e
 
 # Versão do ZFSBootMenu para baixar (pode ser 'release' ou uma versão específica tag)
 ZBM_RELEASE="v2.3.0" # Ajuste conforme necessário
-CACHE_DIR="config/includes.chroot/usr/share/zfsbootmenu"
+CACHE_DIR="/usr/share/zfsbootmenu"
 
 echo "⬇️ Baixando ZFSBootMenu Release (${ZBM_RELEASE})..."
 

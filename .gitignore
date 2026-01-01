@@ -3,4 +3,4 @@ logs/
 output/
 images/
 *.iso
-*.qcow2
+*.qcow2work/

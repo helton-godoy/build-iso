@@ -155,6 +155,7 @@ configure_rootfs() {
 	mount -t sysfs sys "${R}/sys"
 	mount --bind /dev "${R}/dev"
 	mount --bind /dev/pts "${R}/dev/pts"
+	cp /etc/resolv.conf "${R}/etc/resolv.conf"
 
 	# Hostname
 	echo "${HOSTNAME}" >"${R}/etc/hostname"
@@ -187,9 +188,12 @@ EOF
 	# ZFSBootMenu será baixado via hook config/hooks/live/00-fetch-zfsbootmenu.hook.chroot
 
 	# Limpeza
-	chroot "${R}" apt-get clean
-	rm -rf "${R}/var/lib/apt/lists/*"
 	rm -rf "${R}/tmp/*"
+
+	# ---------------------------------------------------------
+	# Copiar arquivos do instalador e rodar hooks
+	# ---------------------------------------------------------
+	copy_installer_files
 
 	# ---------------------------------------------------------
 	# Desmontar
@@ -199,6 +203,7 @@ EOF
 	umount "${R}/dev" || true
 	umount "${R}/sys" || true
 	umount "${R}/proc" || true
+	rm -f "${R}/etc/resolv.conf"
 }
 
 copy_installer_files() {
@@ -241,9 +246,6 @@ copy_installer_files() {
 }
 
 pack_rootfs() {
-	# Certificar que copiou antes de empacotar
-	copy_installer_files
-
 	log_info "Criando SquashFS..."
 	mksquashfs "${BUILD_DIR}/rootfs" "${BUILD_DIR}/iso/live/filesystem.squashfs" -comp zstd -b 1048576
 	chmod 444 "${BUILD_DIR}/iso/live/filesystem.squashfs"

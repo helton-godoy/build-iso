@@ -188,8 +188,8 @@ copy_iso_from_vm() {
 	log_info "Copiando ISO da VM..."
 
 	scp -o StrictHostKeyChecking=no -i "${ssh_key}" \
-		"root@${vm_ip}:/root/output/*.iso" \
-		"root@${vm_ip}:/root/output/*.sha256" \
+		"root@${vm_ip}:/root/build-iso/output/ISO/*.iso" \
+		"root@${vm_ip}:/root/build-iso/output/ISO/*.sha256" \
 		"${PROJECT_ROOT}/output/"
 
 	log_ok "ISO copiada para: ${PROJECT_ROOT}/output/"
