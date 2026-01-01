@@ -368,12 +368,22 @@ RPOOL_OPTS=(
 	-R /mnt
 )
 
+# Features a desativar por incompatibilidade com ZFSBootMenu 2.3.0
+ZBM_COMPAT=(
+	-o feature@raidz_expansion=disabled
+	-o feature@fast_dedup=disabled
+	-o feature@large_microzap=disabled
+	-o feature@longname=disabled
+	-o feature@redaction_list_spill=disabled
+)
+
 # shellcheck disable=SC2086 # Word splitting intencional para RPOOL_ARGS
 if [[ ${ENCRYPT} == "Sim" ]]; then
 	gum style "Digite a senha de encriptação para o ZFS (rpool):"
 	zpool create -f \
 		-o ashift=12 \
 		-o autotrim=on \
+		"${ZBM_COMPAT[@]}" \
 		-O encryption=on -O keylocation=prompt -O keyformat=passphrase \
 		"${RPOOL_OPTS[@]}" \
 		rpool ${RPOOL_ARGS}
@@ -381,6 +391,7 @@ else
 	zpool create -f \
 		-o ashift=12 \
 		-o autotrim=on \
+		"${ZBM_COMPAT[@]}" \
 		"${RPOOL_OPTS[@]}" \
 		rpool ${RPOOL_ARGS}
 fi
@@ -407,8 +418,16 @@ zfs create -o mountpoint=/var/lib -o com.sun:auto-snapshot=false rpool/var/lib
 zfs create -o mountpoint=/var/tmp -o com.sun:auto-snapshot=false rpool/var/tmp
 zfs create -o mountpoint=/srv rpool/srv
 
-# Configurar bootfs
+# Configurar bootfs e propriedades ZFSBootMenu
 zpool set bootfs=rpool/ROOT/debian rpool
+# IMPORTANTE: Se usar bpool separado, ZBM precisa saber onde estão os kernels
+zfs set org.zfsbootmenu:bootfs=bpool/BOOT/debian rpool/ROOT/debian
+# Opcional: kernel arguments
+zfs set org.zfsbootmenu:commandline="quiet loglevel=3" rpool/ROOT/debian
+
+# Depuração: Verificar se datasets estão montados e se há espaço
+log "Verificando montagens:"
+df -h | grep /mnt || true
 
 # =============================================================================
 # 3. INSTALAÇÃO DO SISTEMA BASE (MMDEBSTRAP)
@@ -461,6 +480,9 @@ mmdebstrap \
 MMDEBSTRAP_EXIT=${PIPESTATUS[0]}
 if [[ ${MMDEBSTRAP_EXIT} -eq 0 ]]; then
 	gum style --foreground "#00FF00" "✓ Sistema base instalado com sucesso!"
+	# Verificar se realmente há dados nos pools
+	log "Verificando alocação após bootstrap:"
+	zpool list bpool rpool
 else
 	error_exit "Falha no mmdebstrap (exit code: ${MMDEBSTRAP_EXIT}). Verifique ${LOG_FILE} para detalhes."
 fi
@@ -653,7 +675,7 @@ if [[ ${USE_ZBM} == "true" ]]; then
 	else
 		# 2. Download Fallback
 		gum spin --title "Baixando ZFSBootMenu..." -- \
-			wget "https://github.com/zbm-dev/zfsbootmenu/releases/download/v2.3.0/zfsbootmenu-release-x86_64-v2.3.0.EFI" \
+			wget "https://github.com/zbm-dev/zfsbootmenu/releases/download/v2.3.0/zfsbootmenu-release-x86_64-v2.3.0-vmlinuz.EFI" \
 			-O /mnt/boot/efi/EFI/ZBM/zfsbootmenu.EFI
 	fi
 
@@ -678,7 +700,7 @@ if [[ ${USE_ZBM} == "true" ]]; then
 	# Configurar propriedades ZBM no dataset ROOT
 	# ZBM usa org.zfsbootmenu:commandline para argumentos do kernel
 	log "Configurando propriedades ZFSBootMenu..."
-	zfs set org.zfsbootmenu:commandline="quiet splash" rpool/ROOT/debian
+	zfs set org.zfsbootmenu:commandline="quiet loglevel=3" rpool/ROOT/debian
 	zfs set org.zfsbootmenu:dodes="true" rpool/ROOT/debian # Tentativa de setup automático chave
 
 	# Se encriptado, garantir que ZBM pergunte a senha

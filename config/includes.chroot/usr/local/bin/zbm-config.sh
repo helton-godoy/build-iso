@@ -67,7 +67,8 @@ chroot "${target_root}" /usr/sbin/grub-install --target=x86_64-efi --efi-directo
 chroot "${target_root}" /usr/sbin/update-grub
 
 # 6. Definir propriedades necessárias para o ZBM no sistema instalado
-zfs set org.zfsbootmenu:commandline="quiet splash" zroot/ROOT/debian
+zfs set org.zfsbootmenu:commandline="quiet loglevel=3" rpool/ROOT/debian
+zfs set org.zfsbootmenu:bootfs=bpool/BOOT/debian rpool/ROOT/debian
 
 umount "${target_root}/boot/efi"
 
