@@ -10,8 +10,8 @@ echo "⬇️ Baixando ZFSBootMenu Release (${ZBM_RELEASE})..."
 mkdir -p "${CACHE_DIR}"
 
 # Baixar EFI executável (recovery e default)
-wget -q "https://github.com/zbm-dev/zfsbootmenu/releases/download/${ZBM_RELEASE}/zfsbootmenu-release-x86_64-${ZBM_RELEASE}.EFI" -O "${CACHE_DIR}/zfsbootmenu.EFI"
-wget -q "https://github.com/zbm-dev/zfsbootmenu/releases/download/${ZBM_RELEASE}/zfsbootmenu-recovery-x86_64-${ZBM_RELEASE}.EFI" -O "${CACHE_DIR}/zfsbootmenu-recovery.EFI"
+wget -q "https://github.com/zbm-dev/zfsbootmenu/releases/download/${ZBM_RELEASE}/zfsbootmenu-release-x86_64-${ZBM_RELEASE}-vmlinuz.EFI" -O "${CACHE_DIR}/zfsbootmenu.EFI"
+wget -q "https://github.com/zbm-dev/zfsbootmenu/releases/download/${ZBM_RELEASE}/zfsbootmenu-recovery-x86_64-${ZBM_RELEASE}-vmlinuz.EFI" -O "${CACHE_DIR}/zfsbootmenu-recovery.EFI"
 
 # Baixar checksums para verificação (opcional, mas recomendado)
 wget -q "https://github.com/zbm-dev/zfsbootmenu/releases/download/${ZBM_RELEASE}/sha256.txt" -O "${CACHE_DIR}/sha256.txt"

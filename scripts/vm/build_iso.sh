@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # Configurações
-BUILD_DIR="/root/build-iso/work"
+BUILD_DIR="/tmp/build-iso-work"
 OUTPUT_DIR="/root/build-iso/output/ISO"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 ISO_NAME="debian-zfs-${TIMESTAMP}.iso"
@@ -103,8 +103,25 @@ PKG_CALAMARES=(
 # FUNÇÕES DE BUILD
 # =============================================================================
 
+unmount_recursive() {
+	local dir="$1"
+	# Evitar erro se o diretório não existir
+	[[ ! -d ${dir} ]] && return 0
+	log_info "Desmontando recursivamente: ${dir}"
+	# Encontrar todos os mount points sob o diretório
+	local mounts
+	mounts=$(grep "${dir}" /proc/mounts | awk '{print $2}' | sort -r || true)
+	if [[ -n ${mounts} ]]; then
+		echo "${mounts}" | while read -r mnt; do
+			log_warn "Desmontando ${mnt}..."
+			umount -l "${mnt}" || true
+		done
+	fi
+}
+
 setup_env() {
 	log_info "Limpando ambiente de build..."
+	unmount_recursive "${BUILD_DIR}"
 	rm -rf "${BUILD_DIR}"
 	mkdir -p "${BUILD_DIR}/rootfs" "${BUILD_DIR}/iso/live" "${BUILD_DIR}/iso/boot/grub" "${OUTPUT_DIR}"
 }
@@ -155,7 +172,7 @@ configure_rootfs() {
 	mount -t sysfs sys "${R}/sys"
 	mount --bind /dev "${R}/dev"
 	mount --bind /dev/pts "${R}/dev/pts"
-	cp /etc/resolv.conf "${R}/etc/resolv.conf"
+	cp -L /etc/resolv.conf "${R}/etc/resolv.conf" || true
 
 	# Hostname
 	echo "${HOSTNAME}" >"${R}/etc/hostname"
@@ -226,8 +243,9 @@ copy_installer_files() {
 	fi
 
 	# 3. Permissões de execução para scripts
-	chmod +x "${R}/usr/local/bin/"*.sh 2>/dev/null || true
-	chmod +x "${R}/usr/bin/"* 2>/dev/null || true
+	find "${R}/usr/local/bin/" -name "*.sh" -exec chmod +x {} + 2>/dev/null || true
+	# No /usr/bin, vamos ser mais seletivos ou apenas silenciar
+	chmod +x "${R}/usr/bin/heltonos-installer" 2>/dev/null || true
 
 	# 4. Executar Hooks de Customização (config/hooks/live/*.hook.chroot)
 	if [[ -d "${REPO_ROOT}/config/hooks/live" ]]; then
