@@ -9,13 +9,13 @@ Automatização de implantação Debian com ZFS-on-root e ZFSBootMenu, suportand
 
 ## ONDE OLHAR
 
-| Tarefa | Localização | Notas |
-|--------|-------------|-------|
-| Blueprint completo | `Architectural Blueprint...md` | Arquitetura detalhada em português |
-| Convenções de código | Ver seção abaixo | Shell-only |
-| Build/Test | Ver seção abaixo | Docker + KVM |
-| ZFSBootMenu binaries | `ZFSBOOTMENU_BINARIES.md` | Endereços de download e estrutura |
-| Referências ZFS | Ver seção abaixo | ZFSBootMenu docs |
+| Tarefa               | Localização                    | Notas                              |
+| -------------------- | ------------------------------ | ---------------------------------- |
+| Blueprint completo   | `Architectural Blueprint...md` | Arquitetura detalhada em português |
+| Convenções de código | Ver seção abaixo               | Shell-only                         |
+| Build/Test           | Ver seção abaixo               | Docker + KVM                       |
+| ZFSBootMenu binaries | `ZFSBOOTMENU_BINARIES.md`      | Endereços de download e estrutura  |
+| Referências ZFS      | Ver seção abaixo               | ZFSBootMenu docs                   |
 
 ## CONVENÇÕES (QUANDO IMPLEMENTAR)
 
@@ -41,6 +41,7 @@ zroot                          (canmount=off, compression=zstd)
 ```
 
 **Propriedades padrão:**
+
 - Pools: `ashift=12`, `compression=zstd`, `compatibility=openzfs-2.2-linux`
 - Datasets: `xattr=sa`, `atime=off` (workloads)
 - Criptografia: `keyformat=passphrase`, `keylocation=prompt`
@@ -133,11 +134,11 @@ curl -LJO https://get.zfsbootmenu.org/efi
 
 ## PARTIÇÕES (HYBRIDO UEFI+BIOS)
 
-| Partição | Tamanho | Tipo | Finalidade |
-|----------|---------|------|-------------|
-| BIOS boot | 1 MiB | `EF02` | Syslinux/GRUB stage 2 (legado) |
-| ESP | 512 MiB | `EF00` | VFAT - ZFSBootMenu EFI |
-| Pool ZFS | Restante | `BF00` | ZFS - sistema root |
+| Partição  | Tamanho  | Tipo   | Finalidade                     |
+| --------- | -------- | ------ | ------------------------------ |
+| BIOS boot | 1 MiB    | `EF02` | Syslinux/GRUB stage 2 (legado) |
+| ESP       | 512 MiB  | `EF00` | VFAT - ZFSBootMenu EFI         |
+| Pool ZFS  | Restante | `BF00` | ZFS - sistema root             |
 
 ## KERNEL PARAMETERS (ZFSBootMenu)
 
