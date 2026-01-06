@@ -62,8 +62,9 @@ Uso: $(basename "$0") [Opções] [uefi|bios]
 
 Opções:
     --check-deps            Apenas verifica se as dependências estão instaladas e sai
-    --create-disk FILE      Cria um disco virtual QCOW2 de 20GB no caminho especificado
+    --create-disk FILE      Cria um disco virtual QCOW2 no caminho especificado
     --disk FILE             Usa o disco especificado (anexa à VM)
+    --disk-size SIZE        Define o tamanho do disco (padrão: 20G)
     --dry-run               Apenas imprime o comando QEMU que seria executado
     uefi                    Testa boot usando UEFI (requer OVMF instalado)
     bios                    Testa boot usando Legacy BIOS (padrão)
@@ -120,6 +121,7 @@ run_qemu() {
 CHECK_ONLY=false
 CREATE_DISK=""
 DISK_FILE=""
+DISK_SIZE="20G"
 DRY_RUN=false
 MODE="bios"
 
@@ -138,6 +140,10 @@ while [[ $# -gt 0 ]]; do
             DISK_FILE="$2"
             shift 2
             ;;
+        --disk-size)
+            DISK_SIZE="$2"
+            shift 2
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -153,21 +159,21 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ -n "$CREATE_DISK" ]]; then
+    if [[ -f "$CREATE_DISK" ]]; then
+        echo -e "${YELLOW}[AVISO]${NC} Disco '$CREATE_DISK' já existe. Pulando criação."
+    else
+        echo -e "${GREEN}[INFO]${NC} Criando disco virtual de $DISK_SIZE em: $CREATE_DISK"
+        qemu-img create -f qcow2 "$CREATE_DISK" "$DISK_SIZE"
+    fi
+fi
+
 if [[ "$CHECK_ONLY" == "true" ]]; then
     check_dependencies
     exit $?
 fi
 
 check_dependencies || true # Não aborta se apenas o KVM estiver faltando, mas qemu existir
-
-if [[ -n "$CREATE_DISK" ]]; then
-    if [[ -f "$CREATE_DISK" ]]; then
-        echo -e "${YELLOW}[AVISO]${NC} Disco '$CREATE_DISK' já existe. Pulando criação."
-    else
-        echo -e "${GREEN}[INFO]${NC} Criando disco virtual de 20GB em: $CREATE_DISK"
-        qemu-img create -f qcow2 "$CREATE_DISK" 20G
-    fi
-fi
 
 ISO_FILE=$(ls "$DIST_DIR"/*.iso 2>/dev/null | head -n 1) || ISO_FILE=""
 
