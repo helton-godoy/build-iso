@@ -1,6 +1,6 @@
 # Plan: Pipeline de Build ISO Debian (Trixie) com ZFS e Teste Automatizado
 
-## Phase 1: Arquitetura de Diretórios e Organização
+## Phase 1: Arquitetura de Diretórios e Organização [checkpoint: 86f4f8c]
 - [x] **Task: Definir e documentar a estrutura de diretórios do projeto** 511f615
     - [x] Criar/Atualizar `docs/PROJECT_STRUCTURE.md` detalhando a finalidade de cada diretório e onde novos artefatos devem ser criados.
     - [x] Definir locais padrão para logs (`logs/`), artefatos de build (`build/`), cache (`cache/`) e saídas finais (`dist/` ou `release/`).
@@ -8,7 +8,7 @@
     - [x] Mover logs e arquivos temporários da raiz para seus diretórios apropriados.
     - [x] Atualizar `.gitignore` para refletir a nova estrutura e ignorar artefatos gerados.
     - [x] Ajustar scripts existentes para respeitar os novos caminhos de saída/entrada.
-- [ ] **Task: Conductor - User Manual Verification 'Arquitetura e Organização' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Arquitetura e Organização' (Protocol in workflow.md)**
 
 ## Phase 2: Auditoria e Reconhecimento
 - [ ] **Task: Auditar arquivos existentes e estado atual**
