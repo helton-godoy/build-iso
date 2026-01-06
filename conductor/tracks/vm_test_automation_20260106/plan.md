@@ -10,6 +10,6 @@
 - [x] Task: Adicionar argumentos para controle do disco (ex: `--disk-size`, `--keep-disk`) 664f045
 
 ## Fase 3: Validação do Fluxo de Instalação
-- [ ] Task: Testar boot em modo BIOS e UEFI com o novo script
-- [ ] Task: Realizar teste manual de instalação completa no disco virtual
+- [x] Task: Testar boot em modo BIOS e UEFI com o novo script 6612b83
+- [~] Task: Realizar teste manual de instalação completa no disco virtual
 - [ ] Task: Conductor - User Manual Verification 'Automação de Testes em VM' (Protocol in workflow.md)
