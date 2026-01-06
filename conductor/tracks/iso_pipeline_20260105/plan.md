@@ -20,7 +20,7 @@ Nesta fase, configuraremos os parâmetros do `lb config` e a lista de pacotes.
 - [x] Task: Definir listas de pacotes (ZFS e Utils) [commit: dae38d3]
   - *Contexto:* Criar `config/package-lists/zfs.list.chroot` e `tools.list.chroot`.
   - *Detalhes:* Incluir `zfs-dkms`, `zfsutils-linux`, `gdisk`, `dosfstools`, `efibootmgr`.
-- [ ] Task: Integrar binários ZFSBootMenu via Hook
+- [x] Task: Integrar binários ZFSBootMenu via Hook [commit: d16de8f]
   - *Contexto:* Criar um hook em `config/hooks/live/` para copiar os arquivos de `./zbm-binaries` para dentro da imagem live.
   - *Detalhes:* Garantir que o script de download rodou antes ou rodar dentro do hook.
 - [ ] Task: Conductor - User Manual Verification 'Configuração do Debian Live-Build' (Protocol in workflow.md)
