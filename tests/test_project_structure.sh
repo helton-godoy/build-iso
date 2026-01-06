@@ -3,7 +3,7 @@ set -euo pipefail
 
 echo "Verificando a nova estrutura de diretórios do projeto..."
 
-DIRS=("logs" "dist" "build" "cache")
+DIRS=("docker/artifacts/logs" "docker/artifacts/dist" "docker/artifacts/build" "docker/artifacts/cache")
 MISSING=0
 
 for dir in "${DIRS[@]}"; do
