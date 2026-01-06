@@ -25,13 +25,9 @@ Nesta fase, configuraremos os parâmetros do `lb config` e a lista de pacotes.
   - *Detalhes:* Garantir que o script de download rodou antes ou rodar dentro do hook.
 - [x] Task: Conductor - User Manual Verification 'Configuração do Debian Live-Build' (Protocol in workflow.md)
 
-## Fase 3: Execução e Validação
+## Fase 3: Execução e Validação [checkpoint: 9ae5f12]
 Executar o build completo e verificar a integridade básica do artefato.
 
 - [x] Task: Executar Build Completo [commit: b9b8365]
-  - *Contexto:* Rodar `scripts/build-iso-in-docker.sh` e monitorar logs.
-  - *Detalhes:* Corrigir dependências quebradas ou erros de build do DKMS se surgirem.
 - [x] Task: Verificação Estrutural da ISO [commit: b27264e]
-  - *Contexto:* Montar a ISO gerada em loopback e listar arquivos.
-  - *Detalhes:* Confirmar presença de `pool/` (pacotes), initrd e kernel.
-- [~] Task: Conductor - User Manual Verification 'Execução e Validação' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Execução e Validação' (Protocol in workflow.md)
