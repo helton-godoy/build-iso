@@ -7,6 +7,7 @@ set -euo pipefail
 
 # Diretório onde a ISO é gerada pelo pipeline Docker
 DIST_DIR="${DIST_DIR:-docker/artifacts/dist}"
+VM_WORK_DIR="work/vm"
 MEM="2G"
 CPUS="2"
 
@@ -160,6 +161,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -n "$CREATE_DISK" ]]; then
+    # Se o caminho não for absoluto e não contiver diretório, coloca em VM_WORK_DIR
+    if [[ "$CREATE_DISK" != /* && "$CREATE_DISK" != */* ]]; then
+        CREATE_DISK="$VM_WORK_DIR/$CREATE_DISK"
+        DISK_FILE="$CREATE_DISK"
+    fi
+
+    mkdir -p "$(dirname "$CREATE_DISK")"
+
     if [[ -f "$CREATE_DISK" ]]; then
         echo -e "${YELLOW}[AVISO]${NC} Disco '$CREATE_DISK' já existe. Pulando criação."
     else
