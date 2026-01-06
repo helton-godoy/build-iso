@@ -22,6 +22,22 @@ HOST_GID=$(id -g)
 echo "Building Docker image..."
 docker build --progress=plain -t "$IMAGE_NAME" "$DOCKER_DIR" 2>&1 | tee "$LOG_DIR/docker-build.log"
 
+# Inject ZFSBootMenu binaries if they exist
+ZBM_SOURCE="zbm-binaries"
+ZBM_DEST="config/includes.chroot/usr/share/zfsbootmenu"
+if [[ -d "$ZBM_SOURCE" ]]; then
+    echo "Injecting ZFSBootMenu binaries..."
+    mkdir -p "$ZBM_DEST"
+    # Find the latest extracted directory or use files directly
+    LATEST_ZBM_DIR=$(find "$ZBM_SOURCE" -maxdepth 1 -type d -name "zfsbootmenu-release-*" | sort -V | tail -n 1)
+    if [[ -n "$LATEST_ZBM_DIR" ]]; then
+        cp -v "$LATEST_ZBM_DIR"/vmlinuz-bootmenu "$ZBM_DEST/" || true
+        cp -v "$LATEST_ZBM_DIR"/initramfs-bootmenu.img "$ZBM_DEST/" || true
+        # Also copy EFI if available
+        find "$LATEST_ZBM_DIR" -name "*.EFI" -exec cp -v {} "$ZBM_DEST/" \; || true
+    fi
+fi
+
 # Determine command to run
 if [[ $# -gt 0 ]]; then
     CMD=("$@")
