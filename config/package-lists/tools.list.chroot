@@ -1,0 +1,6 @@
+gdisk
+dosfstools
+efibootmgr
+curl
+git
+debootstrap
