@@ -17,9 +17,8 @@
 
 ## Phase 4: Integração ZFS e Configuração do Sistema
 - [x] **Task: Refinar listas de pacotes (Package Lists)** 5039288
-    - [x] Garantir `non-free-firmware` e drivers básicos em `tools.list.chroot`.
-    - [x] Validar dependências do ZFS para Trixie.
-- [ ] **Task: Implementar hook para compilação DKMS do ZFS**
+- [x] **Task: Implementar hook para compilação DKMS do ZFS** ac0deaa
+    - [x] Criar hook em `config/hooks/live/` para compilar módulos ZFS no kernel da ISO.
 - [ ] **Task: Conductor - User Manual Verification 'Integração ZFS' (Protocol in workflow.md)**
 
 ## Phase 5: Implementação do Instalador e Injeção de Binários
