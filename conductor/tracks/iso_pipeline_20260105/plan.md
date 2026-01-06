@@ -14,7 +14,7 @@ Esta fase foca em preparar o ambiente isolado onde o `live-build` será executad
 ## Fase 2: Configuração do Debian Live-Build
 Nesta fase, configuraremos os parâmetros do `lb config` e a lista de pacotes.
 
-- [ ] Task: Inicializar configuração do Live-Build
+- [x] Task: Inicializar configuração do Live-Build [commit: 3c57dde]
   - *Contexto:* Criar estrutura `config/` usando `lb config` via container.
   - *Detalhes:* Definir `--distribution trixie`, `--archive-areas "main contrib non-free-firmware"`, `--binary-images iso-hybrid`.
 - [ ] Task: Definir listas de pacotes (ZFS e Utils)
