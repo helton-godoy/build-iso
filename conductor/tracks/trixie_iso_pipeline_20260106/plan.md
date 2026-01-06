@@ -4,10 +4,10 @@
 - [x] **Task: Definir e documentar a estrutura de diretórios do projeto** 511f615
     - [x] Criar/Atualizar `docs/PROJECT_STRUCTURE.md` detalhando a finalidade de cada diretório e onde novos artefatos devem ser criados.
     - [x] Definir locais padrão para logs (`logs/`), artefatos de build (`build/`), cache (`cache/`) e saídas finais (`dist/` ou `release/`).
-- [ ] **Task: Refatorar estrutura atual para limpar a raiz**
-    - [ ] Mover logs e arquivos temporários da raiz para seus diretórios apropriados.
-    - [ ] Atualizar `.gitignore` para refletir a nova estrutura e ignorar artefatos gerados.
-    - [ ] Ajustar scripts existentes para respeitar os novos caminhos de saída/entrada.
+- [x] **Task: Refatorar estrutura atual para limpar a raiz** 4adfec4
+    - [x] Mover logs e arquivos temporários da raiz para seus diretórios apropriados.
+    - [x] Atualizar `.gitignore` para refletir a nova estrutura e ignorar artefatos gerados.
+    - [x] Ajustar scripts existentes para respeitar os novos caminhos de saída/entrada.
 - [ ] **Task: Conductor - User Manual Verification 'Arquitetura e Organização' (Protocol in workflow.md)**
 
 ## Phase 2: Auditoria e Reconhecimento
