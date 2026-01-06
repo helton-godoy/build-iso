@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ISO_FILE=$(ls *.iso 2>/dev/null | head -n 1)
+ISO_FILE=$(ls dist/*.iso 2>/dev/null | head -n 1)
 
 echo "Running tests for ISO build artifact..."
 
