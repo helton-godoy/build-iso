@@ -4,5 +4,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track: Implementar o pipeline de build da ISO customizada do Debian utilizando Docker e Live-Build, integrando os binários do ZFSBootMenu já baixados.
+## [~] Track: Implementar o pipeline de build da ISO customizada do Debian utilizando Docker e Live-Build, integrando os binários do ZFSBootMenu já baixados.
 *Link: [./conductor/tracks/iso_pipeline_20260105/](./conductor/tracks/iso_pipeline_20260105/)*
+
+---
+
+## [x] Track: Pipeline de Build ISO Debian (Trixie) com ZFS e Teste Automatizado
+*Link: [./conductor/tracks/trixie_iso_pipeline_20260106/](./conductor/tracks/trixie_iso_pipeline_20260106/)*

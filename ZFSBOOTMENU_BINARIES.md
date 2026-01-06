@@ -6,32 +6,34 @@
 ## Download Endpoints
 
 ### Base URL
+
 ```
 https://get.zfsbootmenu.org/
 ```
 
 ### Available Assets
 
-| Asset | Build | URL | Output Filename |
-|-------|-------|-----|-----------------|
-| EFI | release | `https://get.zfsbootmenu.org/efi` | `zfsbootmenu-release-x86_64-v3.1.0-linux6.12.EFI` |
-| EFI | recovery | `https://get.zfsbootmenu.org/efi/recovery` | `zfsbootmenu-recovery-x86_64-v3.1.0-linux6.12.EFI` |
-| Components | release | `https://get.zfsbootmenu.org/components` | `zfsbootmenu-release-x86_64-v3.1.0-linux6.12.tar.gz` |
+| Asset      | Build    | URL                                               | Output Filename                                       |
+| ---------- | -------- | ------------------------------------------------- | ----------------------------------------------------- |
+| EFI        | release  | `https://get.zfsbootmenu.org/efi`                 | `zfsbootmenu-release-x86_64-v3.1.0-linux6.12.EFI`     |
+| EFI        | recovery | `https://get.zfsbootmenu.org/efi/recovery`        | `zfsbootmenu-recovery-x86_64-v3.1.0-linux6.12.EFI`    |
+| Components | release  | `https://get.zfsbootmenu.org/components`          | `zfsbootmenu-release-x86_64-v3.1.0-linux6.12.tar.gz`  |
 | Components | recovery | `https://get.zfsbootmenu.org/components/recovery` | `zfsbootmenu-recovery-x86_64-v3.1.0-linux6.12.tar.gz` |
 
 ### Other Assets
 
-| Asset | URL | Description |
-|-------|-----|-------------|
-| SHA256 signatures | `https://get.zfsbootmenu.org/sha256.sig` | GPG signatures |
-| SHA256 checksums | `https://get.zfsbootmenu.org/sha256.txt` | Checksum file |
-| Source | `https://get.zfsbootmenu.org/source` | Source tarball |
-| Builder script | `https://get.zfsbootmenu.org/zbm-builder.sh` | Build script |
-| Kernel command line | `https://get.zfsbootmenu.org/zbm-kcl` | CLI tool |
+| Asset               | URL                                          | Description    |
+| ------------------- | -------------------------------------------- | -------------- |
+| SHA256 signatures   | `https://get.zfsbootmenu.org/sha256.sig`     | GPG signatures |
+| SHA256 checksums    | `https://get.zfsbootmenu.org/sha256.txt`     | Checksum file  |
+| Source              | `https://get.zfsbootmenu.org/source`         | Source tarball |
+| Builder script      | `https://get.zfsbootmenu.org/zbm-builder.sh` | Build script   |
+| Kernel command line | `https://get.zfsbootmenu.org/zbm-kcl`        | CLI tool       |
 
 ## File Structure
 
 ### Components Tarball (release)
+
 ```
 zfsbootmenu-release-x86_64-v3.1.0-linux6.12.tar.gz
 ├── vmlinuz-bootmenu              # Linux kernel
@@ -44,6 +46,7 @@ zfsbootmenu-release-x86_64-v3.1.0-linux6.12.tar.gz
 ```
 
 ### Components Tarball (recovery)
+
 ```
 zfsbootmenu-recovery-x86_64-v3.1.0-linux6.12.tar.gz
 ├── vmlinuz-bootmenu
@@ -58,6 +61,7 @@ zfsbootmenu-recovery-x86_64-v3.1.0-linux6.12.tar.gz
 ## Download Examples
 
 ### Using curl
+
 ```bash
 # Download with project-defined filename
 curl -LJO https://get.zfsbootmenu.org/efi
@@ -71,6 +75,7 @@ curl -o zfsbootmenu.tar.gz https://get.zfsbootmenu.org/components
 ```
 
 ### Using wget
+
 ```bash
 # Download with project-defined filename
 wget --content-disposition https://get.zfsbootmenu.org/efi
@@ -86,6 +91,7 @@ wget -O zfsbootmenu.tar.gz https://get.zfsbootmenu.org/components
 ## Usage in ISO Build
 
 ### Extract components
+
 ```bash
 # Download and extract
 curl -LJO https://get.zfsbootmenu.org/components
@@ -101,6 +107,7 @@ cp EFI/ZFSBootMenu/GRUBX64.EFI /path/to/iso/EFI/ZFSBootMenu/
 ```
 
 ### Direct EFI download (simpler)
+
 ```bash
 # Download and place EFI directly
 curl -LJO https://get.zfsbootmenu.org/efi/recovery
@@ -110,6 +117,7 @@ cp zfsbootmenu-recovery-x86_64-v3.1.0-linux6.12.EFI /path/to/iso/EFI/BOOT/BOOTX6
 ## Version Detection
 
 To programmatically detect the latest version:
+
 ```bash
 # Get version from redirect headers
 VERSION=$(curl -sI https://get.zfsbootmenu.org/efi | grep -i location | grep -oP 'v\d+\.\d+\.\d+' | head -1)

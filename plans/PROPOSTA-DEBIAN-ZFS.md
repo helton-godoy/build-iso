@@ -3,7 +3,7 @@
 **Versão:** 1.0  
 **Data:** 2026-01-05  
 **Status:** Proposta para Aprovação  
-**Projeto:** build-iso  
+**Projeto:** build-iso
 
 ---
 
@@ -21,35 +21,35 @@ Os benefícios esperados incluem: redução de 70% no tempo de deployment automa
 
 ### 2.1 Requisitos Funcionais
 
-| ID | Descrição | Prioridade | Modalidade |
-|----|-----------|------------|------------|
-| RF-01 | Instalação automatizada via ISO bootável | Alta | Ambas |
-| RF-02 | Suporte a particionamento híbrido UEFI+BIOS | Alta | Ambas |
-| RF-03 | ZFS-on-root com criptografia nativa (passphrase) | Alta | Ambas |
-| RF-04 | ZFSBootMenu como bootloader primário | Alta | Ambas |
-| RF-05 | Boot environments para recovery e atualizações | Alta | Ambas |
-| RF-06 | Instalação modo texto para servidores | Alta | Servidor |
-| RF-07 | KDE Plasma minimalista para estações | Alta | Workstation |
-| RF-08 | Suporte a SSH remoto no bootloader | Média | Servidor |
-| RF-09 | Configuração de rede automatizada | Média | Ambas |
-| RF-10 | Integração com domínio LDAP/Active Directory | Média | Workstation |
-| RF-11 | Ferramentas de administração pré-instaladas | Média | Servidor |
-| RF-12 | Pacotes de produtividade essenciais | Média | Workstation |
+| ID    | Descrição                                        | Prioridade | Modalidade  |
+| ----- | ------------------------------------------------ | ---------- | ----------- |
+| RF-01 | Instalação automatizada via ISO bootável         | Alta       | Ambas       |
+| RF-02 | Suporte a particionamento híbrido UEFI+BIOS      | Alta       | Ambas       |
+| RF-03 | ZFS-on-root com criptografia nativa (passphrase) | Alta       | Ambas       |
+| RF-04 | ZFSBootMenu como bootloader primário             | Alta       | Ambas       |
+| RF-05 | Boot environments para recovery e atualizações   | Alta       | Ambas       |
+| RF-06 | Instalação modo texto para servidores            | Alta       | Servidor    |
+| RF-07 | KDE Plasma minimalista para estações             | Alta       | Workstation |
+| RF-08 | Suporte a SSH remoto no bootloader               | Média      | Servidor    |
+| RF-09 | Configuração de rede automatizada                | Média      | Ambas       |
+| RF-10 | Integração com domínio LDAP/Active Directory     | Média      | Workstation |
+| RF-11 | Ferramentas de administração pré-instaladas      | Média      | Servidor    |
+| RF-12 | Pacotes de produtividade essenciais              | Média      | Workstation |
 
 ### 2.2 Requisitos Não-Funcionais
 
-| ID | Descrição | Critério de Aceitação |
-|----|-----------|----------------------|
-| RNF-01 | Tempo de boot | < 60 segundos (após desbloqueio ZFS) |
-| RNF-02 | Tamanho da imagem ISO | < 4 GB para ambas modalidades |
-| RNF-03 | Compatibilidade hardware | Suporte a processadores x86_64 (Intel/AMD) |
-| RNF-04 | Suporte a ZFS | OpenZFS 2.2.x compatível com ZFSBootMenu 3.x |
-| RNF-05 | Criptografia | AES-256-GCM nativo do ZFS |
-| RNF-06 | Documentação | Completa em português brasileiro |
-| RNF-07 | Logging | Estruturado (JSON) para auditoria |
-| RNF-08 | Testes automatizados | Cobertura mínima de 80% |
-| RNF-09 | CI/CD pipeline | Integração com GitHub Actions |
-| RNF-10 | Manutenibilidade | Código modular shell script POSIX |
+| ID     | Descrição                | Critério de Aceitação                        |
+| ------ | ------------------------ | -------------------------------------------- |
+| RNF-01 | Tempo de boot            | < 60 segundos (após desbloqueio ZFS)         |
+| RNF-02 | Tamanho da imagem ISO    | < 4 GB para ambas modalidades                |
+| RNF-03 | Compatibilidade hardware | Suporte a processadores x86_64 (Intel/AMD)   |
+| RNF-04 | Suporte a ZFS            | OpenZFS 2.2.x compatível com ZFSBootMenu 3.x |
+| RNF-05 | Criptografia             | AES-256-GCM nativo do ZFS                    |
+| RNF-06 | Documentação             | Completa em português brasileiro             |
+| RNF-07 | Logging                  | Estruturado (JSON) para auditoria            |
+| RNF-08 | Testes automatizados     | Cobertura mínima de 80%                      |
+| RNF-09 | CI/CD pipeline           | Integração com GitHub Actions                |
+| RNF-10 | Manutenibilidade         | Código modular shell script POSIX            |
 
 ### 2.3 Requisitos de Segurança
 
@@ -72,24 +72,24 @@ flowchart TB
         ZBM["ZFSBootMenu\nv3.1.0"]
         PKG["Pacotes ZFS\nDKMS"]
         SCRIPT["Scripts de\nInstalação"]
-        
+
         LB --> PKG
         LB --> ZBM
         LB --> SCRIPT
     end
-    
+
     subgraph Target["Sistema Alvo"]
         subgraph Boot["Camada de Boot"]
             UEFI["UEFI Firmware"]
             BIOS["BIOS Legado"]
             ZBM_LIVE["ZFSBootMenu\nLive"]
         end
-        
+
         subgraph Storage["Camada de Storage"]
             ESP["ESP 512MiB\nVFAT"]
             BIOS_BOOT["BIOS Boot\n1MiB"]
             ZPOOL["Pool ZFS\n(zroot)"]
-            
+
             subgraph Datasets["Datasets ZFS"]
                 ROOT_BE["ROOT/\nBoot Env"]
                 HOME["home"]
@@ -97,14 +97,14 @@ flowchart TB
                 SWAP["swap"]
             end
         end
-        
+
         subgraph OS["Sistema Operacional"]
             KERNEL["Kernel Linux\n6.12"]
             SYSTEMD["systemd"]
             ZFS_MOD["OpenZFS\n2.2.x"]
         end
     end
-    
+
     ISO_Build --> Target
     UEFI --> ESP
     BIOS --> BIOS_BOOT
@@ -124,7 +124,7 @@ sequenceDiagram
     participant ZBM as ZFSBootMenu\n(vmlinuz + initramfs)
     participant ZFS as OpenZFS\nPool: zroot
     participant OS as Sistema\nOperacional
-    
+
     FW->>ZBM: Carregamento do bootloader
     ZBM->>ZFS: Import pool (solicita passphrase)
     ZFS-->>ZBM: Pool desbloqueado
@@ -149,51 +149,51 @@ erDiagram
         string canmount "off"
         string compression "zstd"
     }
-    
+
     ROOT {
         string name "zroot/ROOT"
         string canmount "off"
         string zbm_commandline "quiet"
     }
-    
+
     debian {
         string name "zroot/ROOT/debian"
         string mountpoint "/"
         string relatime "on"
         string xattr "sa"
     }
-    
+
     debian_update {
         string name "zroot/ROOT/debian-update"
         string mountpoint "/"
         string relatime "on"
         string xattr "sa"
     }
-    
+
     home {
         string name "zroot/home"
         string mountpoint "/home"
         string sun_auto_snapshot "true"
     }
-    
+
     user {
         string name "zroot/home/user"
         string mountpoint "/home/user"
         string keyformat "passphrase"
     }
-    
+
     var_log {
         string name "zroot/var/log"
         string mountpoint "/var/log"
         string compression "gzip"
     }
-    
+
     swap {
         string name "zroot/swap"
         string volblocksize "4k"
         string compression "lz4"
     }
-    
+
     zroot ||--|| ROOT: contains
     ROOT ||--|| debian: contains
     ROOT ||--|| debian_update: contains
@@ -205,6 +205,7 @@ erDiagram
 
 > **Nota sobre propriedades ZFS com namespace:**
 > O diagrama acima usa nomes simplificados para evitar problemas de parsing no Mermaid ER. As propriedades reais do ZFS que usam namespace são:
+>
 > - `zbm_commandline` → equivalente a `org.zfsbootmenu:commandline` (parâmetros do kernel para ZFSBootMenu)
 > - `sun_auto_snapshot` → equivalente a `com.sun:auto-snapshot` (habilita snapshots automáticos)
 >
@@ -212,11 +213,11 @@ erDiagram
 
 ### 3.4 Particionamento Híbrido UEFI+BIOS
 
-| Partição | Tamanho | Tipo GPT | Sistema de Arquivos | Finalidade |
-|----------|---------|----------|---------------------|------------|
-| BIOS Boot | 1 MiB | `EF02` | N/A (raw) | Syslinux/GRUB stage 2 para BIOS legado |
-| ESP | 512 MiB | `EF00` | VFAT/FAT32 | ZFSBootMenu EFI + kernel + initramfs |
-| Pool ZFS | Restante | `BF00` | ZFS | Sistema operacional e dados |
+| Partição  | Tamanho  | Tipo GPT | Sistema de Arquivos | Finalidade                             |
+| --------- | -------- | -------- | ------------------- | -------------------------------------- |
+| BIOS Boot | 1 MiB    | `EF02`   | N/A (raw)           | Syslinux/GRUB stage 2 para BIOS legado |
+| ESP       | 512 MiB  | `EF00`   | VFAT/FAT32          | ZFSBootMenu EFI + kernel + initramfs   |
+| Pool ZFS  | Restante | `BF00`   | ZFS                 | Sistema operacional e dados            |
 
 ---
 
@@ -350,28 +351,28 @@ flowchart TD
     EFI_VARS -->|Não| DETECT_BIOS[Modo BIOS legacy]
     DETECT_UEFI --> PARTITION[Particionar Disco]
     DETECT_BIOS --> PARTITION
-    
+
     PARTITION --> WIPE{Disco\nVazio?}
     WIPE -->|Não| CONFIRM[Confirmar\ndestruição]
     CONFIRM -->|Confirmar| WIPE_DISK[wipefs + sgdisk --zap-all]
     WIPE_DISK --> CREATE_GPT[Criar tabela GPT]
     WIPE -->|Sim| CREATE_GPT
-    
+
     CREATE_GPT --> CREATE_PART[ Criar partições\nBIOS Boot + ESP + ZFS]
     CREATE_PART --> FORMAT_ESP[Formatar ESP\nem VFAT]
     FORMAT_ESP --> CREATE_ZPOOL[Criar pool ZFS]
-    
+
     CREATE_ZPOOL --> ENCRYPT{ Pool\nCriptografado?}
     ENCRYPT -->|Sim| PASSPHRASE[Solicitar\npassphrase]
     PASSPHRASE --> CREATE_DATASETS[Criar datasets]
     ENCRYPT -->|Não| CREATE_DATASETS
-    
+
     CREATE_DATASETS --> INSTALL_DEBIAN[debootstrap\n Debian Trixie]
     INSTALL_DEBIAN --> CONFIGURE_CHROOT[Configurar sistema\nchroot]
-    
+
     CONFIGURE_CHROOT --> CONFIGURE_ZFS[Configurar ZFS\ndatasets e propriedades]
     CONFIGURE_ZROOT --> INSTALL_ZBM[Instalar\nZFSBootMenu]
-    
+
     INSTALL_ZBM --> CONFIGURE_BOOT[Configurar\nbootloader]
     CONFIGURE_BOOT --> CONFIGURE_FSTAB[Gerar /etc/fstab]
     CONFIGURE_FSTAB --> CONFIGURE_HOSTNAME[Definir hostname]
@@ -417,41 +418,41 @@ main() {
 
 ### 6.1 Componentes do Build
 
-| Componente | Versão | Fonte | Propósito |
-|------------|--------|-------|-----------|
-| Debian Live-Build | Latest | apt:debian | Construção da ISO |
-| Debian Base | Trixie (13) | debian.org | Sistema operacional |
-| OpenZFS | 2.2.x | zfsonlinux.org | Filesystem avançado |
-| ZFSBootMenu | 3.1.0 | get.zfsbootmenu.org | Bootloader |
-| Linux Kernel | 6.12.x | debian.org | Kernel do sistema |
-| Syslinux | 6.04 | debian.org | Fallback BIOS boot |
-| GRUB | 2.12 | debian.org | Fallback UEFI boot |
+| Componente        | Versão      | Fonte               | Propósito           |
+| ----------------- | ----------- | ------------------- | ------------------- |
+| Debian Live-Build | Latest      | apt:debian          | Construção da ISO   |
+| Debian Base       | Trixie (13) | debian.org          | Sistema operacional |
+| OpenZFS           | 2.2.x       | zfsonlinux.org      | Filesystem avançado |
+| ZFSBootMenu       | 3.1.0       | get.zfsbootmenu.org | Bootloader          |
+| Linux Kernel      | 6.12.x      | debian.org          | Kernel do sistema   |
+| Syslinux          | 6.04        | debian.org          | Fallback BIOS boot  |
+| GRUB              | 2.12        | debian.org          | Fallback UEFI boot  |
 
 ### 6.2 Componentes de Runtime (Servidor)
 
-| Pacote | Função | Obrigatório |
-|--------|--------|-------------|
-| zfs-dkms | Módulo ZFS kernel | Sim |
-| zfsutils-linux | Utilitários ZFS | Sim |
-| zfs-zed | ZFS Event Daemon | Sim |
-| openssh-server | Acesso remoto | Sim |
-| systemd | Init system | Sim |
-| cron | Agendamento de tarefas | Sim |
-| htop | Monitoramento | Recomendado |
-| iotop | Monitoramento I/O | Recomendado |
+| Pacote         | Função                 | Obrigatório |
+| -------------- | ---------------------- | ----------- |
+| zfs-dkms       | Módulo ZFS kernel      | Sim         |
+| zfsutils-linux | Utilitários ZFS        | Sim         |
+| zfs-zed        | ZFS Event Daemon       | Sim         |
+| openssh-server | Acesso remoto          | Sim         |
+| systemd        | Init system            | Sim         |
+| cron           | Agendamento de tarefas | Sim         |
+| htop           | Monitoramento          | Recomendado |
+| iotop          | Monitoramento I/O      | Recomendado |
 
 ### 6.3 Componentes de Runtime (Workstation)
 
-| Pacote | Função | Obrigatório |
-|--------|--------|-------------|
-| plasma-desktop | Ambiente gráfico | Sim |
-| sddm | Display Manager | Sim |
-| konsole | Terminal | Sim |
-| dolphin | Gerenciador de arquivos | Sim |
-| firefox-esr | Navegador | Sim |
-| network-manager-gnome | Gerenciamento de rede | Sim |
-| git | Controle de versão | Sim |
-| build-essential | Ferramentas de build | Sim |
+| Pacote                | Função                  | Obrigatório |
+| --------------------- | ----------------------- | ----------- |
+| plasma-desktop        | Ambiente gráfico        | Sim         |
+| sddm                  | Display Manager         | Sim         |
+| konsole               | Terminal                | Sim         |
+| dolphin               | Gerenciador de arquivos | Sim         |
+| firefox-esr           | Navegador               | Sim         |
+| network-manager-gnome | Gerenciamento de rede   | Sim         |
+| git                   | Controle de versão      | Sim         |
+| build-essential       | Ferramentas de build    | Sim         |
 
 ---
 
@@ -630,16 +631,16 @@ build-iso/
 
 ### 9.1 Matriz de Riscos
 
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
-| Incompatibilidade de versão ZFS/ZBM | Média | Alto | Fixar versões compatíveis; testar antes de release |
-| Falhas de boot em hardware específico | Média | Alto | Testes extensivos em UEFI e BIOS; fallback GRUB |
-| Problemas de hostid ZFS | Baixa | Alto | Sincronizar hostid entre ISO, ZBM e instalação |
-| Degradação de performance com ZFS | Média | Médio | Configurar ARC limits; orientar sobre RAM mínima |
-| Falha de atualização causing brick | Baixa | Alto | Boot environments permitem rollback automático |
-| Perda de dados por criptografia | Baixa | Crítico | Documentar recuperação de chave; oferecer backup |
-| Build ISO falhando em Docker | Baixa | Médio | Documentar dependências; container reproduzível |
-| Mudanças na API ZFSBootMenu | Baixa | Médio | Versionar dependências; monitorar releases |
+| Risco                                 | Probabilidade | Impacto | Mitigação                                          |
+| ------------------------------------- | ------------- | ------- | -------------------------------------------------- |
+| Incompatibilidade de versão ZFS/ZBM   | Média         | Alto    | Fixar versões compatíveis; testar antes de release |
+| Falhas de boot em hardware específico | Média         | Alto    | Testes extensivos em UEFI e BIOS; fallback GRUB    |
+| Problemas de hostid ZFS               | Baixa         | Alto    | Sincronizar hostid entre ISO, ZBM e instalação     |
+| Degradação de performance com ZFS     | Média         | Médio   | Configurar ARC limits; orientar sobre RAM mínima   |
+| Falha de atualização causing brick    | Baixa         | Alto    | Boot environments permitem rollback automático     |
+| Perda de dados por criptografia       | Baixa         | Crítico | Documentar recuperação de chave; oferecer backup   |
+| Build ISO falhando em Docker          | Baixa         | Médio   | Documentar dependências; container reproduzível    |
+| Mudanças na API ZFSBootMenu           | Baixa         | Médio   | Versionar dependências; monitorar releases         |
 
 ### 9.2 Plano de Contingência
 
@@ -650,18 +651,18 @@ flowchart TD
     SEV -->|Alto| HIGH[Hotfix\nem 24h]
     SEV -->|Médio| MED[Patch\nem 1 semana]
     SEV -->|Baixo| LOW[Melhoria\nsprint seguinte]
-    
+
     CRIT --> ROLLBACK{rollback\npossível?}
     ROLLBACK -->|Sim| DO_ROLLBACK[Executar rollback\npara BE anterior]
     ROLLBACK -->|Não| MANUAL_FIX[Recuperação\nmanual]
-    
+
     DO_ROLLBACK --> RESOLVED([Problema\nResolvido])
     MANUAL_FIX --> INVESTIGATE[Investigação\nprofunda]
     INVESTIGATE --> FIX_ROOT[Corrigir causa\nraiz]
     FIX_ROOT --> PREVENT[Implementar\nprevenção]
     PREVENT --> UPDATE_DOCS[Atualizar\ndocumentação]
     UPDATE_DOCS --> RESOLVED
-    
+
     HIGH --> DIAGNOSE[Diagnosticar\nproblema]
     DIAGNOSE --> ROOT_FIX[Corrigir causa\nraiz]
     ROOT_FIX --> TEST_FIX[Testar\ncorreção]
@@ -716,23 +717,23 @@ wipefs -a /dev/sda  # Deve fazer sgdisk --zap-all antes
 
 ### 10.3 Referências Técnicas
 
-| Recurso | URL |
-|---------|-----|
-| ZFSBootMenu Documentation | https://docs.zfsbootmenu.org/ |
-| Debian Live-Build Manual | https://live-team.pages.debian.net/live-manual/ |
-| OpenZFS Documentation | https://openzfs.github.io/openzfs-docs/ |
-| ZFSBootMenu GitHub | https://github.com/zbm-dev/zfsbootmenu |
-| Debian ZFS Guide | https://github.com/zbm-dev/zfsbootmenu/blob/master/guides/debian/uefi.md |
+| Recurso                   | URL                                                                      |
+| ------------------------- | ------------------------------------------------------------------------ |
+| ZFSBootMenu Documentation | https://docs.zfsbootmenu.org/                                            |
+| Debian Live-Build Manual  | https://live-team.pages.debian.net/live-manual/                          |
+| OpenZFS Documentation     | https://openzfs.github.io/openzfs-docs/                                  |
+| ZFSBootMenu GitHub        | https://github.com/zbm-dev/zfsbootmenu                                   |
+| Debian ZFS Guide          | https://github.com/zbm-dev/zfsbootmenu/blob/master/guides/debian/uefi.md |
 
 ---
 
 ## 11. Aprovação
 
-| Função | Nome | Data | Assinatura |
-|--------|------|------|------------|
-| Elaboração | [Nome do Arquiteto] | 2026-01-05 | ☐ |
-| Revisão Técnica | [Nome do Revisor] | ___ | ☐ |
-| Aprovação | [Nome do Aprovador] | ___ | ☐ |
+| Função          | Nome                | Data       | Assinatura |
+| --------------- | ------------------- | ---------- | ---------- |
+| Elaboração      | [Nome do Arquiteto] | 2026-01-05 | ☐          |
+| Revisão Técnica | [Nome do Revisor]   | \_\_\_     | ☐          |
+| Aprovação       | [Nome do Aprovador] | \_\_\_     | ☐          |
 
 ---
 

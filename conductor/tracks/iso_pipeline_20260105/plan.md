@@ -34,4 +34,4 @@ Executar o build completo e verificar a integridade básica do artefato.
 - [x] Task: Verificação Estrutural da ISO [commit: b27264e]
   - *Contexto:* Montar a ISO gerada em loopback e listar arquivos.
   - *Detalhes:* Confirmar presença de `pool/` (pacotes), initrd e kernel.
-- [ ] Task: Conductor - User Manual Verification 'Execução e Validação' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Execução e Validação' (Protocol in workflow.md)

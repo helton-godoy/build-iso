@@ -14,9 +14,7 @@ echo "Running wrapper permission test..."
 
 # Execute the wrapper with a command to create a file
 # We expect the wrapper to support running arbitrary commands for testing purposes
-# or that we can override the 'lb build' default.
-# We use a custom flag --run to indicate we want to run a raw command
-"$WRAPPER" --run touch "$TEST_FILE" || true
+"$WRAPPER" touch "$TEST_FILE" || true
 
 # Check if file was created
 if [[ ! -f "$TEST_FILE" ]]; then
