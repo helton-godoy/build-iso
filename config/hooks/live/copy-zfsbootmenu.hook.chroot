@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+# Este script roda dentro do chroot durante o live-build.
+# O diretório do host está montado em /work no container de build.
+
+ZBM_SOURCE="/work/zbm-binaries"
+ZBM_TARGET="/usr/share/zfsbootmenu"
+
+echo "P: Integrando binários do ZFSBootMenu..."
+
+if [ ! -d "${ZBM_SOURCE}" ]; then
+    echo "W: Diretório ${ZBM_SOURCE} não encontrado. Pulando integração."
+    exit 0
+fi
+
+mkdir -p "${ZBM_TARGET}"
+cp "${ZBM_SOURCE}"/* "${ZBM_TARGET}/"
+
+echo "P: Binários do ZFSBootMenu integrados em ${ZBM_TARGET}"
