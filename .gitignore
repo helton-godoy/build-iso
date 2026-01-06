@@ -1,20 +1,26 @@
-# Live-Build Artifacts
-cache/
+# Live-Build Artifacts (Tradicionais)
 chroot/
 binary/
 .build/
+local/
+chroot.packages.*
+
+# Nova Arquitetura de Artefatos
+build/
+cache/
+dist/
+logs/
+zbm-binaries/
+
+# Arquivos de Build e ISOs na raiz (Legacy/Cleanup)
 *.iso
 *.img
 *.contents
 *.files
 *.packages
-chroot.packages.*
 *.modified_timestamps
 *.debian.tar.*
 *.orig.tar.*
-
-# ZFSBootMenu Binaries
-zbm-binaries/
 
 # Editor/OS Files
 .DS_Store
