@@ -21,8 +21,9 @@
 - [x] **Task: Conductor - User Manual Verification 'Integração ZFS' (Protocol in workflow.md)**
 
 ## Phase 5: Implementação do Instalador e Injeção de Binários
-- [ ] **Task: Refinar o script de instalação `scripts/install.sh`**
-- [ ] **Task: Injeção de arquivos e permissões**
+- [x] **Task: Refinar o script de instalação `scripts/install.sh`** 3657819
+- [x] **Task: Injeção de arquivos e permissões** 9b98d8e
+    - [x] Garantir que os binários do ZBM em `zbm-binaries/` sejam injetados em `config/includes.chroot/usr/share/zfsbootmenu/`.
 - [ ] **Task: Conductor - User Manual Verification 'Instalador e Injeção' (Protocol in workflow.md)**
 
 ## Phase 6: Validação Automatizada
