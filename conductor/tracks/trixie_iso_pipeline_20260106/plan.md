@@ -9,12 +9,12 @@
 - [x] **Task: Auditar arquivos existentes e estado atual** 9df517b
 - [ ] **Task: Conductor - User Manual Verification 'Auditoria' (Protocol in workflow.md)**
 
-## Phase 3: Ambiente de Build (Docker & Orquestração)
-- [x] **Task: Configurar/Atualizar Dockerfile para Debian Trixie** (Já validado na Phase 2)
-- [x] **Task: Ajustar configurações do live-build para Trixie** (Já validado na Phase 2)
+## Phase 3: Ambiente de Build (Docker & Orquestração) [checkpoint: bc6a414]
+- [x] **Task: Configurar/Atualizar Dockerfile para Debian Trixie**
+- [x] **Task: Ajustar configurações do live-build para Trixie**
 - [x] **Task: Validar script de orquestração `scripts/build-iso-in-docker.sh`** ba043bb
     - [x] Garantir que o script monta volumes corretamente para `cache/`, `build/` e `logs/`.
-- [ ] **Task: Conductor - User Manual Verification 'Ambiente de Build' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Ambiente de Build' (Protocol in workflow.md)**
 
 ## Phase 4: Integração ZFS e Configuração do Sistema
 - [ ] **Task: Refinar listas de pacotes (Package Lists)**
