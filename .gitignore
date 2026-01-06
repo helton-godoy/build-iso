@@ -8,6 +8,7 @@ binary/
 *.contents
 *.files
 *.packages
+chroot.packages.*
 *.modified_timestamps
 *.debian.tar.*
 *.orig.tar.*
@@ -19,3 +20,4 @@ zbm-binaries/
 .DS_Store
 *.swp
 *~
+*.log

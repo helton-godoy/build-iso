@@ -12,7 +12,7 @@ HOST_GID=$(id -g)
 
 # Build the builder image
 echo "Building Docker image..."
-docker build -t "$IMAGE_NAME" "$DOCKER_DIR"
+docker build --progress=plain -t "$IMAGE_NAME" "$DOCKER_DIR"
 
 # Determine command to run
 if [[ "${1:-}" == "--run" ]]; then
@@ -24,7 +24,7 @@ fi
 
 # Run the builder (privileged needed for live-build mounting)
 echo "Running in Docker: ${CMD[*]}"
-docker run --rm -it --privileged \
+docker run --rm --privileged \
     -v "$(pwd):$WORK_DIR" \
     "$IMAGE_NAME" \
     "${CMD[@]}"
