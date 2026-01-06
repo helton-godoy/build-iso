@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 0100-compile-zfs-dkms.hook.chroot - Force ZFS module compilation and initramfs update
+# This hook runs inside the chroot during ISO build.
+
+echo "P: Starting ZFS DKMS compilation hook..."
+
+# Ensure we are in a chroot environment
+if [ ! -d /lib/modules ]; then
+    echo "E: /lib/modules not found. Are we in a chroot?"
+    exit 1
+fi
+
+# Get the installed kernel version
+KERNEL_VERSION=$(ls /lib/modules | head -n 1)
+echo "P: Detected kernel version: ${KERNEL_VERSION}"
+
+# Check if ZFS module is already compiled
+if find "/lib/modules/${KERNEL_VERSION}" -name "zfs.ko*" | grep -q .; then
+    echo "P: ZFS modules already exist for kernel ${KERNEL_VERSION}."
+else
+    echo "P: Triggering DKMS build for ZFS..."
+    # Force DKMS to build ZFS for the detected kernel
+    # live-build should have installed the headers already
+    dkms autoinstall -k "${KERNEL_VERSION}" || {
+        echo "E: DKMS build failed. Checking if headers are installed..."
+        dpkg -l | grep linux-headers || echo "E: No linux-headers found!"
+        exit 1
+    }
+fi
+
+echo "P: Updating initramfs to include ZFS modules..."
+update-initramfs -u -k "${KERNEL_VERSION}"
+
+echo "P: ZFS compilation hook finished successfully."
