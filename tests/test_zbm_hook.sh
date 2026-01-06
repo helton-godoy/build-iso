@@ -1,33 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOOK_FILE="config/hooks/live/copy-zfsbootmenu.hook.chroot"
+HOOK_FILE="config/hooks/live/0100-compile-zfs-dkms.hook.chroot"
 
-echo "Running tests for ZFSBootMenu integration hook..."
+echo "Verificando hook de compilação ZFS..."
 
-# Test 1: Hook file exists and is executable
-if [[ ! -f "$HOOK_FILE" ]]; then
-    echo "FAIL: $HOOK_FILE does not exist."
+if [[ -f "$HOOK_FILE" ]]; then
+    echo "PASS: Hook existe."
+else
+    echo "FAIL: Hook não encontrado."
     exit 1
 fi
 
-if [[ ! -x "$HOOK_FILE" ]]; then
-    echo "FAIL: $HOOK_FILE is not executable."
+if [[ -x "$HOOK_FILE" ]]; then
+    echo "PASS: Hook tem permissão de execução."
+else
+    echo "FAIL: Hook não é executável."
     exit 1
 fi
 
-# Test 2: Hook content (must copy ZBM binaries)
-CONTENT=$(cat "$HOOK_FILE")
-
-if [[ ! "$CONTENT" =~ "zbm-binaries" ]]; then
-    echo "FAIL: Hook does not reference 'zbm-binaries'."
+# Verificar se comandos críticos estão presentes no hook
+if grep -q "dkms autoinstall" "$HOOK_FILE" && grep -q "update-initramfs" "$HOOK_FILE"; then
+    echo "PASS: Hook contém comandos DKMS e initramfs."
+else
+    echo "FAIL: Hook está incompleto."
     exit 1
 fi
 
-if [[ ! "$CONTENT" =~ "mkdir -p" ]]; then
-    echo "FAIL: Hook does not create target directories."
-    exit 1
-fi
-
-echo "PASS: ZFSBootMenu hook is correctly defined."
+echo "Validação do hook ZFS concluída com sucesso!"
 exit 0
