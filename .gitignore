@@ -1,0 +1,21 @@
+# Live-Build Artifacts
+cache/
+chroot/
+binary/
+.build/
+*.iso
+*.img
+*.contents
+*.files
+*.packages
+*.modified_timestamps
+*.debian.tar.*
+*.orig.tar.*
+
+# ZFSBootMenu Binaries
+zbm-binaries/
+
+# Editor/OS Files
+.DS_Store
+*.swp
+*~
