@@ -61,6 +61,8 @@ Uso: $(basename "$0") [Opções] [uefi|bios]
 Opções:
     --check-deps            Apenas verifica se as dependências estão instaladas e sai
     --create-disk FILE      Cria um disco virtual QCOW2 de 20GB no caminho especificado
+    --disk FILE             Usa o disco especificado (anexa à VM)
+    --dry-run               Apenas imprime o comando QEMU que seria executado
     uefi                    Testa boot usando UEFI (requer OVMF instalado)
     bios                    Testa boot usando Legacy BIOS (padrão)
 EOF
@@ -69,6 +71,8 @@ EOF
 # Parsing simplificado de argumentos
 CHECK_ONLY=false
 CREATE_DISK=""
+DISK_FILE=""
+DRY_RUN=false
 MODE="bios"
 
 while [[ $# -gt 0 ]]; do
@@ -79,7 +83,16 @@ while [[ $# -gt 0 ]]; do
             ;;
         --create-disk)
             CREATE_DISK="$2"
+            DISK_FILE="$2"
             shift 2
+            ;;
+        --disk)
+            DISK_FILE="$2"
+            shift 2
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
             ;;
         uefi|bios)
             MODE="$1"
@@ -92,6 +105,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ "$CHECK_ONLY" == "true" ]]; then
+    check_dependencies
+    exit $?
+fi
+
+check_dependencies || true # Não aborta se apenas o KVM estiver faltando, mas qemu existir
+
 if [[ -n "$CREATE_DISK" ]]; then
     if [[ -f "$CREATE_DISK" ]]; then
         echo -e "${YELLOW}[AVISO]${NC} Disco '$CREATE_DISK' já existe. Pulando criação."
@@ -101,21 +121,15 @@ if [[ -n "$CREATE_DISK" ]]; then
     fi
 fi
 
-if [[ "$CHECK_ONLY" == "true" ]]; then
-    check_dependencies
-    exit $?
-fi
-
-check_dependencies || true # Não aborta se apenas o KVM estiver faltando, mas qemu existir
-
 ISO_FILE=$(ls "$DIST_DIR"/*.iso 2>/dev/null | head -n 1)
 
-if [[ -z "$ISO_FILE" ]]; then
-    echo -e "${RED}[ERRO]${NC} Nenhuma ISO encontrada em $DIST_DIR/."
-    exit 1
+if [[ "$DRY_RUN" == "false" ]]; then
+    if [[ -z "$ISO_FILE" ]]; then
+        echo -e "${RED}[ERRO]${NC} Nenhuma ISO encontrada em $DIST_DIR/."
+        exit 1
+    fi
+    echo -e "${GREEN}[INFO]${NC} Testando ISO: $ISO_FILE"
 fi
-
-echo -e "${GREEN}[INFO]${NC} Testando ISO: $ISO_FILE"
 
 run_qemu() {
     local mode="${1:-bios}"
@@ -127,6 +141,16 @@ run_qemu() {
         "-net" "nic" "-net" "user"
         "-vga" "virtio"
     )
+
+    # Adicionar suporte a KVM se disponível
+    if [[ -e /dev/kvm ]]; then
+        qemu_args+=("-enable-kvm" "-cpu" "host")
+    fi
+
+    # Anexar disco se especificado
+    if [[ -n "$DISK_FILE" ]]; then
+        qemu_args+=("-drive" "file=$DISK_FILE,format=qcow2,if=virtio")
+    fi
 
     if [[ "$mode" == "uefi" ]]; then
         echo -e "${GREEN}[INFO]${NC} Iniciando em modo UEFI..."
@@ -140,6 +164,11 @@ run_qemu() {
         fi
     else
         echo -e "${GREEN}[INFO]${NC} Iniciando em modo Legacy BIOS..."
+    fi
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "qemu-system-x86_64 ${qemu_args[*]}"
+        return 0
     fi
 
     echo -e "${GREEN}[INFO]${NC} Pressione Ctrl+C para encerrar o QEMU."
