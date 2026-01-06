@@ -1,3 +1,6 @@
+gdisk
+dosfstools
+efibootmgr
 openssh-server
 sudo
 locales
@@ -27,3 +30,14 @@ apt
 adduser
 bash
 bash-completion
+rsync
+squashfs-tools
+firmware-linux
+firmware-linux-nonfree
+firmware-misc-nonfree
+firmware-realtek
+firmware-iwlwifi
+firmware-atheros
+firmware-libertas
+curl
+wget
