@@ -21,8 +21,8 @@ if ! grep -q "LB_DISTRIBUTION=\"trixie\"" "$BOOTSTRAP_CONFIG" 2>/dev/null; then
 fi
 
 # Test 3: Archive areas
-if ! grep -q "main contrib non-free-firmware" "$BOOTSTRAP_CONFIG" 2>/dev/null; then
-    echo "FAIL: Archive areas do not include 'main contrib non-free-firmware' in $BOOTSTRAP_CONFIG."
+if ! grep -q "main contrib non-free non-free-firmware" "$BOOTSTRAP_CONFIG" 2>/dev/null; then
+    echo "FAIL: Archive areas do not include 'main contrib non-free non-free-firmware' in $BOOTSTRAP_CONFIG."
     exit 1
 fi
 

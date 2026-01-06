@@ -65,11 +65,14 @@ echo "Running in Docker: ${CMD[*]}"
 
 docker run --rm --privileged \
     -v "$(pwd):$WORK_DIR" \
+    -e BUILD_DIR="$BUILD_DIR" \
+    -e CACHE_DIR="$CACHE_DIR" \
     "$IMAGE_NAME" \
     bash -c ' 
         # Setup links for live-build to use our artifacts directory
         # This keeps the root clean while allowing hardlinks if the FS supports it.
         # Note: If docker/artifacts is on the same FS as the root, hardlinks work.
+        mkdir -p "$BUILD_DIR" "$CACHE_DIR"
         ln -snf "$BUILD_DIR"/.build .build
         ln -snf "$BUILD_DIR"/chroot chroot
         ln -snf "$BUILD_DIR"/binary binary

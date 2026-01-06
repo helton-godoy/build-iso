@@ -55,7 +55,7 @@ While UEFI requires an EFI System Partition (ESP) with a FAT32 filesystem, legac
 | **ESP**       | 512 MiB   | `EF00`    | VFAT/FAT32 | UEFI executables and ZFSBootMenu bundles [11, 14] |
 | **ZFS Pool**  | Remaining | `BF00`    | ZFS        | Operating system and data storage [11, 14]        |
 
-Automation scripts must detect the current boot mode of the live ISO to determine which bootloader pathway to initialize.[17] This detection is typically done by checking for the existence of `/sys/class/efivars`.[17] However, a truly universal installer will configure *both* methods regardless of the current boot mode, allowing the resulting disk to be portable across different hardware.[5, 7]
+Automation scripts must detect the current boot mode of the live ISO to determine which bootloader pathway to initialize.[17] This detection is typically done by checking for the existence of `/sys/class/efivars`.[17] However, a truly universal installer will configure _both_ methods regardless of the current boot mode, allowing the resulting disk to be portable across different hardware.[5, 7]
 
 ### Legacy BIOS Implementation with Syslinux and Extlinux
 
@@ -123,11 +123,11 @@ The extensibility of ZFSBootMenu allows for the integration of custom hooks that
 
 Hooks are scripts placed in the `early-setup.d` directory of the ZFSBootMenu initramfs.[3, 23] These can be used for various purposes, such as:
 
-1. **LUKS Unlocking:** If ZFS is stored within LUKS containers, a hook can prompt for the LUKS   passphrase before ZBM attempts to import the ZFS pool.[23]
+1. **LUKS Unlocking:** If ZFS is stored within LUKS containers, a hook can prompt for the LUKS passphrase before ZBM attempts to import the ZFS pool.[23]
 
 2. **Hardware Initialization:** Hooks can ensure that specific drivers (e.g., for niche storage controllers) are loaded before the pool scan occurs.[3]
 
-3. **Remote VPN Access:** Integration with Tailscale or other VPNs can be achieved through hooks,   allowing the ZBM environment to join a secure network for remote    management.[24]
+3. **Remote VPN Access:** Integration with Tailscale or other VPNs can be achieved through hooks, allowing the ZBM environment to join a secure network for remote management.[24]
 
 The automation script must handle the inclusion of these hooks during the ZFSBootMenu image generation process, typically by placing them in the `hooks` subdirectory and running `zbm-builder.sh`.[22, 23]
 
@@ -184,11 +184,11 @@ The project to automate the creation of a Debian ISO for ZFS-on-root installatio
 
 Whether deploying on a legacy workstation or a state-of-the-art UEFI server, the combination of Debian and ZFSBootMenu provides a level of flexibility and data protection that is unmatched by traditional installation methods.[2, 5, 7] The ability to manage snapshots, roll back updates, and maintain multiple boot environments directly from the bootloader transforms the operating system from a static installation into a dynamic, manageable resource.[5, 7] As automation scripts continue to evolve, this advanced configuration will become increasingly accessible to the broader Linux community, setting a new standard for professional-grade deployments.
 
---------------------------------------------------------------------------------
+---
 
 1. boot on ZFS no longer works with Debian's GRUB after "zpool upgrade"?, [https://unix.stackexchange.com/questions/799134/boot-on-zfs-no-longer-works-with-debians-grub-after-zpool-upgrade](https://www.google.com/url?sa=E&q=https%3A%2F%2Funix.stackexchange.com%2Fquestions%2F799134%2Fboot-on-zfs-no-longer-works-with-debians-grub-after-zpool-upgrade)
 
-2. zbm-dev/zfsbootmenu:   ZFS bootloader for root-on-ZFS systems with support for snapshots and    native full disk encryption - GitHub, [https://github.com/zbm-dev/zfsbootmenu](https://www.google.com/url?sa=E&q=https%3A%2F%2Fgithub.com%2Fzbm-dev%2Fzfsbootmenu)
+2. zbm-dev/zfsbootmenu: ZFS bootloader for root-on-ZFS systems with support for snapshots and native full disk encryption - GitHub, [https://github.com/zbm-dev/zfsbootmenu](https://www.google.com/url?sa=E&q=https%3A%2F%2Fgithub.com%2Fzbm-dev%2Fzfsbootmenu)
 
 3. Releases · zbm-dev/zfsbootmenu - GitHub, [https://github.com/zbm-dev/zfsbootmenu/releases](https://www.google.com/url?sa=E&q=https%3A%2F%2Fgithub.com%2Fzbm-dev%2Fzfsbootmenu%2Freleases)
 

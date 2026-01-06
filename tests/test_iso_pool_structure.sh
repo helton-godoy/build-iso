@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Use environment variable or default path
-ISO_FILE="${ISO_PATH:-./live-image-amd64.hybrid.iso}"
+ISO_FILE="${ISO_FILE:-./live-image-amd64.hybrid.iso}"
 
 if [[ ! -f "$ISO_FILE" ]]; then
     echo "FAIL: ISO file not found at $ISO_FILE"
