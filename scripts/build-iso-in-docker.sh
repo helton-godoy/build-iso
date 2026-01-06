@@ -66,9 +66,12 @@ else
 fi
 
 # Fix permissions
+# We must include the same volume mappings to fix permissions on build and cache dirs
 echo "Fixing permissions..."
 docker run --rm --privileged \
     -v "$(pwd):$WORK_DIR" \
+    -v "$(pwd)/$BUILD_DIR:/build-outside" \
+    -v "$(pwd)/$CACHE_DIR:/cache-outside" \
     "$IMAGE_NAME" \
     chown -R "$HOST_UID:$HOST_GID" "$WORK_DIR" "/build-outside" "/cache-outside"
 
