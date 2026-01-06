@@ -1,9 +1,8 @@
 # Plano da Trilha: Automação de Testes em VM
 
-## Fase 1: Infraestrutura e Detecção
+## Fase 1: Infraestrutura e Detecção [checkpoint: 1e618fb]
 - [x] Task: Criar função de detecção de dependências (QEMU, KVM, OVMF) 07504d3
-- [~] Task: Implementar criação de disco virtual temporário
-  - *Contexto:* Usar `qemu-img` para criar um disco de 20GB.
+- [x] Task: Implementar criação de disco virtual temporário 1e618fb
 
 ## Fase 2: Refatoração do Script de Lançamento
 - [ ] Task: Adicionar suporte a KVM e otimização de recursos (RAM/CPU)
