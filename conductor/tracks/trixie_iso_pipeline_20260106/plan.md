@@ -13,11 +13,12 @@
 - [x] **Task: Configurar/Atualizar Dockerfile para Debian Trixie**
 - [x] **Task: Ajustar configurações do live-build para Trixie**
 - [x] **Task: Validar script de orquestração `scripts/build-iso-in-docker.sh`** ba043bb
-    - [x] Garantir que o script monta volumes corretamente para `cache/`, `build/` e `logs/`.
 - [x] **Task: Conductor - User Manual Verification 'Ambiente de Build' (Protocol in workflow.md)**
 
 ## Phase 4: Integração ZFS e Configuração do Sistema
-- [ ] **Task: Refinar listas de pacotes (Package Lists)**
+- [x] **Task: Refinar listas de pacotes (Package Lists)** 5039288
+    - [x] Garantir `non-free-firmware` e drivers básicos em `tools.list.chroot`.
+    - [x] Validar dependências do ZFS para Trixie.
 - [ ] **Task: Implementar hook para compilação DKMS do ZFS**
 - [ ] **Task: Conductor - User Manual Verification 'Integração ZFS' (Protocol in workflow.md)**
 
