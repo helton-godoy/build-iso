@@ -17,7 +17,7 @@ Nesta fase, configuraremos os parâmetros do `lb config` e a lista de pacotes.
 - [x] Task: Inicializar configuração do Live-Build [commit: 3c57dde]
   - *Contexto:* Criar estrutura `config/` usando `lb config` via container.
   - *Detalhes:* Definir `--distribution trixie`, `--archive-areas "main contrib non-free-firmware"`, `--binary-images iso-hybrid`.
-- [ ] Task: Definir listas de pacotes (ZFS e Utils)
+- [x] Task: Definir listas de pacotes (ZFS e Utils) [commit: dae38d3]
   - *Contexto:* Criar `config/package-lists/zfs.list.chroot` e `tools.list.chroot`.
   - *Detalhes:* Incluir `zfs-dkms`, `zfsutils-linux`, `gdisk`, `dosfstools`, `efibootmgr`.
 - [ ] Task: Integrar binários ZFSBootMenu via Hook
