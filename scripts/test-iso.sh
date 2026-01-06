@@ -59,14 +59,16 @@ show_usage() {
 Uso: $(basename "$0") [Opções] [uefi|bios]
 
 Opções:
-    --check-deps    Apenas verifica se as dependências estão instaladas e sai
-    uefi            Testa boot usando UEFI (requer OVMF instalado)
-    bios            Testa boot usando Legacy BIOS (padrão)
+    --check-deps            Apenas verifica se as dependências estão instaladas e sai
+    --create-disk FILE      Cria um disco virtual QCOW2 de 20GB no caminho especificado
+    uefi                    Testa boot usando UEFI (requer OVMF instalado)
+    bios                    Testa boot usando Legacy BIOS (padrão)
 EOF
 }
 
 # Parsing simplificado de argumentos
 CHECK_ONLY=false
+CREATE_DISK=""
 MODE="bios"
 
 while [[ $# -gt 0 ]]; do
@@ -74,6 +76,10 @@ while [[ $# -gt 0 ]]; do
         --check-deps)
             CHECK_ONLY=true
             shift
+            ;;
+        --create-disk)
+            CREATE_DISK="$2"
+            shift 2
             ;;
         uefi|bios)
             MODE="$1"
@@ -85,6 +91,15 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ -n "$CREATE_DISK" ]]; then
+    if [[ -f "$CREATE_DISK" ]]; then
+        echo -e "${YELLOW}[AVISO]${NC} Disco '$CREATE_DISK' já existe. Pulando criação."
+    else
+        echo -e "${GREEN}[INFO]${NC} Criando disco virtual de 20GB em: $CREATE_DISK"
+        qemu-img create -f qcow2 "$CREATE_DISK" 20G
+    fi
+fi
 
 if [[ "$CHECK_ONLY" == "true" ]]; then
     check_dependencies
