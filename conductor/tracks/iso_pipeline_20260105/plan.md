@@ -1,6 +1,6 @@
 # Plano da Trilha: Pipeline de Build ISO
 
-## Fase 1: Configuração do Ambiente de Build (Docker)
+## Fase 1: Configuração do Ambiente de Build (Docker) [checkpoint: a63bf76]
 Esta fase foca em preparar o ambiente isolado onde o `live-build` será executado.
 
 - [x] Task: Criar `Dockerfile` para o ambiente de build 20284e7
@@ -9,7 +9,7 @@ Esta fase foca em preparar o ambiente isolado onde o `live-build` será executad
 - [x] Task: Criar script wrapper `scripts/build-iso-in-docker.sh` [commit: e8ce04e]
   - *Contexto:* Script que constrói a imagem Docker (se necessário) e roda o container montando o diretório do projeto.
   - *Detalhes:* Deve garantir que os artefatos gerados pertençam ao usuário do host.
-- [ ] Task: Conductor - User Manual Verification 'Configuração do Ambiente de Build (Docker)' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Configuração do Ambiente de Build (Docker)' (Protocol in workflow.md)
 
 ## Fase 2: Configuração do Debian Live-Build
 Nesta fase, configuraremos os parâmetros do `lb config` e a lista de pacotes.
