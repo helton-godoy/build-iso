@@ -6,7 +6,7 @@ Esta fase foca em preparar o ambiente isolado onde o `live-build` será executad
 - [x] Task: Criar `Dockerfile` para o ambiente de build 20284e7
   - *Contexto:* Criar um arquivo `docker/Dockerfile` baseado em `debian:trixie-slim`.
   - *Detalhes:* Instalar `live-build`, `git`, `curl` e dependências básicas.
-- [ ] Task: Criar script wrapper `scripts/build-iso-in-docker.sh`
+- [x] Task: Criar script wrapper `scripts/build-iso-in-docker.sh` [commit: e8ce04e]
   - *Contexto:* Script que constrói a imagem Docker (se necessário) e roda o container montando o diretório do projeto.
   - *Detalhes:* Deve garantir que os artefatos gerados pertençam ao usuário do host.
 - [ ] Task: Conductor - User Manual Verification 'Configuração do Ambiente de Build (Docker)' (Protocol in workflow.md)
