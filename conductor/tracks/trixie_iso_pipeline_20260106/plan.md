@@ -5,9 +5,9 @@
 - [x] **Task: Refatorar estrutura atual para limpar a raiz** 4adfec4
 - [x] **Task: Conductor - User Manual Verification 'Arquitetura e Organização' (Protocol in workflow.md)**
 
-## Phase 2: Auditoria e Reconhecimento
+## Phase 2: Auditoria e Reconhecimento [checkpoint: 9df517b]
 - [x] **Task: Auditar arquivos existentes e estado atual** 9df517b
-- [ ] **Task: Conductor - User Manual Verification 'Auditoria' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Auditoria' (Protocol in workflow.md)**
 
 ## Phase 3: Ambiente de Build (Docker & Orquestração) [checkpoint: bc6a414]
 - [x] **Task: Configurar/Atualizar Dockerfile para Debian Trixie**
@@ -25,7 +25,7 @@
 - [x] **Task: Injeção de arquivos e permissões** 9b98d8e
 - [x] **Task: Conductor - User Manual Verification 'Instalador e Injeção' (Protocol in workflow.md)**
 
-## Phase 6: Validação Automatizada
-- [ ] **Task: Implementar `scripts/test-iso.sh`**
-- [ ] **Task: Realizar teste de ponta a ponta**
-- [ ] **Task: Conductor - User Manual Verification 'Validação Automatizada' (Protocol in workflow.md)**
+## Phase 6: Validação Automatizada [checkpoint: final]
+- [x] **Task: Implementar `scripts/test-iso.sh`** 201476b
+- [x] **Task: Realizar teste de ponta a ponta** (Sucesso: ISO gerada com 1.7GB)
+- [x] **Task: Conductor - User Manual Verification 'Validação Automatizada' (Protocol in workflow.md)**
