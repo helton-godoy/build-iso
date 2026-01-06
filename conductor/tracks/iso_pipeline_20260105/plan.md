@@ -3,7 +3,7 @@
 ## Fase 1: Configuração do Ambiente de Build (Docker)
 Esta fase foca em preparar o ambiente isolado onde o `live-build` será executado.
 
-- [ ] Task: Criar `Dockerfile` para o ambiente de build
+- [x] Task: Criar `Dockerfile` para o ambiente de build 20284e7
   - *Contexto:* Criar um arquivo `docker/Dockerfile` baseado em `debian:trixie-slim`.
   - *Detalhes:* Instalar `live-build`, `git`, `curl` e dependências básicas.
 - [ ] Task: Criar script wrapper `scripts/build-iso-in-docker.sh`
