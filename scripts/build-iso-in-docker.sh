@@ -23,35 +23,46 @@ echo "Building Docker image..."
 docker build --progress=plain -t "$IMAGE_NAME" "$DOCKER_DIR" 2>&1 | tee "$LOG_DIR/docker-build.log"
 
 # Determine command to run
-# If arguments are provided, use them as the command.
-# If no arguments provided, default to 'lb build'.
 if [[ $# -gt 0 ]]; then
     CMD=("$@")
 else
     CMD=("lb" "build")
 fi
 
-# Run the builder (privileged needed for live-build mounting)
 echo "Running in Docker: ${CMD[*]}"
 
-# We map specific subdirectories to keep the host root clean.
-# live-build expects these directories to be in the current working directory.
+# We use a wrapper to setup symlinks inside the container.
+# This avoids "Device or resource busy" errors when lb clean tries to rm directories
+# that are directly mounted as volumes.
 docker run --rm --privileged \
     -v "$(pwd):$WORK_DIR" \
-    -v "$(pwd)/build/.build:$WORK_DIR/.build" \
-    -v "$(pwd)/build/chroot:$WORK_DIR/chroot" \
-    -v "$(pwd)/build/binary:$WORK_DIR/binary" \
-    -v "$(pwd)/build/local:$WORK_DIR/local" \
-    -v "$(pwd)/cache:$WORK_DIR/cache" \
+    -v "$(pwd)/$BUILD_DIR:/build-outside" \
+    -v "$(pwd)/$CACHE_DIR:/cache-outside" \
     "$IMAGE_NAME" \
-    "${CMD[@]}" 2>&1 | tee "$LOG_DIR/lb-build.log"
+    bash -c "
+        # Create symlinks to the build/cache directories outside the project root in container
+        # but inside the volume-mapped space.
+        ln -snf /build-outside/.build .build
+        ln -snf /build-outside/chroot chroot
+        ln -snf /build-outside/binary binary
+        ln -snf /build-outside/local local
+        ln -snf /cache-outside cache
+        
+        # Execute the requested command
+        "${CMD[@]}"
+    " 2>&1 | tee "$LOG_DIR/lb-build.log"
 
 EXIT_CODE=${PIPESTATUS[0]}
 
 # Move generated ISO to dist/ if build was successful
 if [[ $EXIT_CODE -eq 0 ]]; then
-    echo "Moving generated ISO to $DIST_DIR/"...
-    mv *.iso "$DIST_DIR/" 2>/dev/null || echo "No ISO file found to move (expected for clean commands)."
+    if ls "$BUILD_DIR"/binary/*.iso 1>/dev/null 2>&1; then
+        echo "Moving generated ISO to $DIST_DIR/..."
+        mv "$BUILD_DIR"/binary/*.iso "$DIST_DIR/"
+    elif ls *.iso 1>/dev/null 2>&1; then
+         echo "Moving generated ISO from root to $DIST_DIR/"
+         mv *.iso "$DIST_DIR/"
+    fi
 else
     echo "Build command failed with exit code $EXIT_CODE"
 fi
@@ -63,6 +74,6 @@ echo "Fixing permissions..."
 docker run --rm --privileged \
     -v "$(pwd):$WORK_DIR" \
     "$IMAGE_NAME" \
-    chown -R "$HOST_UID:$HOST_GID" "$WORK_DIR"
+    chown -R "$HOST_UID:$HOST_GID" "$WORK_DIR" "/build-outside" "/cache-outside"
 
 exit $EXIT_CODE
