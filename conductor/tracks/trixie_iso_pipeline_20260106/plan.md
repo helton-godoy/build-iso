@@ -15,11 +15,10 @@
 - [x] **Task: Validar script de orquestração `scripts/build-iso-in-docker.sh`** ba043bb
 - [x] **Task: Conductor - User Manual Verification 'Ambiente de Build' (Protocol in workflow.md)**
 
-## Phase 4: Integração ZFS e Configuração do Sistema
+## Phase 4: Integração ZFS e Configuração do Sistema [checkpoint: 0e9e698]
 - [x] **Task: Refinar listas de pacotes (Package Lists)** 5039288
 - [x] **Task: Implementar hook para compilação DKMS do ZFS** ac0deaa
-    - [x] Criar hook em `config/hooks/live/` para compilar módulos ZFS no kernel da ISO.
-- [ ] **Task: Conductor - User Manual Verification 'Integração ZFS' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Integração ZFS' (Protocol in workflow.md)**
 
 ## Phase 5: Implementação do Instalador e Injeção de Binários
 - [ ] **Task: Refinar o script de instalação `scripts/install.sh`**
