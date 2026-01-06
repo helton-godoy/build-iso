@@ -31,7 +31,7 @@ Executar o build completo e verificar a integridade básica do artefato.
 - [x] Task: Executar Build Completo [commit: b9b8365]
   - *Contexto:* Rodar `scripts/build-iso-in-docker.sh` e monitorar logs.
   - *Detalhes:* Corrigir dependências quebradas ou erros de build do DKMS se surgirem.
-- [ ] Task: Verificação Estrutural da ISO
+- [x] Task: Verificação Estrutural da ISO [commit: b27264e]
   - *Contexto:* Montar a ISO gerada em loopback e listar arquivos.
   - *Detalhes:* Confirmar presença de `pool/` (pacotes), initrd e kernel.
 - [ ] Task: Conductor - User Manual Verification 'Execução e Validação' (Protocol in workflow.md)
