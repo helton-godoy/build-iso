@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ISO_FILE=$(ls *.iso 2>/dev/null | head -n 1)
+# Use environment variable if provided, otherwise look for *.iso in current dir
+if [[ -z "${ISO_FILE:-}" ]]; then
+    ISO_FILE=$(ls *.iso 2>/dev/null | head -n 1)
+fi
 
 if [[ -z "$ISO_FILE" ]]; then
     echo "FAIL: No ISO file found."
@@ -31,7 +34,7 @@ check_file "/live/filesystem.squashfs"
 check_file "/EFI/BOOT"
 
 # Check ZFS presence in package list
-if xorriso -indev "$ISO_FILE" -cat /live/filesystem.packages 2>/dev/null | grep -q "zfs"; then
+if isoinfo -i "$ISO_FILE" -R -x /live/filesystem.packages 2>/dev/null | grep -q "zfs"; then
     echo "PASS: ZFS packages found in filesystem.packages"
 else
     echo "FAIL: ZFS packages NOT found in filesystem.packages"
