@@ -16,6 +16,8 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+OVMF_PATH=""
+
 check_dependencies() {
     local missing=0
 
@@ -35,20 +37,20 @@ check_dependencies() {
         "/usr/share/OVMF/OVMF_CODE.fd"
         "/usr/share/ovmf/OVMF.fd"
         "/usr/share/qemu/OVMF.fd"
+        "/usr/share/OVMF/OVMF.fd"
     )
 
-    local ovmf_found=""
     for path in "${ovmf_paths[@]}"; do
         if [[ -f "$path" ]]; then
-            ovmf_found="$path"
+            OVMF_PATH="$path"
             break
         fi
     done
 
-    if [[ -z "$ovmf_found" ]]; then
+    if [[ -z "$OVMF_PATH" ]]; then
         echo -e "${YELLOW}[AVISO]${NC} Binário OVMF não encontrado. Boot UEFI não funcionará."
     else
-        echo -e "${GREEN}[OK]${NC} OVMF encontrado em: $ovmf_found"
+        echo -e "${GREEN}[OK]${NC} OVMF encontrado em: $OVMF_PATH"
     fi
 
     return $missing
@@ -66,6 +68,52 @@ Opções:
     uefi                    Testa boot usando UEFI (requer OVMF instalado)
     bios                    Testa boot usando Legacy BIOS (padrão)
 EOF
+}
+
+run_qemu() {
+    local mode="${1:-bios}"
+    local qemu_args=(
+        "-m" "$MEM"
+        "-smp" "$CPUS"
+        "-cdrom" "$ISO_FILE"
+        "-boot" "d"
+        "-net" "nic" "-net" "user"
+        "-vga" "virtio"
+    )
+
+    # Adicionar suporte a KVM se disponível
+    if [[ -e /dev/kvm ]]; then
+        qemu_args+=("-enable-kvm" "-cpu" "host")
+    fi
+
+    # Anexar disco se especificado
+    if [[ -n "$DISK_FILE" ]]; then
+        qemu_args+=("-drive" "file=$DISK_FILE,format=qcow2,if=virtio")
+    fi
+
+    if [[ "$mode" == "uefi" ]]; then
+        echo -e "${GREEN}[INFO]${NC} Iniciando em modo UEFI..."
+        if [[ -n "$OVMF_PATH" ]]; then
+            if [[ "$OVMF_PATH" == *"OVMF_CODE.fd" ]]; then
+                qemu_args+=("-drive" "if=pflash,format=raw,readonly=on,file=$OVMF_PATH")
+            else
+                qemu_args+=("-bios" "$OVMF_PATH")
+            fi
+        else
+            echo -e "${RED}[ERRO]${NC} UEFI solicitado mas OVMF não encontrado. Abortando."
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}[INFO]${NC} Iniciando em modo Legacy BIOS..."
+    fi
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "qemu-system-x86_64 ${qemu_args[*]}"
+        return 0
+    fi
+
+    echo -e "${GREEN}[INFO]${NC} Pressione Ctrl+C para encerrar o QEMU."
+    qemu-system-x86_64 "${qemu_args[@]}"
 }
 
 # Parsing simplificado de argumentos
@@ -121,7 +169,7 @@ if [[ -n "$CREATE_DISK" ]]; then
     fi
 fi
 
-ISO_FILE=$(ls "$DIST_DIR"/*.iso 2>/dev/null | head -n 1)
+ISO_FILE=$(ls "$DIST_DIR"/*.iso 2>/dev/null | head -n 1) || ISO_FILE=""
 
 if [[ "$DRY_RUN" == "false" ]]; then
     if [[ -z "$ISO_FILE" ]]; then
@@ -129,56 +177,11 @@ if [[ "$DRY_RUN" == "false" ]]; then
         exit 1
     fi
     echo -e "${GREEN}[INFO]${NC} Testando ISO: $ISO_FILE"
-fi
-
-run_qemu() {
-    local mode="${1:-bios}"
-    local qemu_args=(
-        "-m" "$MEM"
-        "-smp" "$CPUS"
-        "-cdrom" "$ISO_FILE"
-        "-boot" "d"
-        "-net" "nic" "-net" "user"
-        "-vga" "virtio"
-    )
-
-    # Adicionar suporte a KVM se disponível
-    if [[ -e /dev/kvm ]]; then
-        qemu_args+=("-enable-kvm" "-cpu" "host")
+else
+    # Para o dry-run não falhar sem a ISO
+    if [[ -z "$ISO_FILE" ]]; then
+        ISO_FILE="DUMMY_ISO"
     fi
-
-    # Anexar disco se especificado
-    if [[ -n "$DISK_FILE" ]]; then
-        qemu_args+=("-drive" "file=$DISK_FILE,format=qcow2,if=virtio")
-    fi
-
-    if [[ "$mode" == "uefi" ]]; then
-        echo -e "${GREEN}[INFO]${NC} Iniciando em modo UEFI..."
-        # Procurar caminho do OVMF no Debian
-        if [[ -f "/usr/share/OVMF/OVMF_CODE.fd" ]]; then
-            qemu_args+=("-drive" "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE.fd")
-        elif [[ -f "/usr/share/ovmf/OVMF.fd" ]]; then
-             qemu_args+=("-bios" "/usr/share/ovmf/OVMF.fd")
-        else
-            echo -e "${RED}[AVISO]${NC} OVMF não encontrado. O boot UEFI pode falhar."
-        fi
-    else
-        echo -e "${GREEN}[INFO]${NC} Iniciando em modo Legacy BIOS..."
-    fi
-
-    if [[ "$DRY_RUN" == "true" ]]; then
-        echo "qemu-system-x86_64 ${qemu_args[*]}"
-        return 0
-    fi
-
-    echo -e "${GREEN}[INFO]${NC} Pressione Ctrl+C para encerrar o QEMU."
-    qemu-system-x86_64 "${qemu_args[@]}"
-}
-
-MODE="${1:-bios}"
-if [[ "$MODE" != "uefi" && "$MODE" != "bios" ]]; then
-    show_usage
-    exit 1
 fi
 
 run_qemu "$MODE"
