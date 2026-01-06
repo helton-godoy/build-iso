@@ -16,7 +16,7 @@ Nesta fase, configuraremos os parâmetros do `lb config` e a lista de pacotes.
 
 - [x] Task: Inicializar configuração do Live-Build [commit: 3c57dde]
   - *Contexto:* Criar estrutura `config/` usando `lb config` via container.
-  - *Detalhes:* Definir `--distribution trixie`, `--archive-areas "main contrib non-free-firmware"`, `--binary-images iso-hybrid`.
+  - *Detalhes:* Definir `--distribution trixie`, `--archive-areas "main contrib non-free non-free-firmware"`, `--binary-images iso-hybrid`.
 - [x] Task: Definir listas de pacotes (ZFS e Utils) [commit: dae38d3]
   - *Contexto:* Criar `config/package-lists/zfs.list.chroot` e `tools.list.chroot`.
   - *Detalhes:* Incluir `zfs-dkms`, `zfsutils-linux`, `gdisk`, `dosfstools`, `efibootmgr`.
@@ -28,7 +28,7 @@ Nesta fase, configuraremos os parâmetros do `lb config` e a lista de pacotes.
 ## Fase 3: Execução e Validação
 Executar o build completo e verificar a integridade básica do artefato.
 
-- [ ] Task: Executar Build Completo
+- [x] Task: Executar Build Completo [commit: b9b8365]
   - *Contexto:* Rodar `scripts/build-iso-in-docker.sh` e monitorar logs.
   - *Detalhes:* Corrigir dependências quebradas ou erros de build do DKMS se surgirem.
 - [ ] Task: Verificação Estrutural da ISO
