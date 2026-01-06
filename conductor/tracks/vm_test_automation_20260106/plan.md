@@ -4,10 +4,10 @@
 - [x] Task: Criar função de detecção de dependências (QEMU, KVM, OVMF) 07504d3
 - [x] Task: Implementar criação de disco virtual temporário 1e618fb
 
-## Fase 2: Refatoração do Script de Lançamento
-- [ ] Task: Adicionar suporte a KVM e otimização de recursos (RAM/CPU)
-- [ ] Task: Refinar suporte UEFI com caminhos de firmware detectados
-- [ ] Task: Adicionar argumentos para controle do disco (ex: `--disk-size`, `--keep-disk`)
+## Fase 2: Refatoração do Script de Lançamento [checkpoint: 664f045]
+- [x] Task: Adicionar suporte a KVM e otimização de recursos (RAM/CPU) 51608d8
+- [x] Task: Refinar suporte UEFI com caminhos de firmware detectados 07692f1
+- [x] Task: Adicionar argumentos para controle do disco (ex: `--disk-size`, `--keep-disk`) 664f045
 
 ## Fase 3: Validação do Fluxo de Instalação
 - [ ] Task: Testar boot em modo BIOS e UEFI com o novo script
