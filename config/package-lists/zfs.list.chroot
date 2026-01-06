@@ -1,2 +1,8 @@
 zfs-dkms
 zfsutils-linux
+zfs-initramfs
+zfs-zed
+build-essential
+linux-image-amd64
+linux-headers-amd64
+dkms

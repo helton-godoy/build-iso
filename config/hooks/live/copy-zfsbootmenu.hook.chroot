@@ -9,12 +9,15 @@ ZBM_TARGET="/usr/share/zfsbootmenu"
 
 echo "P: Integrando binários do ZFSBootMenu..."
 
-if [ ! -d "${ZBM_SOURCE}" ]; then
-    echo "W: Diretório ${ZBM_SOURCE} não encontrado. Pulando integração."
+# Procura por subdiretórios extraídos dentro de zbm-binaries
+EXTRACTED_DIR=$(find "${ZBM_SOURCE}" -maxdepth 1 -type d -name "zfsbootmenu-*" | head -n 1)
+
+if [ -z "${EXTRACTED_DIR}" ]; then
+    echo "W: Binários extraídos do ZFSBootMenu não encontrados em ${ZBM_SOURCE}. Pulando integração."
     exit 0
 fi
 
 mkdir -p "${ZBM_TARGET}"
-cp "${ZBM_SOURCE}"/* "${ZBM_TARGET}/"
+cp -rv "${EXTRACTED_DIR}"/* "${ZBM_TARGET}/"
 
 echo "P: Binários do ZFSBootMenu integrados em ${ZBM_TARGET}"
