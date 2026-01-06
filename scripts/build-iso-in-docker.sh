@@ -32,25 +32,23 @@ fi
 echo "Running in Docker: ${CMD[*]}"
 
 # We use a wrapper to setup symlinks inside the container.
-# This avoids "Device or resource busy" errors when lb clean tries to rm directories
-# that are directly mounted as volumes.
+# Using -- "$@" is the standard way to pass arguments to bash -c
 docker run --rm --privileged \
     -v "$(pwd):$WORK_DIR" \
     -v "$(pwd)/$BUILD_DIR:/build-outside" \
     -v "$(pwd)/$CACHE_DIR:/cache-outside" \
     "$IMAGE_NAME" \
-    bash -c "
-        # Create symlinks to the build/cache directories outside the project root in container
-        # but inside the volume-mapped space.
+    bash -c '
+        # Create symlinks to the build/cache directories outside the project root
         ln -snf /build-outside/.build .build
         ln -snf /build-outside/chroot chroot
         ln -snf /build-outside/binary binary
         ln -snf /build-outside/local local
         ln -snf /cache-outside cache
         
-        # Execute the requested command
-        "${CMD[@]}"
-    " 2>&1 | tee "$LOG_DIR/lb-build.log"
+        # Execute the requested command passed as arguments to bash -c
+        "$@"
+    ' -- "${CMD[@]}" 2>&1 | tee "$LOG_DIR/lb-build.log"
 
 EXIT_CODE=${PIPESTATUS[0]}
 
@@ -68,8 +66,6 @@ else
 fi
 
 # Fix permissions
-# live-build runs as root inside the container, so created files are owned by root.
-# We explicitly change ownership back to the host user.
 echo "Fixing permissions..."
 docker run --rm --privileged \
     -v "$(pwd):$WORK_DIR" \
