@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Diretório onde a ISO é gerada pelo pipeline Docker
-DIST_DIR="docker/artifacts/dist"
+DIST_DIR="${DIST_DIR:-docker/artifacts/dist}"
 MEM="2G"
 CPUS="2"
 
@@ -175,7 +175,7 @@ fi
 
 check_dependencies || true # Não aborta se apenas o KVM estiver faltando, mas qemu existir
 
-ISO_FILE=$(ls "$DIST_DIR"/*.iso 2>/dev/null | head -n 1) || ISO_FILE=""
+ISO_FILE=$(find "$DIST_DIR" -maxdepth 1 -name "*.iso" | head -n 1)
 
 if [[ "$DRY_RUN" == "false" ]]; then
     if [[ -z "$ISO_FILE" ]]; then
