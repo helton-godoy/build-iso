@@ -72,7 +72,8 @@ docker run --rm --privileged \
         # Setup links for live-build to use our artifacts directory
         # This keeps the root clean while allowing hardlinks if the FS supports it.
         # Note: If docker/artifacts is on the same FS as the root, hardlinks work.
-        mkdir -p "$BUILD_DIR" "$CACHE_DIR"
+        mkdir -p "$BUILD_DIR"/.build "$BUILD_DIR"/chroot "$BUILD_DIR"/binary "$BUILD_DIR"/local "$CACHE_DIR"
+        
         ln -snf "$BUILD_DIR"/.build .build
         ln -snf "$BUILD_DIR"/chroot chroot
         ln -snf "$BUILD_DIR"/binary binary
@@ -101,5 +102,5 @@ docker run --rm --privileged \
     -v "$(pwd):$WORK_DIR" \
     "$IMAGE_NAME" \
     chown -R "$HOST_UID:$HOST_GID" "$WORK_DIR"
-
+ 
 exit $EXIT_CODE
