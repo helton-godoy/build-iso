@@ -1,9 +1,0 @@
-#!/bin/sh
-set -e
-lb config noauto \
-    --distribution trixie \
-    --binary-images iso-hybrid \
-    --debian-installer none \
-    --archive-areas "main contrib non-free non-free-firmware" \
-    --architectures amd64 \
-    "$@"

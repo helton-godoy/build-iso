@@ -1,8 +1,0 @@
-{
-  "vm_name": "debian-zfs-test",
-  "memory": "4G",
-  "cpus": 2,
-  "disk_size": "20G",
-  "net_device": "virtio-net-pci",
-  "vga_device": "virtio"
-}
