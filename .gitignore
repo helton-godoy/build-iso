@@ -1,17 +1,28 @@
-# Live-Build Artifacts (Tradicionais na raiz)
+# Live-Build Artifacts (Raiz)
 /chroot/
 /binary/
 /.build/
 /local/
+/cache/
+/auto/
 /chroot.packages.*
+binary.contents
+binary.meta
 
-# Nova Arquitetura de Artefatos (Encapsulada no Docker)
+# Nova Arquitetura de Artefatos (Docker)
 /docker/artifacts/
+/docker/cache/
+/docker/auto/
 /zbm-binaries/
+/zbm-test-binaries/
 
-# Arquivos de Build e ISOs na raiz (Legacy/Cleanup)
+# Virtualização e Imagens
+/qemu/
 *.iso
 *.img
+*.qcow2
+*.vmdk
+*.vdi
 *.contents
 *.files
 *.packages
@@ -19,12 +30,24 @@
 *.debian.tar.*
 *.orig.tar.*
 
-# Editor/OS Files
+# Trunk linter
+/.trunk/
+
+# Editor/OS Files e Logs
 .DS_Store
 *.swp
 *~
 *.log
 work/
+/log/
 
+# Projetos e Segredos
 .gemini/
 gha-creds-*.json
+.env
+.idea/
+.vscode/
+
+# Build Temporaries
+include/tmp/
+EOF
