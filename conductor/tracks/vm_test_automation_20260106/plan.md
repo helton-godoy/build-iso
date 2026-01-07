@@ -9,7 +9,7 @@
 - [x] Task: Refinar suporte UEFI com caminhos de firmware detectados 07692f1
 - [x] Task: Adicionar argumentos para controle do disco (ex: `--disk-size`, `--keep-disk`) 664f045
 
-## Fase 3: Validação do Fluxo de Instalação
+## Fase 3: Validação do Fluxo de Instalação [checkpoint: 59a8f93]
 - [x] Task: Testar boot em modo BIOS e UEFI com o novo script 6612b83
-- [~] Task: Realizar teste manual de instalação completa no disco virtual
-- [ ] Task: Conductor - User Manual Verification 'Automação de Testes em VM' (Protocol in workflow.md)
+- [x] Task: Realizar teste manual de instalação completa no disco virtual 59a8f93
+- [x] Task: Conductor - User Manual Verification 'Automação de Testes em VM' (Protocol in workflow.md)

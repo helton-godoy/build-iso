@@ -4,5 +4,6 @@
 - Live-Build
 - OpenZFS (Kernel Module & Utils)
 - ZFSBootMenu (Bootloader)
-- QEMU (Validation)
+- QEMU/KVM (Virtualization & Validation)
+- OVMF (UEFI Support for Virtual Machines)
 - Rsync (Installation)
