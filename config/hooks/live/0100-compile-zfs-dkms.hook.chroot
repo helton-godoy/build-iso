@@ -12,8 +12,22 @@ if [ ! -d /lib/modules ]; then
     exit 1
 fi
 
-# Get the installed kernel version
-KERNEL_VERSION=$(ls /lib/modules | head -n 1)
+# Get the installed kernel version - more robust detection
+# We look for the directory name in /lib/modules that has a corresponding linux-image package
+for dir in /lib/modules/*; do
+    [ -d "$dir" ] || continue
+    version=$(basename "$dir")
+    if dpkg -l "linux-image-$version" >/dev/null 2>&1; then
+        KERNEL_VERSION="$version"
+        break
+    fi
+done
+
+if [[ -z "${KERNEL_VERSION:-}" ]]; then
+    echo "W: Could not detect kernel via dpkg mapping, falling back to first directory in /lib/modules..."
+    KERNEL_VERSION=$(ls -1 /lib/modules | sort -V | tail -n 1)
+fi
+
 echo "P: Detected kernel version: ${KERNEL_VERSION}"
 
 # Check if ZFS module is already compiled

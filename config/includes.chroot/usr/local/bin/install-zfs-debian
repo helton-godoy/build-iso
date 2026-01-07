@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 #
-# install-zfs-debian - Instalador Interativo Debian ZFS Root
-#
-# Realiza o particionamento, criação de pool ZFS e instalação do sistema.
+# install-zfs-debian - Instalador Avançado Aurora (ZFS + Gum)
 #
 
 set -euo pipefail
@@ -11,121 +9,219 @@ set -euo pipefail
 POOL_NAME="zroot"
 ZBM_BIN_DIR="/usr/share/zfsbootmenu"
 MOUNT_POINT="/mnt/target"
+LOG_FILE="/var/log/installer.log"
 
-# Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Cores e Estilos (Gum)
+PRIMARY_COLOR="#00D7FF" # Cyan/Blue Aurora
 
-info() { echo -e "${GREEN}[INFO]${NC} $*"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
-error() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
-
-check_root() { [[ $EUID -eq 0 ]] || error "Este script precisa ser executado como root."; }
-
-select_disk() {
-    info "Discos disponíveis:"
-    lsblk -d -n -o NAME,SIZE,MODEL,TYPE | grep "disk"
-    echo ""
-    read -p "Digite o nome do disco alvo (ex: sda, nvme0n1): " DISK_NAME
-    local disk="/dev/$DISK_NAME"
-    [[ -b "$disk" ]] || error "Dispositivo inválido: $disk"
-    echo "$disk"
+# --- Helpers ---
+log() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
 }
 
-setup_partitions() {
-    local disk="$1"
-    warn "LIMPANDO DISCO $disk EM 5 SEGUNDOS..."
-    sleep 5
-    wipefs -a "$disk"
-    sgdisk --zap-all "$disk"
+error_exit() {
+    gum format -- "# ❌ Erro Crítico" "$*"
+    log "ERROR: $*"
+    cleanup
+    exit 1
+}
+
+cleanup() {
+    log "Iniciando limpeza..."
+    sync
+    if mountpoint -q "$MOUNT_POINT/boot/efi"; then umount "$MOUNT_POINT/boot/efi"; fi
     
-    info "Criando partições (Híbrido UEFI/BIOS)..."
-    sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:"BIOS Boot" "$disk"
-    sgdisk -n 2:0:+512M -t 2:EF00 -c 2:"EFI System" "$disk"
-    sgdisk -n 3:0:0 -t 3:BF00 -c 3:"ZFS Root" "$disk"
-    partprobe "$disk"
-    sleep 2
+    # Desmontar sistemas virtuais se estiverem montados
+    for dir in dev proc sys run; do
+        if mountpoint -q "$MOUNT_POINT/$dir"; then umount -l "$MOUNT_POINT/$dir"; fi
+    done
+
+    if zpool list "$POOL_NAME" >/dev/null 2>&1;
+ then
+        zpool export -a || true
+    fi
+}
+
+trap cleanup ERR SIGINT SIGTERM
+
+# --- Interface TUI ---
+
+welcome_screen() {
+    clear
+    gum format -- "
+# 🌌 Aurora OS - Instalador ZFS
+Bem-vindo ao instalador oficial do **Aurora OS**.
+Este assistente irá guiá-lo através da instalação do Debian com **ZFS-on-Root** e **ZFSBootMenu**.
+
+> *Aviso: Este processo pode ser destrutivo para o disco selecionado.*
+"
+    gum confirm "Deseja iniciar a instalação agora?" || exit 0
+}
+
+collect_info() {
+    HOSTNAME=$(gum input --placeholder "Hostname do sistema" --value "aurora")
+    USERNAME=$(gum input --placeholder "Nome do usuário comum" --value "admin")
+    
+    gum format -- "### Configuração de Segurança"
+    USER_PASS=$(gum input --password --placeholder "Senha para o usuário $USERNAME")
+    ROOT_PASS=$(gum input --password --placeholder "Senha para o usuário root")
+    
+    if [[ -z "$USER_PASS" || -z "$ROOT_PASS" ]]; then
+        error_exit "As senhas não podem ser vazias."
+    fi
+}
+
+select_disk() {
+    local disks
+    disks=$(lsblk -d -n -o NAME,SIZE,MODEL -e 7,11 | awk '{printf "/dev/%s (%s - %s)\n", $1, $2, substr($0, index($0,$3))}')
+    
+    if [[ -z "$disks" ]]; then
+        error_exit "Nenhum disco detectado."
+    fi
+
+    SELECTED_RAW=$(echo "$disks" | gum choose --header "Selecione o disco de destino:")
+    DISK_PATH=$(echo "$SELECTED_RAW" | awk '{print $1}')
+    
+    gum format -- "Você selecionou: **$DISK_PATH**"
+    gum confirm "⚠️ TODOS OS DADOS EM $DISK_PATH SERÃO APAGADOS. Confirmar?" || exit 0
+}
+
+# --- Lógica de Instalação ---
+
+prepare_disk() {
+    gum spin --spinner dot --title "Limpando e particionando $DISK_PATH..." -- bash -c "
+        wipefs -a $DISK_PATH
+        sgdisk --zap-all $DISK_PATH
+        sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' $DISK_PATH
+        sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' $DISK_PATH
+        sgdisk -n 3:0:0 -t 3:BF00 -c 3:'ZFS Root' $DISK_PATH
+        partprobe $DISK_PATH
+        sleep 2
+    "
 }
 
 setup_zfs() {
-    local disk="$1"
-    local part3="${disk}3"
-    [[ "$disk" =~ "nvme" ]] && part3="${disk}p3"
-    
-    info "Criando ZFS Pool '$POOL_NAME' em $part3..."
-    zpool create -f \
-        -o ashift=12 \
-        -O acltype=posixacl -O canmount=off -O compression=zstd \
-        -O dnodesize=auto -O normalization=formD -O relatime=on \
-        -O xattr=sa -O mountpoint=none \
-        "$POOL_NAME" "$part3"
+    local part3
+    [[ "$DISK_PATH" =~ [0-9]$ ]] && part3="${DISK_PATH}p3" || part3="${DISK_PATH}3"
 
-    info "Criando datasets..."
-    zfs create -o canmount=off -o mountpoint=none "$POOL_NAME/ROOT"
-    zfs create -o canmount=noauto -o mountpoint=/ "$POOL_NAME/ROOT/debian"
-    
-    mkdir -p "$MOUNT_POINT"
-    zfs mount "$POOL_NAME/ROOT/debian"
-    
-    zfs create -o mountpoint=/home "$POOL_NAME/home"
-    zfs create -o mountpoint=/root "$POOL_NAME/home/root"
-    zfs create -o mountpoint=/var -o canmount=off "$POOL_NAME/var"
-    zfs create "$POOL_NAME/var/log"
-    zfs create "$POOL_NAME/var/tmp"
+    gum spin --spinner dot --title "Criando ZFS Pool e Datasets..." -- bash -c "
+        zpool create -f \
+            -o ashift=12 \
+            -o autotrim=on \
+            -O acltype=posixacl -O canmount=off -O compression=zstd \
+            -O dnodesize=auto -O normalization=formD -O relatime=on \
+            -O xattr=sa -O mountpoint=none \
+            $POOL_NAME $part3
+
+        zfs create -o canmount=off -o mountpoint=none $POOL_NAME/ROOT
+        zfs create -o canmount=noauto -o mountpoint=/ $POOL_NAME/ROOT/debian
+        
+        mkdir -p $MOUNT_POINT
+        zfs mount $POOL_NAME/ROOT/debian
+        
+        zfs create -o mountpoint=/home $POOL_NAME/home
+        zfs create -o mountpoint=/root $POOL_NAME/home/root
+        zfs create -o mountpoint=/var -o canmount=off $POOL_NAME/var
+        zfs create $POOL_NAME/var/log
+        zfs create $POOL_NAME/var/tmp
+    "
 }
 
 copy_system() {
-    info "Copiando sistema live para o disco (isso pode demorar)..."
-    # Copiamos quase tudo, exceto diretórios dinâmicos
-    rsync -aAXHv --progress /
-        "$MOUNT_POINT/"
-        --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found"}
+    # Usando gum spin para o rsync (poderíamos usar progress se calculássemos o tamanho, mas spin é mais simples para este contexto)
+    gum spin --spinner pulse --title "Sincronizando arquivos do sistema Live (isso pode demorar)..." -- rsync -aAXH \
+        --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found"} \
+        / "$MOUNT_POINT/"
     
-    info "Criando diretórios de sistema vazios..."
     mkdir -p "$MOUNT_POINT"/{dev,proc,sys,tmp,run,mnt,media}
     chmod 1777 "$MOUNT_POINT/tmp"
 }
 
+run_in_chroot() {
+    local cmd="$1"
+    chroot "$MOUNT_POINT" /usr/bin/env bash -c "$cmd"
+}
+
+configure_system() {
+    gum spin --spinner dot --title "Configurando sistema (Chroot)..." -- bash -c "
+        # Montar sistemas virtuais
+        mount --bind /dev $MOUNT_POINT/dev
+        mount --bind /proc $MOUNT_POINT/proc
+        mount --bind /sys $MOUNT_POINT/sys
+        mount --bind /run $MOUNT_POINT/run
+
+        # Hostname e Hosts
+        echo '$HOSTNAME' > $MOUNT_POINT/etc/hostname
+        printf '127.0.0.1\tlocalhost\n127.0.1.1\t%s\n' '$HOSTNAME' > $MOUNT_POINT/etc/hosts
+
+        # Sincronizar hostid
+        zgenhostid -f -o $MOUNT_POINT/etc/hostid
+
+        # Usuarios e Senhas
+        echo 'root:$ROOT_PASS' | chroot $MOUNT_POINT chpasswd
+        chroot $MOUNT_POINT useradd -m -s /bin/bash -G sudo '$USERNAME'
+        echo '$USERNAME:$USER_PASS' | chroot $MOUNT_POINT chpasswd
+
+        # Fstab mínimo
+        echo '$POOL_NAME/ROOT/debian / zfs defaults 0 0' > $MOUNT_POINT/etc/fstab
+
+        # Gerar initramfs (CRÍTICO para ZFS)
+        chroot $MOUNT_POINT update-initramfs -u -k all
+    "
+}
+
 setup_bootloader() {
-    local disk="$1"
-    local part2="${disk}2"
-    [[ "$disk" =~ "nvme" ]] && part2="${disk}p2"
-    
-    info "Configurando ZFSBootMenu..."
-    mkfs.vfat -F 32 -n "EFI" "$part2"
-    mkdir -p "$MOUNT_POINT/boot/efi"
-    mount "$part2" "$MOUNT_POINT/boot/efi"
-    
-    mkdir -p "$MOUNT_POINT/boot/efi/EFI/ZBM"
-    if [[ -d "$ZBM_BIN_DIR" ]]; then
-        cp "$ZBM_BIN_DIR"/*.EFI "$MOUNT_POINT/boot/efi/EFI/ZBM/zfsbootmenu.EFI" || warn "ZBM .EFI não encontrado."
-    fi
-    
-    info "Configurando entrada UEFI..."
-    efibootmgr -c -d "$disk" -p 2 -L "ZFSBootMenu" -l "\\EFI\\ZBM\\zfsbootmenu.EFI" || warn "Falha ao criar entrada UEFI."
+    local part2
+    [[ "$DISK_PATH" =~ [0-9]$ ]] && part2="${DISK_PATH}p2" || part2="${DISK_PATH}2"
+
+    gum spin --spinner dot --title "Instalando ZFSBootMenu..." -- bash -c "
+        mkfs.vfat -F 32 -n 'EFI' $part2
+        mkdir -p $MOUNT_POINT/boot/efi
+        mount $part2 $MOUNT_POINT/boot/efi
+        
+        mkdir -p $MOUNT_POINT/boot/efi/EFI/ZBM
+        if [[ -d '$ZBM_BIN_DIR' ]]; then
+            cp $ZBM_BIN_DIR/*.EFI $MOUNT_POINT/boot/efi/EFI/ZBM/zfsbootmenu.EFI
+        fi
+        
+        if command -v efibootmgr >/dev/null; then
+            efibootmgr -c -d $DISK_PATH -p 2 -L 'ZFSBootMenu' -l '\\EFI\\ZBM\\zfsbootmenu.EFI'
+        fi
+        
+        # Configurar linha de comando do kernel no dataset
+        zfs set org.zfsbootmenu:commandline='quiet splash' $POOL_NAME/ROOT/debian
+    "
 }
 
 finalize() {
-    info "Configurando fstab e hostname..."
-    echo "$POOL_NAME/ROOT/debian / zfs defaults 0 0" > "$MOUNT_POINT/etc/fstab"
-    # Adicionar ESP ao fstab se necessário
+    gum spin --spinner dot --title "Finalizando e exportando pool..." -- bash -c "
+        sync
+        umount $MOUNT_POINT/boot/efi
+        zpool export $POOL_NAME
+    "
     
-    info "Limpando e exportando pool..."
-    umount "$MOUNT_POINT/boot/efi"
-    zpool export "$POOL_NAME"
-    info "INSTALAÇÃO CONCLUÍDA! Remova a mídia e reinicie."
+    gum format -- "
+# 🎉 Instalação Concluída!
+O **Aurora OS** foi instalado com sucesso.
+
+1. Remova a mídia de instalação.
+2. Reinicie o computador.
+"
 }
 
+# --- Main ---
 main() {
-    check_root
-    local disk
-    disk=$(select_disk)
-    setup_partitions "$disk"
-    setup_zfs "$disk"
+    [[ $EUID -eq 0 ]] || error_exit "Este script precisa ser executado como root."
+    
+    welcome_screen
+    select_disk
+    collect_info
+    
+    prepare_disk
+    setup_zfs
     copy_system
-    setup_bootloader "$disk"
+    configure_system
+    setup_bootloader
     finalize
 }
 
