@@ -25,3 +25,6 @@
 *~
 *.log
 work/
+
+.gemini/
+gha-creds-*.json

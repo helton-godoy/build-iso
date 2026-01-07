@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOOK_FILE="config/hooks/live/0100-compile-zfs-dkms.hook.chroot"
+HOOK_FILE="docker/config/hooks/live/0100-compile-zfs-dkms.hook.chroot"
 
 echo "Verificando hook de compilação ZFS..."
 

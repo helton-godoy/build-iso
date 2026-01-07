@@ -7,7 +7,7 @@ DISK_FILE="test_size_disk.qcow2"
 rm -f "$DISK_FILE"
 
 # Deve criar um disco de 10GB
-if ./scripts/test-iso.sh --create-disk "$DISK_FILE" --disk-size 10G --check-deps; then
+if ./tools/test-iso.sh --create-disk "$DISK_FILE" --disk-size 10G --check-deps; then
     # Verificar tamanho usando qemu-img info
     SIZE=$(qemu-img info "$DISK_FILE" | grep "virtual size" | awk '{print $3}')
     if [[ "$SIZE" == "10" ]]; then
@@ -19,6 +19,6 @@ if ./scripts/test-iso.sh --create-disk "$DISK_FILE" --disk-size 10G --check-deps
         exit 1
     fi
 else
-    echo "FAIL: Falha ao executar scripts/test-iso.sh com --disk-size."
+    echo "FAIL: Falha ao executar tools/test-iso.sh com --disk-size."
     exit 1
 fi

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER="config/includes.chroot/usr/local/bin/install-zfs-debian"
+INSTALLER="docker/config/includes.chroot/usr/local/bin/install-zfs-debian"
 
 echo "Verificando presença do instalador interativo..."
 
 if [[ -f "$INSTALLER" ]]; then
-    echo "PASS: Instalador existe em config/includes.chroot/."
+    echo "PASS: Instalador existe em docker/config/includes.chroot/."
 else
     echo "FAIL: Instalador não encontrado."
     exit 1

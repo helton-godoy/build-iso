@@ -22,10 +22,10 @@ O OpenZFS não pode ser distribuído pré-compilado diretamente no kernel Linux 
 
 Nossa abordagem move a complexidade da **compilação** para a etapa de **construção da ISO**, utilizando um container Docker como uma "fábrica limpa".
 
-1.  **Ambiente de Build (Docker):** Contém todas as ferramentas pesadas de desenvolvimento (`build-essential`, `devscripts`, `headers`).
-2.  **Processo de Build:** A ISO é gerada e, durante o processo (`chroot`), os módulos ZFS são compilados e instalados no sistema de arquivos da imagem.
-3.  **Produto Final (ISO):** Contém os módulos já binários (`.ko`) e um instalador leve. Não possui compiladores.
-4.  **Instalação (Target):** O script apenas copia o sistema já pronto para o disco e configura o bootloader. **Zero compilação no cliente.**
+1. **Ambiente de Build (Docker):** Contém todas as ferramentas pesadas de desenvolvimento (`build-essential`, `devscripts`, `headers`).
+2. **Processo de Build:** A ISO é gerada e, durante o processo (`chroot`), os módulos ZFS são compilados e instalados no sistema de arquivos da imagem.
+3. **Produto Final (ISO):** Contém os módulos já binários (`.ko`) e um instalador leve. Não possui compiladores.
+4. **Instalação (Target):** O script apenas copia o sistema já pronto para o disco e configura o bootloader. **Zero compilação no cliente.**
 
 ---
 
@@ -42,25 +42,20 @@ flowchart TD
 
     subgraph Docker ["Container: debian-iso-builder"]
         direction TB
-        InstallDev[Instalar Ferramentas de Build
-(gcc, make, dkms, headers)]
+        InstallDev["Instalar Ferramentas de Build (gcc, make, dkms, headers)"]
 
         subgraph LiveBuild ["Processo Live-Build"]
             LB_Config[lb config: Configurar Repositórios]
             LB_Bootstrap[lb bootstrap: Baixar Base Debian]
 
             subgraph Chroot ["Ambiente Chroot (Sistema Alvo)"]
-                InstallPkg[Instalar Pacotes Runtime
-(zfs-dkms, zfsutils, gdisk)]
-                CompileZFS[DKMS: Compilação Automática do ZFS
-(Gera zfs.ko para o kernel alvo)]
-                InstallZBM[Injetar Binários ZFSBootMenu
-(em /usr/share/zfsbootmenu)]
+                InstallPkg["Instalar Pacotes Runtime (zfs-dkms, zfsutils, gdisk)"]
+                CompileZFS["DKMS: Compilação Automática do ZFS (Gera zfs.ko para o kernel alvo)"]
+                InstallZBM["Injetar Binários ZFSBootMenu (em /usr/share/zfsbootmenu)"]
                 CopyInstaller[Copiar Script install.sh]
             end
 
-            SquashFS[Gerar filesystem.squashfs
-(Contém módulos já compilados)]
+            SquashFS["Gerar filesystem.squashfs (Contém módulos já compilados)"]
             GenISO[Gerar ISO Híbrida Bootável]
         end
 
@@ -85,7 +80,7 @@ flowchart TD
 Diferenciação clara entre o que é necessário para _construir_ e o que vai na _mídia final_.
 
 | Categoria        | Pacotes no Docker (Build Factory)      | Pacotes na ISO Final (Runtime)      | Motivo                                                                           |
-| :--------------- | :------------------------------------- | :---------------------------------- | :------------------------------------------------------------------------------- |
+|:---------------- |:-------------------------------------- |:----------------------------------- |:-------------------------------------------------------------------------------- |
 | **Kernel**       | `linux-headers-amd64`                  | `linux-image-amd64`                 | Headers são necessários apenas para compilar o módulo.                           |
 | **ZFS**          | `zfs-dkms`, `dkms`                     | `zfsutils-linux`, `libzfs*`         | O módulo `.ko` gerado é persistido; o código-fonte pode ser removido (opcional). |
 | **Compiladores** | `build-essential`, `gcc`, `make`       | _Nenhum_                            | Economia de espaço e segurança (reduz superfície de ataque).                     |
@@ -179,7 +174,7 @@ sequenceDiagram
 
 ## 6. Vantagens da Abordagem
 
-1.  **Confiabilidade:** O build ocorre em um ambiente Docker controlado e imutável. Se funciona na máquina do desenvolvedor A, funciona na B.
-2.  **Velocidade de Instalação:** O usuário final não compila nada. A instalação é limitada apenas pela velocidade de escrita no disco.
-3.  **Instalação Offline:** Não requer internet no cliente para baixar headers ou compiladores.
-4.  **Tamanho Reduzido:** A ISO não carrega gigabytes de ferramentas de desenvolvimento (`gcc`, `make`, headers não utilizados), apenas o resultado do build.
+1. **Confiabilidade:** O build ocorre em um ambiente Docker controlado e imutável. Se funciona na máquina do desenvolvedor A, funciona na B.
+2. **Velocidade de Instalação:** O usuário final não compila nada. A instalação é limitada apenas pela velocidade de escrita no disco.
+3. **Instalação Offline:** Não requer internet no cliente para baixar headers ou compiladores.
+4. **Tamanho Reduzido:** A ISO não carrega gigabytes de ferramentas de desenvolvimento (`gcc`, `make`, headers não utilizados), apenas o resultado do build.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LIST_DIR="config/package-lists"
+LIST_DIR="docker/config/package-lists"
 ZFS_LIST="$LIST_DIR/zfs.list.chroot"
 TOOLS_LIST="$LIST_DIR/tools.list.chroot"
 

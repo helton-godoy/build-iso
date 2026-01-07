@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WRAPPER="scripts/build-iso-in-docker.sh"
+WRAPPER="docker/tools/build-iso-in-docker.sh"
 TEST_FILE="test_artifact_$(date +%s)"
 
 # Function to clean up

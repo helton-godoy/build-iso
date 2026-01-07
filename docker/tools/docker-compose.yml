@@ -1,0 +1,16 @@
+services:
+  builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: debian-iso-builder
+    # ESSENCIAL: Permite que o container faça mounts internos (chroot)
+    privileged: true
+    volumes:
+      - ~/git/build-iso/work/docker:/work
+    # Mantém o container rodando para você entrar nele
+    stdin_open: true
+    tty: true
+    # Mapeia os dispositivos do host (necessário para o live-build criar loops)
+    devices:
+      - "/dev:/dev"

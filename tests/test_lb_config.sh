@@ -2,9 +2,9 @@
 set -euo pipefail
 
 CONFIG_DIR="config"
-BINARY_CONFIG="config/binary"
-CHROOT_CONFIG="config/chroot"
-BOOTSTRAP_CONFIG="config/bootstrap"
+BINARY_CONFIG="docker/config/binary"
+CHROOT_CONFIG="docker/config/chroot"
+BOOTSTRAP_CONFIG="docker/config/bootstrap"
 
 echo "Running tests for Live-Build configuration..."
 

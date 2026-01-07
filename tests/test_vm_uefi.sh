@@ -13,7 +13,7 @@ for p in "/usr/share/OVMF/OVMF_CODE.fd" "/usr/share/ovmf/OVMF.fd" "/usr/share/qe
 done
 
 if [[ -n "$OVMF_FOUND" ]]; then
-    OUTPUT=$(./scripts/test-iso.sh --dry-run uefi)
+    OUTPUT=$(./tools/test-iso.sh --dry-run uefi)
     echo "DEBUG Output: $OUTPUT"
     if echo "$OUTPUT" | grep -q "OVMF"; then
         echo "PASS: UEFI configurado com OVMF encontrado."

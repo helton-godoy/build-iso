@@ -4,7 +4,7 @@ set -euo pipefail
 echo "Verificando funcionalidade do script de build e logs..."
 
 # Executar um comando rápido (lb --version) para testar o pipeline
-./scripts/build-iso-in-docker.sh lb --version > /dev/null
+./docker/tools/build-iso-in-docker.sh lb --version > /dev/null
 
 if [[ -f "docker/artifacts/logs/lb-build.log" ]]; then
     echo "PASS: Log docker/artifacts/logs/lb-build.log foi gerado."

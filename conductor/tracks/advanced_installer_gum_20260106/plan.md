@@ -16,5 +16,5 @@
 
 ## Fase 4: Resiliência e Testes [checkpoint: pending]
 - [x] Task: Implementar logs de instalação e `trap` de limpeza.
-- [ ] Task: Validar instalação completa via `test-iso.sh`.
+- [~] Task: Validar instalação completa via `test-iso.sh`.
 - [ ] Task: Conductor - User Manual Verification 'Instalador Avançado com Gum'
