@@ -184,7 +184,8 @@ fi
 
 check_dependencies || true # Não aborta se apenas o KVM estiver faltando, mas qemu existir
 
-ISO_FILE=$(find "$DIST_DIR" -maxdepth 1 -name "*.iso" | head -n 1)
+# Busca a ISO mais recente (ordenada por data de modificação)
+ISO_FILE=$(find "$DIST_DIR" -maxdepth 1 -name "*.iso" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2-)
 
 if [[ "$DRY_RUN" == "false" ]]; then
     if [[ -z "$ISO_FILE" ]]; then
