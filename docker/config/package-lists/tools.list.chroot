@@ -1,6 +1,10 @@
 gdisk
 dosfstools
 efibootmgr
+grub-pc-bin
+grub-efi-amd64-bin
+grub2-common
+grub-pc
 openssh-server
 sudo
 locales
