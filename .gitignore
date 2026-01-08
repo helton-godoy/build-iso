@@ -51,3 +51,15 @@ gha-creds-*.json
 # Build Temporaries
 include/tmp/
 EOF
+
+# Cache e artefatos de build
+docker/cache/
+docker/work/
+docker/dist/
+docker/logs/
+work/
+
+# Binários ZFSBootMenu (baixados via tools/download-zfsbootmenu.sh)
+include/usr/share/zfsbootmenu/*.EFI
+include/usr/share/zfsbootmenu/*.img
+include/usr/share/zfsbootmenu/vmlinuz-*

@@ -110,7 +110,7 @@ O instalador Aurora OS foi **completamente implementado** seguindo o roadmap def
 
 | Categoria           | Status | Detalhes                                                |
 | ------------------- | ------ | ------------------------------------------------------- |
-| Presença do arquivo | ✅ PASS | Arquivo existe em config/includes.chroot/usr/local/bin/ |
+| Presença do arquivo | ✅ PASS | Arquivo existe em include/usr/local/bin/ |
 | Permissões          | ✅ PASS | Executável                                              |
 | Shebang             | ✅ PASS | #!/usr/bin/env bash                                     |
 | Configuração segura | ✅ PASS | set -euo pipefail                                       |
@@ -158,7 +158,7 @@ gum spin --spinner dot --title "Extraindo sistema..." -- \
 
 ```bash
 zfs set org.zfsbootmenu:commandline="quiet" "$POOL_NAME/ROOT/debian"
-efibootmgr -c -d "$DISK" -p 2 -L "Aurora OS" -l "\EFI\ZBM\zbm.efi"
+efibootmgr -c -d "$DISK" -p 2 -L "ZFSBootMenu" -l "\EFI\ZBM\VMLINUZ.EFI"
 ```
 
 ### 3. Instalação: 100% offline (não debootstrap)
@@ -252,7 +252,7 @@ Instalação (sem internet)
 
 ### Instalador
 
-- `config/includes.chroot/usr/local/bin/install-aurora.sh` (1.138 linhas)
+- `include/usr/local/bin/install-aurora.sh` (1.400+ linhas)
 
 ### Documentação
 

@@ -4,137 +4,144 @@ set -euo pipefail
 # ==============================================================================
 # build-iso-in-docker.sh
 # 
-# Este script executa o processo de construção da ISO Debian Live dentro de um
-# container Docker.
+# Gerencia a construção da ISO Debian Live dentro de um container Docker.
 # ==============================================================================
 
-# --- Configuração de Caminhos (Baseado na estrutura da raiz do projeto) ---
-DOCKER_BUILD_CONTEXT="docker/tools"
-
-# Diretórios de Saída e Trabalho (Host)
-WORK_DIR_HOST="docker/work"       # Onde o build (chroot) acontece
-DIST_DIR_HOST="docker/dist"       # Onde a ISO final será salva
-LOG_DIR_HOST="docker/logs"        # Onde os logs serão salvos
-CACHE_DIR_HOST="docker/cache"     # Cache de pacotes (opcional, para acelerar)
-
-# Diretórios de Entrada (Source)
-CONFIG_SRC="docker/config"
-AUTO_SRC="docker/auto"
-INCLUDE_SRC="include"
+# Cores e Estilos
+readonly C_RESET='\033[0m'
+readonly C_BOLD='\033[1m'
+readonly C_CYAN='\033[38;5;39m'
+readonly C_GREEN='\033[32m'
+readonly C_RED='\033[31m'
 
 # Nome da Imagem Docker
-IMAGE_NAME="debian-iso-builder"
+readonly IMAGE_NAME="debian-iso-builder"
+readonly DOCKER_BUILD_CONTEXT="docker/tools"
 
-# --- Preparação ---
+# Diretórios (Host)
+readonly DOCKER_DIR="docker"
+readonly WORK_DIR_HOST="$DOCKER_DIR/work"
+readonly DIST_DIR_HOST="$DOCKER_DIR/dist"
+readonly LOG_DIR_HOST="$DOCKER_DIR/logs"
+readonly CACHE_DIR_HOST="$WORK_DIR_HOST/cache"
 
-# Garantir que diretórios existam no host
-mkdir -p "$WORK_DIR_HOST" "$DIST_DIR_HOST" "$LOG_DIR_HOST" "$CACHE_DIR_HOST"
+# Diretórios de Entrada (Source)
+readonly CONFIG_SRC="$DOCKER_DIR/config"
+readonly INCLUDE_SRC="include"
+readonly AUTO_SRC="$DOCKER_DIR/auto"
 
-echo "=== Iniciando Pipeline de Build da ISO ==="
+# Funções de logging
+log_info()  { printf "${C_CYAN}ℹ %s${C_RESET}\n" "$*"; }
+log_ok()    { printf "${C_GREEN}✔ %s${C_RESET}\n" "$*"; }
+log_error() { printf "${C_RED}${C_BOLD}✖ %s${C_RESET}\n" "$*"; exit 1; }
 
-# 1. Construir a imagem do Builder
-echo "[1/4] Construindo imagem Docker ($IMAGE_NAME)..."
-docker build -t "$IMAGE_NAME" "$DOCKER_BUILD_CONTEXT" > "$LOG_DIR_HOST/docker-build.log" 2>&1
-echo "      Log: $LOG_DIR_HOST/docker-build.log"
+function prepare_dirs() {
+    mkdir -p "$WORK_DIR_HOST" "$DIST_DIR_HOST" "$LOG_DIR_HOST" "$CACHE_DIR_HOST"
+}
 
-# 2. Executar Build
-echo "[2/4] Executando build no container..."
+function clean() {
+    log_info "Limpando artefatos de build em $DOCKER_DIR..."
+    rm -rf "$WORK_DIR_HOST" "$DIST_DIR_HOST" "$LOG_DIR_HOST"
+    log_ok "Limpeza concluída."
+}
 
-# Script interno que roda dentro do container
-BUILD_CMD="
+function build() {
+    prepare_dirs
+    log_info "Iniciando Pipeline de Build da ISO..."
+
+    # 1. Construir a imagem do Builder
+    log_info "Construindo imagem Docker ($IMAGE_NAME)..."
+    if ! docker build -t "$IMAGE_NAME" "$DOCKER_BUILD_CONTEXT" > "$LOG_DIR_HOST/docker-build.log" 2>&1; then
+        log_error "Falha ao construir imagem Docker. Veja logs em: $LOG_DIR_HOST/docker-build.log"
+    fi
+
+    # 2. Executar Build
+    log_info "Executando build no container..."
+    
+    # Exportamos as variáveis para o container via environment
+    # O script interno agora assume que o projeto está em /work e o workspace em /work/docker/work
+    local inner_script
+    inner_script=$(cat <<'EOF'
 set -e
+PROJECT_ROOT="/work"
+BUILD_WS="$PROJECT_ROOT/$WORK_DIR"
+CONFIG_SRC_ABS="$PROJECT_ROOT/$CONFIG_DIR"
+INCLUDE_SRC_ABS="$PROJECT_ROOT/$INCLUDE_DIR"
+AUTO_SRC_ABS="$PROJECT_ROOT/$AUTO_DIR"
 
-# Caminhos internos (Mapeados em /work)
-PROJECT_ROOT=\"/work\"
-BUILD_WS=\"/work/$WORK_DIR_HOST\"
-CACHE_DIR=\"/work/$CACHE_DIR_HOST\"
+log() { echo "   -> $1"; }
 
-echo '   -> Preparando workspace em: ' \$BUILD_WS
+log "Preparando workspace em $BUILD_WS..."
+# Limpeza controlada do workspace para garantir estado limpo mas manter cache
+rm -rf "$BUILD_WS/config" "$BUILD_WS/auto"
+mkdir -p "$BUILD_WS/config/includes.chroot"
 
-# Criar estrutura básica
-mkdir -p \$BUILD_WS/config/includes.chroot
-
-# ------------------------------------------------------------------------------
-# IMPORTAÇÃO DE CONFIGURAÇÕES
-# ------------------------------------------------------------------------------
-
-# 1. Copiar 'config' (arquivos de configuração do live-build)
-echo '   -> Importando docker/config...'
-if [ -d \"\$PROJECT_ROOT/$CONFIG_SRC\" ]; then
-    cp -r \$PROJECT_ROOT/$CONFIG_SRC/* \$BUILD_WS/config/
+# Importar Configurações
+if [[ -d "$CONFIG_SRC_ABS" ]]; then
+    log "Importando $CONFIG_DIR..."
+    cp -r "$CONFIG_SRC_ABS"/* "$BUILD_WS/config/"
 fi
 
-# 2. Copiar 'auto' (scripts de automação do lb config)
-#    IMPORTANTE: Esta pasta contém os scripts 'config', 'build', 'clean' que
-#    definem os parâmetros do build. Ela NÃO é gerada automaticamente.
-echo '   -> Importando docker/auto...'
-if [ -d \"\$PROJECT_ROOT/$AUTO_SRC\" ]; then
-    cp -r \$PROJECT_ROOT/$AUTO_SRC \$BUILD_WS/
+# Importar Includes (Overlay)
+if [[ -d "$INCLUDE_SRC_ABS" ]]; then
+    log "Aplicando overlay de include/..."
+    cp -r "$INCLUDE_SRC_ABS"/* "$BUILD_WS/config/includes.chroot/"
 fi
 
-# 3. Aplicar Overlay de 'include' (arquivos extras da ISO)
-echo '   -> Aplicando overlay de include/...'
-if [ -d \"\$PROJECT_ROOT/$INCLUDE_SRC\" ]; then
-    # Copia tudo de include/ para config/includes.chroot/
-    cp -r \$PROJECT_ROOT/$INCLUDE_SRC/* \$BUILD_WS/config/includes.chroot/
+# Importar Auto (Scripts de automação)
+if [[ -d "$AUTO_SRC_ABS" ]]; then
+    log "Importando scripts auto/..."
+    cp -r "$AUTO_SRC_ABS" "$BUILD_WS/"
 fi
 
-# ------------------------------------------------------------------------------
-# EXECUÇÃO DO BUILD
-# ------------------------------------------------------------------------------
+cd "$BUILD_WS"
 
-cd \$BUILD_WS
+# Configurar persistência de cache se existir
+if [[ -d "$PROJECT_ROOT/$CACHE_DIR" ]]; then
+    ln -snf "$PROJECT_ROOT/$CACHE_DIR" cache
+fi
 
-# Configurar Cache (Symlink para persistência)
-mkdir -p \$CACHE_DIR
-ln -snf \$CACHE_DIR cache
+# CRITICAL: Inicializar configuração se não houver auto/config
+# Isso gera os markers em .build/ que o lb build exige
+log "Executando lb config..."
+lb config
 
-# Executar 'lb build'
-# O live-build usará a pasta 'auto' e 'config' que acabamos de preparar.
-echo '   -> Executando lb build (pode demorar)...'
+log "Executando lb build (pode demorar)..."
 lb build
 
-# ------------------------------------------------------------------------------
-# FINALIZAÇÃO
-# ------------------------------------------------------------------------------
+# Exportar resultados
+log "Exportando artefatos para $DIST_DIR..."
+mv *.iso "$PROJECT_ROOT/$DIST_DIR/" 2>/dev/null || true
+mv *.packages "$PROJECT_ROOT/$DIST_DIR/" 2>/dev/null || true
+mv *.buildlog "$PROJECT_ROOT/$LOG_DIR/" 2>/dev/null || true
+EOF
+)
 
-# Mover artefatos para docker/dist
-echo '   -> Movendo artefatos para $DIST_DIR_HOST...'
-mv *.iso \$PROJECT_ROOT/$DIST_DIR_HOST/ 2>/dev/null || echo '      AVISO: Nenhuma ISO encontrada.'
-mv *.packages \$PROJECT_ROOT/$DIST_DIR_HOST/ 2>/dev/null || true
-mv *.buildlog \$PROJECT_ROOT/$LOG_DIR_HOST/ 2>/dev/null || true
+    # Executa o container passando os caminhos como variáveis de ambiente
+    if docker run --rm --privileged \
+        -v "$(pwd):/work" \
+        -e WORK_DIR="$WORK_DIR_HOST" \
+        -e DIST_DIR="$DIST_DIR_HOST" \
+        -e LOG_DIR="$LOG_DIR_HOST" \
+        -e CACHE_DIR="$CACHE_DIR_HOST" \
+        -e CONFIG_DIR="$CONFIG_SRC" \
+        -e INCLUDE_DIR="$INCLUDE_SRC" \
+        -e AUTO_DIR="$AUTO_SRC" \
+        "$IMAGE_NAME" \
+        bash -c "$inner_script" 2>&1 | tee "$LOG_DIR_HOST/lb-execution.log"; then
+        
+        log_ok "Build concluído com sucesso!"
+    else
+        log_error "Build falhou. Verifique os detalhes em: $LOG_DIR_HOST/lb-execution.log"
+    fi
 
-# Limpar workspace (opcional, para economizar espaço, mas mantemos para debug por enquanto)
-# rm -rf \$BUILD_WS/*
-"
+    # 3. Ajustar Permissões (Docker roda como root)
+    log_info "Ajustando permissões..."
+    docker run --rm --privileged -v "$(pwd):/work" "$IMAGE_NAME" \
+        chown -R "$(id -u):$(id -g)" "/work/$DOCKER_DIR"
+}
 
-# Executar container
-docker run --rm --privileged \
-    -v "$(pwd):/work" \
-    "$IMAGE_NAME" \
-    bash -c "$BUILD_CMD" 2>&1 | tee "$LOG_DIR_HOST/lb-execution.log"
-
-EXIT_CODE=${PIPESTATUS[0]}
-
-# 3. Corrigir Permissões
-# O Docker roda como root, então os arquivos gerados (ISO, logs, work) pertencem ao root.
-# Mudamos para o usuário atual do host.
-echo "[3/4] Ajustando permissões..."
-docker run --rm --privileged \
-    -v "$(pwd):/work" \
-    "$IMAGE_NAME" \
-    chown -R "$(id -u):$(id -g)" \
-        "/work/$WORK_DIR_HOST" \
-        "/work/$DIST_DIR_HOST" \
-        "/work/$LOG_DIR_HOST" \
-        "/work/$CACHE_DIR_HOST"
-
-if [ $EXIT_CODE -eq 0 ]; then
-    echo "=== SUCESSO ==="
-    echo "ISO disponível em: $DIST_DIR_HOST"
-else
-    echo "=== FALHA ==="
-    echo "Verifique os logs em: $LOG_DIR_HOST"
-fi
-
-exit $EXIT_CODE
+case "${1:-}" in
+    --clean) clean ;;
+    --build|*) build ;;
+esac

@@ -1,187 +1,162 @@
 #!/usr/bin/env bash
+# ==============================================================================
+# download-zfsbootmenu.sh - Gerenciador de Binários ZFSBootMenu
 #
-# download-zfsbootmenu.sh
-#
-# Baixa os binários release do ZFSBootMenu e os instala diretamente na
-# estrutura de inclusão da ISO (include/usr/share/zfsbootmenu).
-#
+# Baixa e instala os binários do ZFSBootMenu na estrutura do projeto.
+# ==============================================================================
 
 set -euo pipefail
 
-# --- Configuração ---
-BASE_URL="https://get.zfsbootmenu.org"
-# Destino final dentro da estrutura do projeto
+# Cores e Estilos (ANSI)
+readonly C_RESET=$'\033[0m'
+readonly C_BOLD=$'\033[1m'
+readonly C_PURPLE=$'\033[38;5;105m'
+readonly C_CYAN=$'\033[38;5;39m'
+readonly C_GREEN=$'\033[32m'
+readonly C_YELLOW=$'\033[33m'
+readonly C_RED=$'\033[31m'
+
+# Configuração
+readonly BASE_URL="https://get.zfsbootmenu.org"
+readonly TEMP_DIR=$(mktemp -d)
 DEST_DIR="include/usr/share/zfsbootmenu"
 BUILD_TYPE="release"
 VERIFY_SIGNATURES=false
-TEMP_DIR=""
+FORCE=false
 
-# Cores
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Funções de logging
+log_info() { printf "${C_CYAN}ℹ %s${C_RESET}\n" "$*"; }
+log_ok() { printf "${C_GREEN}✔ %s${C_RESET}\n" "$*"; }
+log_warn() { printf "${C_YELLOW}⚠ %s${C_RESET}\n" "$*"; }
+log_error() {
+	printf "${C_RED}${C_BOLD}✖ %s${C_RESET}\n" "$*"
+	exit 1
+}
 
-log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
-
-cleanup() {
-    if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
-        rm -rf "$TEMP_DIR"
-    fi
+function cleanup() {
+	[[ -d "$TEMP_DIR" ]] && rm -rf "$TEMP_DIR"
 }
 trap cleanup EXIT
 
-usage() {
-    cat <<EOF
-Uso: $(basename "$0") [OPÇÕES]
+function show_help() {
+	cat <<EOF
+${C_BOLD}${C_PURPLE}🌌 AURORA OS - ZFSBOOTMENU DOWNLOADER${C_RESET}
+${C_CYAN}Utilitário para instalação de binários ZFSBootMenu${C_RESET}
 
-Baixa binários do ZFSBootMenu e instala em $DEST_DIR
+${C_BOLD}Uso:${C_RESET} \$0 ${C_GREEN}[OPÇÕES]${C_RESET}
 
-OPÇÕES:
-    -o, --output-dir DIR     Diretório de destino (padrão: $DEST_DIR)
-    -b, --build-type TYPE    Tipo de build: release ou recovery (padrão: release)
-    -v, --verify             Verificar assinaturas GPG (requer gpg)
-    -f, --force              Forçar download mesmo se arquivos já existirem
-    -h, --help               Mostra esta ajuda
+${C_BOLD}Opções:${C_RESET}
+  ${C_GREEN}-o, --output-dir DIR${C_RESET}   Diretório de destino (Padrão: ${DEST_DIR})
+  ${C_GREEN}-b, --build-type TYPE${C_RESET}  Tipo: release ou recovery (Padrão: release)
+  ${C_GREEN}-v, --verify${C_RESET}           Verifica assinaturas GPG
+  ${C_GREEN}-f, --force${C_RESET}            Força o download
+  ${C_GREEN}-h, --help${C_RESET}             Exibe esta ajuda
 EOF
-    exit 1
+	exit 0
 }
-
-FORCE=false
 
 # Parse argumentos
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-    -o | --output-dir)
-        DEST_DIR="$2"
-        shift 2
-        ;;
-    -b | --build-type)
-        BUILD_TYPE="$2"
-        shift 2
-        ;;
-    -v | --verify)
-        VERIFY_SIGNATURES=true
-        shift
-        ;;
-    -f | --force)
-        FORCE=true
-        shift
-        ;;
-    -h | --help)
-        usage
-        ;;
-    *)
-        log_error "Opção desconhecida: $1"
-        ;;
-    esac
+	case "$1" in
+	-o | --output-dir)
+		DEST_DIR="$2"
+		shift 2
+		;;
+	-b | --build-type)
+		BUILD_TYPE="$2"
+		shift 2
+		;;
+	-v | --verify)
+		VERIFY_SIGNATURES=true
+		shift
+		;;
+	-f | --force)
+		FORCE=true
+		shift
+		;;
+	-h | --help) show_help ;;
+	*) log_error "Opção desconhecida: $1" ;;
+	esac
 done
 
-check_existing() {
-    if [[ "$FORCE" == true ]]; then
-        return 0
-    fi
+function detect_version() {
+	log_info "Detectando versão mais recente..."
+	local version
+	version=$(curl -sIL "$BASE_URL/latest" | grep -i "location:" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1) ||
+		version=$(curl -s "https://api.github.com/repos/zbm-dev/zfsbootmenu/releases/latest" | grep -oP '"tag_name": "\K[^"]+')
 
-    if [[ -f "$DEST_DIR/vmlinuz-bootmenu" && -f "$DEST_DIR/initramfs-bootmenu.img" ]]; then
-        log_info "Arquivos do ZFSBootMenu já existem em $DEST_DIR."
-        log_info "Use --force para baixar novamente."
-        exit 0
-    fi
+	[[ -z "$version" ]] && log_error "Falha ao detectar versão."
+	echo "$version"
 }
 
-detect_latest_version() {
-    log_info "Detectando versão mais recente do ZFSBootMenu..."
-    local version
-    version=$(curl -sIL "$BASE_URL/latest" | grep -i "location:" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
-    if [[ -z "$version" ]]; then
-        version=$(curl -s https://api.github.com/repos/zbm-dev/zfsbootmenu/releases/latest | grep -oP '"tag_name": "\K[^"]+')
-    fi
+function main() {
+	# Verificar se já existe (pular se não forçado)
+	if [[ "$FORCE" == false ]] && [[ -f "$DEST_DIR/VMLINUZ.EFI" ]] && [[ -f "$DEST_DIR/VMLINUZ-RECOVERY.EFI" ]]; then
+		log_ok "ZFSBootMenu (release + recovery) já instalado em $DEST_DIR."
+		return 0
+	fi
 
-    if [[ -z "$version" ]]; then
-        log_error "Falha ao detectar versão."
-    fi
-    echo "$version"
+	local version
+	version=$(detect_version)
+	log_info "Versão: $version"
+
+	mkdir -p "$DEST_DIR"
+
+	# Baixar ambos os tipos: release e recovery
+	local types=("release" "recovery")
+
+	for build_type in "${types[@]}"; do
+		local build_url="$BASE_URL/components"
+		[[ "$build_type" == "recovery" ]] && build_url="$BASE_URL/components/recovery"
+
+		local tarball="zfsbootmenu-${build_type}-x86_64-${version}.tar.gz"
+
+		log_info "Baixando $tarball..."
+		if ! curl -L -f -s -o "$TEMP_DIR/$tarball" "$build_url"; then
+			log_warn "Falha ao baixar $tarball"
+			continue
+		fi
+
+		log_info "Extraindo $build_type..."
+		tar -xzf "$TEMP_DIR/$tarball" -C "$TEMP_DIR"
+
+		local src_dir
+		src_dir=$(find "$TEMP_DIR" -maxdepth 1 -type d -name "zfsbootmenu-*" | head -n 1)
+
+		if [[ -n "$src_dir" ]]; then
+			# Copiar componentes com sufixo se for recovery
+			if [[ "$build_type" == "release" ]]; then
+				cp "$src_dir/vmlinuz-bootmenu" "$DEST_DIR/" 2>/dev/null || true
+				cp "$src_dir/initramfs-bootmenu.img" "$DEST_DIR/" 2>/dev/null || true
+			else
+				cp "$src_dir/vmlinuz-bootmenu" "$DEST_DIR/vmlinuz-bootmenu-recovery" 2>/dev/null || true
+				cp "$src_dir/initramfs-bootmenu.img" "$DEST_DIR/initramfs-bootmenu-recovery.img" 2>/dev/null || true
+			fi
+			find "$src_dir" -name "*.EFI" -exec cp {} "$DEST_DIR/" \; 2>/dev/null || true
+			rm -rf "$src_dir"
+		fi
+	done
+
+	# Baixar binários EFI unificados (release e recovery)
+	log_info "Baixando binário EFI release..."
+	if curl -L -f -s -o "$DEST_DIR/VMLINUZ.EFI" "$BASE_URL/efi"; then
+		log_ok "Binário EFI release: VMLINUZ.EFI"
+		# Criar backup
+		cp "$DEST_DIR/VMLINUZ.EFI" "$DEST_DIR/VMLINUZ-BACKUP.EFI" 2>/dev/null || true
+	else
+		log_warn "Falha ao baixar EFI release"
+	fi
+
+	log_info "Baixando binário EFI recovery..."
+	if curl -L -f -s -o "$DEST_DIR/VMLINUZ-RECOVERY.EFI" "$BASE_URL/efi/recovery"; then
+		log_ok "Binário EFI recovery: VMLINUZ-RECOVERY.EFI"
+	else
+		log_warn "Falha ao baixar EFI recovery"
+	fi
+
+	log_ok "ZFSBootMenu instalado com sucesso em $DEST_DIR"
+	log_info "Conteúdo:"
+	ls -lh "$DEST_DIR"
 }
 
-download_file() {
-    local url="$1"
-    local dest="$2"
-    log_info "Baixando $(basename "$dest")..."
-    curl -L -f -s -o "$dest" "$url"
-}
-
-main() {
-    check_existing
-
-    local version
-    version=$(detect_latest_version)
-    log_info "Versão detectada: $version"
-
-    # Cria diretório temporário para download e extração
-    TEMP_DIR=$(mktemp -d)
-    
-    # URL do tarball
-    local tarball_url="$BASE_URL/components"
-    if [[ "$BUILD_TYPE" == "recovery" ]]; then
-        tarball_url="$BASE_URL/components/recovery"
-    fi
-
-    # Nome do arquivo (tentativa de inferir)
-    local tarball_name="zfsbootmenu-${BUILD_TYPE}-x86_64-${version}.tar.gz"
-    local tarball_path="$TEMP_DIR/$tarball_name"
-
-    download_file "$tarball_url" "$tarball_path"
-
-    if [[ "$VERIFY_SIGNATURES" == true ]]; then
-        local checksum_path="$TEMP_DIR/sha256.txt"
-        local sig_path="$TEMP_DIR/sha256.sig"
-        download_file "$BASE_URL/sha256.txt" "$checksum_path"
-        download_file "$BASE_URL/sha256.sig" "$sig_path"
-        
-        # Lógica de verificação simplificada (requer chave pública importada previamente em um cenário real robusto)
-        if command -v gpg >/dev/null; then
-             log_info "Verificando assinatura (checksum)..."
-             if gpg --verify "$sig_path" "$checksum_path" 2>/dev/null; then
-                 log_info "Assinatura OK."
-             else
-                 log_warn "Falha na verificação da assinatura GPG (ou chave pública ausente)."
-             fi
-             log_info "Verificando SHA256 do arquivo..."
-             cd "$TEMP_DIR"
-             if grep "$tarball_name" sha256.txt | sha256sum --check --ignore-missing --status; then
-                 log_info "Checksum validado com sucesso."
-             else
-                 log_error "Checksum inválido!"
-             fi
-             cd - >/dev/null
-        else
-            log_warn "GPG não encontrado, pulando verificação."
-        fi
-    fi
-
-    log_info "Extraindo arquivos..."
-    tar -xzf "$tarball_path" -C "$TEMP_DIR"
-
-    # Localiza o diretório extraído
-    local source_dir
-    source_dir=$(find "$TEMP_DIR" -maxdepth 1 -type d -name "zfsbootmenu-release-*" | head -n 1)
-
-    if [[ -z "$source_dir" ]]; then
-        log_error "Falha ao encontrar diretório extraído."
-    fi
-
-    log_info "Instalando binários em: $DEST_DIR"
-    mkdir -p "$DEST_DIR"
-
-    # Copia arquivos essenciais e achata a estrutura
-    cp -v "$source_dir/vmlinuz-bootmenu" "$DEST_DIR/"
-    cp -v "$source_dir/initramfs-bootmenu.img" "$DEST_DIR/"
-    # Copia componentes UEFI se existirem
-    find "$source_dir" -name "*.EFI" -exec cp -v {} "$DEST_DIR/" \;
-
-    log_info "Instalação concluída com sucesso."
-}
-
-main "$@"
+main

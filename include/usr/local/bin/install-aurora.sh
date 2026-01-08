@@ -46,11 +46,11 @@ readonly UI_WIDTH=70
 # =============================================================================
 
 # Renderizar uma caixa estilizada
-# Uso: styled_box "Título" "Mensagem" [cor_borda]
+# Uso: styled_box <cor> <título> [linha_mensagem_1] [linha_mensagem_2] ...
 styled_box() {
-	local title="$1"
-	local msg="$2"
-	local color="${3:-$COLOR_PRIMARY}"
+	local color="$1"
+	local title="$2"
+	shift 2
 
 	clear
 	gum style \
@@ -59,7 +59,7 @@ styled_box() {
 		--padding "1 2" \
 		--margin "1 1" \
 		--width "$UI_WIDTH" \
-		"$(gum style --foreground "$color" --bold "$title")\n\n$msg"
+		"$(gum style --foreground "$color" --bold "$title")" "" "$@"
 }
 
 # Renderizar um cabeçalho de seção
@@ -85,7 +85,7 @@ log() {
 # Log de erro e saída
 # Uso: error_exit "Mensagem de erro"
 error_exit() {
-	styled_box "❌ ERRO CRÍTICO" "$*" "$COLOR_ERROR"
+	styled_box "$COLOR_ERROR" "❌ ERRO CRÍTICO" "$1"
 	log "ERROR: $*"
 	cleanup
 	exit 1
@@ -240,7 +240,13 @@ preflight_checks() {
 # =============================================================================
 
 welcome_screen() {
-	styled_box "🌌 AURORA OS" "Bem-vindo ao instalador oficial do **Aurora OS**.\n\nEste assistente irá guiá-lo através da instalação do Debian com\n**ZFS-on-Root** e **ZFSBootMenu**.\n\n> *Aviso: Este processo é destrutivo para os discos selecionados.*" "$COLOR_PRIMARY"
+	styled_box "$COLOR_PRIMARY" "🌌 AURORA OS" \
+		"Bem-vindo ao instalador oficial do **Aurora OS**." \
+		"" \
+		"Este assistente irá guiá-lo através da instalação do Debian com" \
+		"**ZFS-on-Root** e **ZFSBootMenu**." \
+		"" \
+		"> *Aviso: Este processo é destrutivo para os discos selecionados.*"
 	gum confirm "Deseja iniciar a jornada de instalação?" || exit 0
 }
 
@@ -248,31 +254,60 @@ select_disks() {
 	local disks
 	section_header "Seleção de Discos"
 
+	# Verificar se há discos disponíveis antes de prosseguir
 	disks=$(lsblk -d -n -o NAME,SIZE,MODEL -e 7,11 | awk '{printf "/dev/%s (%s - %s)\n", $1, $2, substr($0, index($0,$3))}')
 
-	local raw_selection
-	mapfile -t raw_selection < <(echo "$disks" | gum choose --header "Selecione o(s) disco(s) de destino (Espaço para marcar):" --no-limit)
+	if [[ -z "$disks" ]]; then
+		error_exit "Nenhum disco adequado para instalação foi encontrado pelo lsblk."
+	fi
 
-	if [[ ${#raw_selection[@]} -eq 0 ]]; then
+	local raw_selection
+	# Capturar seleção com indicadores visuais claros de checkbox (X em verde)
+	if ! raw_selection=$(echo -n "$disks" | gum choose \
+		--header "Selecione o(s) disco(s) (ESPAÇO para marcar, ENTER para confirmar):" \
+		--no-limit \
+		--cursor="> " \
+		--selected-prefix="[$(gum style --foreground "$COLOR_SUCCESS" "X")] " \
+		--unselected-prefix="[ ] " \
+		--cursor-prefix="[ ] " \
+		--selected.foreground=""); then
+		error_exit "Seleção de discos cancelada pelo usuário."
+	fi
+
+	log "Seleção bruta do gum (raw_selection):
+$raw_selection"
+
+	if [[ -z "$raw_selection" ]]; then
 		error_exit "Nenhum disco selecionado."
 	fi
 
 	SELECTED_DISKS=()
-	for sel in "${raw_selection[@]}"; do
+	# Processar cada linha selecionada
+	while IFS= read -r sel; do
 		[[ -z "$sel" ]] && continue
+		log "Processando linha de seleção: '$sel'"
+
 		local dev
-		dev=$(echo "$sel" | awk '{print $1}')
-		if [[ -n "$dev" ]]; then
+		# Extrair o caminho do dispositivo de forma robusta (/dev/sdX, /dev/nvmeXnX, /dev/mmcblkX, etc)
+		dev=$(echo "$sel" | grep -oE '/dev/[a-z0-9/]+' | head -n 1)
+
+		if [[ -n "$dev" ]] && [[ -b "$dev" ]]; then
 			SELECTED_DISKS+=("$dev")
 			gum format -- "✓ Selecionado: **$dev**"
+			log "Dispositivo extraído com sucesso: $dev"
+		else
+			log "AVISO: Falha ao extrair dispositivo válido da linha: '$sel' (extraído: '$dev')"
 		fi
-	done
+	done <<<"$raw_selection"
 
 	if [[ ${#SELECTED_DISKS[@]} -eq 0 ]]; then
-		error_exit "Falha ao extrair nomes de dispositivos dos discos selecionados."
+		error_exit "Não foi possível identificar dispositivos válidos na sua seleção."
 	fi
 
-	styled_box "⚠️ ALERTA DE SEGURANÇA" "TODOS OS DADOS nos discos selecionados serão APAGADOS permanentEMENTE.\n\nDiscos: **${SELECTED_DISKS[*]}**" "$COLOR_WARNING"
+	styled_box "$COLOR_WARNING" "⚠️ ALERTA DE SEGURANÇA" \
+		"TODOS OS DADOS nos discos selecionados serão APAGADOS permanentEMENTE." \
+		"" \
+		"Discos: **${SELECTED_DISKS[*]}**"
 	gum confirm "Tem certeza absoluta que deseja prosseguir?" || exit 0
 
 	log "Discos selecionados: ${SELECTED_DISKS[*]}"
@@ -327,7 +362,7 @@ $(gum style --foreground "$COLOR_SECONDARY" --bold "⚡ ZFS")
 • Crypto:     $ENCRYPTION
 "
 
-	styled_box "📋 RESUMO DA INSTALAÇÃO" "$summary_text" "$COLOR_INFO"
+	styled_box "$COLOR_INFO" "📋 RESUMO DA INSTALAÇÃO" "$summary_text"
 	gum confirm "As configurações estão corretas? Iniciar instalação?" || exit 0
 }
 
@@ -550,10 +585,63 @@ create_pool() {
 
 	log "Partições ZFS detectadas: ${zfs_parts[*]}"
 
-	# Verificar se já existe pool com esse nome e exportar
+	# Verificar se já existe pool com esse nome e forçar exportação
 	if zpool list "$POOL_NAME" >/dev/null 2>&1; then
-		log "Pool $POOL_NAME já existe, tentando exportar..."
-		zpool export "$POOL_NAME" 2>>"$LOG_FILE" || true
+		log "Pool $POOL_NAME já existe, iniciando procedimento de limpeza..."
+		gum format -- "> Pool $POOL_NAME existente detectado, limpando..."
+
+		# 1. Sincronizar todos os buffers
+		sync
+
+		# 2. Desabilitar swap se estiver em ZFS
+		swapoff -a 2>>"$LOG_FILE" || true
+
+		# 3. Desmontagem recursiva do mountpoint com lazy unmount
+		if [[ -d "$MOUNT_POINT" ]]; then
+			log "Desmontando recursivamente $MOUNT_POINT (lazy)..."
+			umount -Rl "$MOUNT_POINT" 2>>"$LOG_FILE" || true
+			sleep 1
+		fi
+
+		# 4. Desmontar todos os datasets do pool (lazy)
+		for ds in $(zfs list -H -o name -r "$POOL_NAME" 2>/dev/null | tac); do
+			log "Desmontando dataset: $ds"
+			zfs unmount -f "$ds" 2>>"$LOG_FILE" || true
+		done
+
+		# 5. Identificar e logar processos usando o pool (apenas informativo)
+		if command -v lsof >/dev/null 2>&1; then
+			local busy_procs
+			busy_procs=$(lsof +D "$MOUNT_POINT" 2>/dev/null || true)
+			if [[ -n "$busy_procs" ]]; then
+				log "Processos ainda usando $MOUNT_POINT:"
+				log "$busy_procs"
+			fi
+		fi
+
+		# 6. Tentar exportar com força
+		log "Tentando exportar pool $POOL_NAME..."
+		sync
+		sleep 1
+		if ! zpool export -f "$POOL_NAME" 2>>"$LOG_FILE"; then
+			log "Primeira tentativa de export falhou, aguardando e tentando novamente..."
+			sleep 2
+			sync
+			zpool export -f "$POOL_NAME" 2>>"$LOG_FILE" || true
+		fi
+
+		# 7. Se ainda existir, destruir forçadamente
+		if zpool list "$POOL_NAME" >/dev/null 2>&1; then
+			log "Pool ainda existe após export, tentando destruir..."
+			zpool destroy -f "$POOL_NAME" 2>>"$LOG_FILE" || {
+				log "ERRO CRÍTICO: Não foi possível remover o pool existente."
+				log "O pool pode estar sendo usado por outro processo."
+				log "Tente reiniciar o sistema live e executar novamente."
+				error_exit "Falha ao remover pool existente. Reinicie o sistema live."
+			}
+		fi
+
+		log "Pool antigo removido com sucesso."
 	fi
 
 	# Limpar labels ZFS existentes nas partições
@@ -673,6 +761,11 @@ create_datasets() {
 	zfs set org.zfsbootmenu:commandline="quiet" "$POOL_NAME/ROOT/debian" 2>>"$LOG_FILE" ||
 		error_exit "Falha ao configurar commandline do ZFSBootMenu"
 
+	# Definir bootfs conforme documentação oficial - indica o BE padrão para boot
+	log "Definindo bootfs padrão..."
+	zpool set bootfs="$POOL_NAME/ROOT/debian" "$POOL_NAME" 2>>"$LOG_FILE" ||
+		error_exit "Falha ao definir bootfs"
+
 	gum format -- "✓ Datasets ZFS criados com sucesso!"
 	log "Todos os datasets ZFS criados com sucesso"
 	sync
@@ -758,10 +851,19 @@ extract_system() {
 
 	gum format -- "### Extraindo Sistema"
 
+	# unsquashfs precisa de stdin redirecionado de /dev/null para evitar
+	# "inappropriate ioctl for device" quando executado via gum spin
+	local unsquashfs_log
+	unsquashfs_log=$(mktemp)
+
 	if ! gum spin --spinner dot --title "Extraindo sistema (isso pode levar alguns minutos)..." -- \
-		unsquashfs -f -d "$MOUNT_POINT" "$SQUASHFS_PATH" 2>>"$LOG_FILE"; then
+		bash -c "unsquashfs -f -n -d '$MOUNT_POINT' '$SQUASHFS_PATH' </dev/null >'$unsquashfs_log' 2>&1"; then
+		cat "$unsquashfs_log" >>"$LOG_FILE"
+		rm -f "$unsquashfs_log"
 		error_exit "Falha ao extrair sistema do squashfs. Verifique $LOG_FILE para detalhes."
 	fi
+	cat "$unsquashfs_log" >>"$LOG_FILE"
+	rm -f "$unsquashfs_log"
 
 	log "Sistema extraído com sucesso em $MOUNT_POINT"
 
@@ -935,6 +1037,12 @@ FSTABEOF
 generate_hostid() {
 	log "Gerando hostid..."
 
+	# Remover hostid existente (pode vir do squashfs) antes de gerar novo
+	if [[ -f "$MOUNT_POINT/etc/hostid" ]]; then
+		log "Removendo /etc/hostid existente..."
+		rm -f "$MOUNT_POINT/etc/hostid"
+	fi
+
 	chroot "$MOUNT_POINT" zgenhostid 2>>"$LOG_FILE" ||
 		error_exit "Falha ao gerar hostid com zgenhostid"
 
@@ -944,9 +1052,19 @@ generate_hostid() {
 
 # Regenerar initramfs com suporte ZFS
 update_initramfs() {
+	log "Habilitando serviços systemd ZFS..."
+
+	# Habilitar serviços ZFS conforme documentação oficial
+	chroot "$MOUNT_POINT" systemctl enable zfs.target 2>>"$LOG_FILE" || true
+	chroot "$MOUNT_POINT" systemctl enable zfs-import-cache 2>>"$LOG_FILE" || true
+	chroot "$MOUNT_POINT" systemctl enable zfs-mount 2>>"$LOG_FILE" || true
+	chroot "$MOUNT_POINT" systemctl enable zfs-import.target 2>>"$LOG_FILE" || true
+
+	log "Serviços systemd ZFS habilitados"
+
 	log "Regenerando initramfs..."
 
-	chroot "$MOUNT_POINT" update-initramfs -u -k all 2>>"$LOG_FILE" ||
+	chroot "$MOUNT_POINT" update-initramfs -c -k all 2>>"$LOG_FILE" ||
 		error_exit "Falha ao regenerar initramfs"
 
 	log "Initramfs regenerado com sucesso"
@@ -1001,19 +1119,65 @@ mount_esp() {
 copy_zbm_binaries() {
 	log "Copiando binários do ZFSBootMenu..."
 
-	if [[ ! -d "$ZBM_BIN_DIR" ]]; then
-		error_exit "Diretório ZFSBootMenu não encontrado: $ZBM_BIN_DIR"
-	fi
-
 	mkdir -p "$MOUNT_POINT/boot/efi/EFI/ZBM" ||
 		error_exit "Falha ao criar diretório ZBM"
 
-	cp "$ZBM_BIN_DIR"/vmlinuz*.EFI "$MOUNT_POINT/boot/efi/EFI/ZBM/zbm.efi" 2>>"$LOG_FILE" ||
+	mkdir -p "$MOUNT_POINT/boot/efi/EFI/BOOT" ||
+		error_exit "Falha ao criar diretório BOOT"
+
+	local zbm_binary=""
+
+	# Primeiro, tentar encontrar binário local (se incluído na ISO pelo download-zfsbootmenu.sh)
+	if [[ -d "$ZBM_BIN_DIR" ]]; then
+		log "Procurando binário ZBM local em $ZBM_BIN_DIR..."
+		log "Conteúdo do diretório:"
+		ls -la "$ZBM_BIN_DIR" >>"$LOG_FILE" 2>&1 || true
+
+		# Padrões em ordem de preferência (inclui formatos do download-zfsbootmenu.sh)
+		for pattern in "VMLINUZ.EFI" "VMLINUZ-RECOVERY.EFI" "release-x86_64.EFI" "recovery-x86_64.EFI" "vmlinuz-bootmenu" "vmlinuz.EFI" "zfsbootmenu.EFI" "*.EFI" "*.efi"; do
+			zbm_binary=$(find "$ZBM_BIN_DIR" -maxdepth 1 -name "$pattern" -type f 2>/dev/null | grep -vi signed | head -n 1)
+			[[ -n "$zbm_binary" ]] && break
+		done
+	fi
+
+	# Se não encontrou localmente, baixar da internet (conforme documentação oficial)
+	if [[ -z "$zbm_binary" ]]; then
+		log "Binário ZBM não encontrado localmente, baixando da URL oficial..."
+		gum format -- "> Baixando ZFSBootMenu de https://get.zfsbootmenu.org/efi..."
+
+		if command -v curl >/dev/null 2>&1; then
+			if curl -fsSL -o "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ.EFI" "https://get.zfsbootmenu.org/efi" 2>>"$LOG_FILE"; then
+				log "ZFSBootMenu baixado com sucesso"
+				# Criar backup
+				cp "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ.EFI" "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ-BACKUP.EFI" 2>>"$LOG_FILE" || true
+				# Copiar para BOOT como fallback UEFI
+				cp "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ.EFI" "$MOUNT_POINT/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>>"$LOG_FILE" || true
+				log "Binários ZFSBootMenu instalados com sucesso"
+				gum format -- "✓ ZFSBootMenu baixado e instalado"
+				return 0
+			else
+				log "Falha ao baixar ZFSBootMenu da internet"
+			fi
+		else
+			log "curl não disponível para download"
+		fi
+
+		# Se chegou aqui, falhou
+		log "Conteúdo de $ZBM_BIN_DIR (se existir):"
+		ls -la "$ZBM_BIN_DIR" >>"$LOG_FILE" 2>&1 || echo "Diretório não existe" >>"$LOG_FILE"
+		error_exit "Binário ZFSBootMenu não encontrado e download falhou. Verifique conexão de rede."
+	fi
+
+	# Usar binário local encontrado
+	log "Binário ZBM encontrado localmente: $zbm_binary"
+	cp "$zbm_binary" "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ.EFI" 2>>"$LOG_FILE" ||
 		error_exit "Falha ao copiar binário ZBM"
 
-	cp "$ZBM_BIN_DIR"/vmlinuz-signed*.EFI "$MOUNT_POINT/boot/efi/EFI/ZBM/zbm-signed.efi" 2>>"$LOG_FILE" || true
+	# Criar backup
+	cp "$zbm_binary" "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ-BACKUP.EFI" 2>>"$LOG_FILE" || true
 
-	cp "$ZBM_BIN_DIR"/*.EFI "$MOUNT_POINT/boot/efi/EFI/BOOT/" 2>>"$LOG_FILE" || true
+	# Copiar para BOOT como fallback UEFI
+	cp "$zbm_binary" "$MOUNT_POINT/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>>"$LOG_FILE" || true
 
 	log "Binários ZFSBootMenu copiados com sucesso"
 	gum format -- "✓ Binários ZFSBootMenu copiados"
@@ -1037,17 +1201,24 @@ configure_efi() {
 		return 0
 	fi
 
+	# Criar entrada de backup primeiro (conforme documentação oficial)
 	efibootmgr -c -d "${SELECTED_DISKS[0]}" -p 2 \
-		-L "Aurora OS" \
-		-l "\EFI\ZBM\zbm.efi" \
+		-L "ZFSBootMenu (Backup)" \
+		-l "\EFI\ZBM\VMLINUZ-BACKUP.EFI" \
+		2>>"$LOG_FILE" || true
+
+	# Criar entrada principal (será a primeira na ordem de boot)
+	efibootmgr -c -d "${SELECTED_DISKS[0]}" -p 2 \
+		-L "ZFSBootMenu" \
+		-l "\EFI\ZBM\VMLINUZ.EFI" \
 		2>>"$LOG_FILE" || {
-		log "Falha ao configurar entrada EFI"
+		log "Falha ao configurar entrada EFI principal"
 		gum format -- "> ⚠️ Falha ao configurar entrada EFI - continue manualmente"
 		return 0
 	}
 
-	log "Entrada EFI configurada com sucesso"
-	gum format -- "✓ Entrada EFI configurada"
+	log "Entradas EFI configuradas com sucesso (principal + backup)"
+	gum format -- "✓ Entradas EFI configuradas"
 }
 
 # Configurar propriedade de commandline para ZFSBootMenu

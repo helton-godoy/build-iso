@@ -1,90 +1,103 @@
 #!/usr/bin/env bash
+# ==============================================================================
+# download-gum.sh - Gerenciador de Binários Gum
 #
-# download-gum.sh - Baixa o binário estático do gum (charmbracelet)
-#
+# Baixa e instala a versão mais recente do gum (charmbracelet).
+# ==============================================================================
 
 set -euo pipefail
 
-# --- Configurações ---
-REPO="charmbracelet/gum"
-DEST_DIR="include/usr/local/bin"
-TEMP_DIR=""
+# Cores e Estilos (ANSI)
+readonly C_RESET=$'\033[0m'
+readonly C_BOLD=$'\033[1m'
+readonly C_PURPLE=$'\033[38;5;105m'
+readonly C_CYAN=$'\033[38;5;39m'
+readonly C_GREEN=$'\033[32m'
+readonly C_YELLOW=$'\033[33m'
+readonly C_RED=$'\033[31m'
+
+# Configurações
+readonly REPO="charmbracelet/gum"
+readonly DEST_DIR="include/usr/local/bin"
+readonly TEMP_DIR=$(mktemp -d)
 FORCE=false
 
-# Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NC='\033[0m'
+# Funções de logging
+log_info() { printf "${C_CYAN}ℹ %s${C_RESET}\n" "$*"; }
+log_ok() { printf "${C_GREEN}✔ %s${C_RESET}\n" "$*"; }
+log_warn() { printf "${C_YELLOW}⚠ %s${C_RESET}\n" "$*"; }
+log_error() {
+	printf "${C_RED}${C_BOLD}✖ %s${C_RESET}\n" "$*"
+	exit 1
+}
 
-log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
-
-cleanup() {
-    if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
-        rm -rf "$TEMP_DIR"
-    fi
+function cleanup() {
+	[[ -d "$TEMP_DIR" ]] && rm -rf "$TEMP_DIR"
 }
 trap cleanup EXIT
 
-usage() {
-    echo "Uso: $(basename "$0") [--force]"
-    exit 1
+function show_help() {
+	cat <<EOF
+${C_BOLD}${C_PURPLE}🌌 AURORA OS - GUM DOWNLOADER${C_RESET}
+${C_CYAN}Utilitário para instalação do binário gum${C_RESET}
+
+${C_BOLD}Uso:${C_RESET} \$0 ${C_GREEN}[OPÇÃO]${C_RESET}
+
+${C_BOLD}Opções:${C_RESET}
+  ${C_GREEN}-f, --force${C_RESET}    Força o download mesmo se já instalado
+  ${C_GREEN}-h, --help${C_RESET}     Exibe esta interface de ajuda
+
+${C_PURPLE}Destino:${C_RESET} ${DEST_DIR}/gum
+EOF
+	exit 0
 }
 
+# Parse de argumentos
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -f|--force) FORCE=true; shift ;;
-        -h|--help) usage ;;
-        *) echo "Opção desconhecida: $1"; exit 1 ;;
-    esac
+	case "$1" in
+	-f | --force)
+		FORCE=true
+		shift
+		;;
+	-h | --help) show_help ;;
+	*) log_error "Opção desconhecida: $1" ;;
+	esac
 done
 
-check_existing() {
-    if [[ "$FORCE" == true ]]; then
-        return 0
-    fi
-    if [[ -f "$DEST_DIR/gum" ]]; then
-        log_info "Gum já instalado em $DEST_DIR/gum."
-        exit 0
-    fi
+function main() {
+	if [[ "$FORCE" == false ]] && [[ -f "$DEST_DIR/gum" ]]; then
+		log_ok "Gum já está instalado em $DEST_DIR/gum."
+		return 0
+	fi
+
+	log_info "Detectando a versão mais recente do gum..."
+	local version
+	version=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep -oP '"tag_name": "\K[^"]+') || log_error "Não foi possível detectar a versão."
+
+	log_info "Versão detectada: $version"
+
+	local clean_version="${version#v}"
+	local url="https://github.com/$REPO/releases/download/$version/gum_${clean_version}_Linux_x86_64.tar.gz"
+
+	log_info "Baixando release..."
+	if ! curl -L -f -s -o "$TEMP_DIR/gum.tar.gz" "$url"; then
+		log_error "Falha no download da URL: $url"
+	fi
+
+	log_info "Extraindo e instalando..."
+	tar -xzf "$TEMP_DIR/gum.tar.gz" -C "$TEMP_DIR"
+
+	mkdir -p "$DEST_DIR"
+	local gum_bin
+	gum_bin=$(find "$TEMP_DIR" -name "gum" -type f | head -n 1)
+
+	if [[ -n "$gum_bin" ]]; then
+		cp "$gum_bin" "$DEST_DIR/gum"
+		chmod +x "$DEST_DIR/gum"
+		log_ok "Gum instalado com sucesso em $DEST_DIR/gum"
+	else
+		log_error "Binário do gum não encontrado no pacote baixado."
+	fi
 }
 
-main() {
-    check_existing
-
-    log_info "Detectando a versão mais recente do gum..."
-    local version
-    version=$(curl -s https://api.github.com/repos/$REPO/releases/latest | grep -oP '"tag_name": "\K[^"]+')
-    
-    if [[ -z "$version" ]]; then
-        log_error "Não foi possível detectar a versão do gum."
-    fi
-    
-    log_info "Versão detectada: $version"
-    
-    local clean_version="${version#v}"
-    local url="https://github.com/$REPO/releases/download/$version/gum_${clean_version}_Linux_x86_64.tar.gz"
-    
-    TEMP_DIR=$(mktemp -d)
-    log_info "Baixando gum de: $url"
-    curl -L -f -s -o "$TEMP_DIR/gum.tar.gz" "$url"
-    
-    log_info "Extraindo binário..."
-    tar -xzf "$TEMP_DIR/gum.tar.gz" -C "$TEMP_DIR"
-    
-    mkdir -p "$DEST_DIR"
-    # O binário geralmente está dentro de uma pasta no tar.gz (ex: gum_0.13.0_Linux_x86_64/gum)
-    # Usamos find para localizá-lo independentemente da versão
-    local gum_bin
-    gum_bin=$(find "$TEMP_DIR" -name "gum" -type f | head -n 1)
-
-    if [[ -n "$gum_bin" ]]; then
-        cp "$gum_bin" "$DEST_DIR/gum"
-        chmod +x "$DEST_DIR/gum"
-        log_info "Gum instalado com sucesso em $DEST_DIR/gum"
-    else
-        log_error "Binário do gum não encontrado no arquivo baixado."
-    fi
-}
-
-main "$@"
+main

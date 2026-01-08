@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-readonly INSTALLER="docker/config/includes.chroot/usr/local/bin/install-aurora.sh"
+readonly INSTALLER="include/usr/local/bin/install-aurora.sh"
 readonly SCRIPT_NAME="Aurora OS Installer Test Suite"
 
 echo "=== $SCRIPT_NAME ==="
@@ -352,7 +352,7 @@ else
 fi
 
 # ZFSBootMenu (não GRUB)
-if grep -q "zfsbootmenu\|ZBM\|zbm.efi" "$INSTALLER"; then
+if grep -q "zfsbootmenu\|ZBM\|VMLINUZ.EFI" "$INSTALLER"; then
 	report_test "Decisão: Usa ZFSBootMenu (não GRUB)" "PASS"
 else
 	report_test "Decisão: Usa ZFSBootMenu (não GRUB)" "FAIL"
