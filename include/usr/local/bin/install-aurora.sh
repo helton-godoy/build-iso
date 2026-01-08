@@ -1183,6 +1183,73 @@ copy_zbm_binaries() {
 	gum format -- "✓ Binários ZFSBootMenu copiados"
 }
 
+# Configuração de Boot BIOS
+configure_bios_boot() {
+	log "Configurando Boot BIOS (Legacy) com GRUB..."
+	gum format -- "### Configurando Boot BIOS (GRUB)"
+
+	# 1. Instalar GRUB
+	# O target i386-pc é para BIOS. --boot-directory define onde o grub colocará seus arquivos.
+	log "Instalando GRUB no disco ${SELECTED_DISKS[0]}..."
+	if ! grub-install --target=i386-pc --boot-directory="$MOUNT_POINT/boot" --recheck "${SELECTED_DISKS[0]}" 2>>"$LOG_FILE"; then
+		error_exit "Falha ao instalar GRUB no disco ${SELECTED_DISKS[0]}. Verifique os logs."
+	fi
+
+	# 2. Copiar binários do ZFSBootMenu para local acessível pelo GRUB
+	local zbm_dest="$MOUNT_POINT/boot/zfsbootmenu"
+	mkdir -p "$zbm_dest"
+
+	# Usar binários locais identificados em ZBM_BIN_DIR
+	local vmlinuz_src="$ZBM_BIN_DIR/vmlinuz-bootmenu"
+	local initramfs_src="$ZBM_BIN_DIR/initramfs-bootmenu.img"
+
+	if [[ -f "$vmlinuz_src" ]]; then
+		cp "$vmlinuz_src" "$zbm_dest/" 2>>"$LOG_FILE"
+		cp "$initramfs_src" "$zbm_dest/" 2>>"$LOG_FILE"
+		log "Binários ZBM copiados para $zbm_dest"
+	else
+		# Fallback: tentar usar o unificado se o separado não existir (GRUB moderno consegue bootar EFI as vezes, mas arriscado)
+		# Melhor erro se não achar
+		log_warn "Binários separados (vmlinuz/initramfs) não encontrados. Tentando extrair ou usar EFI renomeado..."
+		# Verificando se existe algo
+		if [[ -f "$ZBM_BIN_DIR/VMLINUZ.EFI" ]]; then
+			log "Usando VMLINUZ.EFI como kernel (expermental para BIOS)..."
+			cp "$ZBM_BIN_DIR/VMLINUZ.EFI" "$zbm_dest/vmlinuz-bootmenu"
+			# ZBM EFI geralmente contém initramfs embutido, então não precisamos de initrd externo?
+			# Kexec precisa de initramfs. O EFI binário do ZNM é um kernel com initramfs embedded? Sim.
+			# Então grub linux command pode funcionar sem initrd.
+		else
+			error_exit "Binários do ZFSBootMenu não encontrados para instalação BIOS."
+		fi
+	fi
+
+	# 3. Criar grub.cfg minimalista para carregar ZBM
+	mkdir -p "$MOUNT_POINT/boot/grub"
+	cat <<EOF >"$MOUNT_POINT/boot/grub/grub.cfg"
+set timeout=0
+set default=0
+
+# Carregar módulos necessários
+insmod part_gpt
+insmod zfs
+insmod ext2
+insmod part_msdos
+
+menuentry "ZFSBootMenu" {
+    linux /boot/zfsbootmenu/vmlinuz-bootmenu ro quiet loglevel=0 zbm.skip-hostid
+    initrd /boot/zfsbootmenu/initramfs-bootmenu.img
+}
+
+menuentry "ZFSBootMenu (Recovery)" {
+    linux /boot/zfsbootmenu/vmlinuz-bootmenu ro quiet loglevel=0 zbm.skip-hostid zbm.prefer_recovery
+    initrd /boot/zfsbootmenu/initramfs-bootmenu.img
+}
+EOF
+
+	log "Boot BIOS configurado com sucesso."
+	gum format -- "✓ GRUB BIOS configurado"
+}
+
 # Configurar entrada EFI com efibootmgr
 configure_efi() {
 	log "Configurando entrada EFI..."
@@ -1336,21 +1403,25 @@ success_message() {
 	fi
 
 	local msg
-	msg="O **Aurora OS** foi instalado com sucesso.\n\n"
-	msg+="**Configuração Realizada:**\n"
-	msg+="• Hostname:  $HOSTNAME\n"
-	msg+="• Usuário:   $USERNAME\n"
-	msg+="• Perfil:    $PROFILE\n"
-	msg+="• Crypto:    $ENCRYPTION\n\n"
-	msg+="**Próximos Passos:**\n"
-	msg+="1. Remova a mídia de instalação\n"
-	msg+="2. Reinicie o sistema\n"
-	msg+="3. Selecione 'Aurora OS' no boot\n"
-	msg+="$encryption_note\n\n"
-	msg+="**Snapshots:**\n"
-	msg+="Use ZFSBootMenu para gerenciar snapshots e rollbacks."
+	styled_box "$COLOR_SUCCESS" "🎉 INSTALAÇÃO CONCLUÍDA" \
+		"O **Aurora OS** foi instalado com sucesso!" \
+		"" \
+		"**Configuração Realizada:**" \
+		"• Hostname:  $HOSTNAME" \
+		"• Usuário:   $USERNAME" \
+		"• Perfil:    $PROFILE" \
+		"• Crypto:    $ENCRYPTION" \
+		"" \
+		"**Próximos Passos:**" \
+		"1. Remova a mídia de instalação" \
+		"2. Reinicie o sistema" \
+		"3. Selecione 'Aurora OS' no boot" \
+		"" \
+		"$encryption_note" \
+		"" \
+		"**Snapshots:**" \
+		"Use ZFSBootMenu para gerenciar snapshots e rollbacks."
 
-	styled_box "🎉 INSTALAÇÃO CONCLUÍDA" "$msg" "$COLOR_SUCCESS"
 	log "=== Instalação concluída com sucesso ==="
 }
 
@@ -1406,7 +1477,12 @@ main() {
 	format_esp
 	mount_esp
 	copy_zbm_binaries
-	configure_efi
+	# Detectar firmware e configurar bootloader apropriado
+	if [[ -d /sys/firmware/efi ]]; then
+		configure_efi
+	else
+		configure_bios_boot
+	fi
 	configure_commandline
 
 	# Fase 8: Finalização
