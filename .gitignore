@@ -1,23 +1,23 @@
-# Live-Build Artifacts (Raiz)
-/chroot/
-/binary/
-/.build/
-/local/
-/cache/
-/auto/
-/chroot.packages.*
-binary.contents
-binary.meta
+# Projetos e Segredos
+.gemini/
+.env
+.idea/
+.vscode/
+gha-creds-*.json
 
-# Nova Arquitetura de Artefatos (Docker)
-/docker/artifacts/
-/docker/cache/
-/docker/auto/
-/zbm-binaries/
-/zbm-test-binaries/
+# Docker cache e artefatos de build
+docker/cache/*
+docker/work/*
+docker/dist/*
+docker/logs/*
 
-# Virtualização e Imagens
-/qemu/
+# Virtualização
+qemu/work/vm-disk/*
+qemu/work/vm-uefi/*
+qemu/work/vm-virtiofs/*
+qemu/logs/*
+
+# Extensões
 *.iso
 *.img
 *.qcow2
@@ -29,35 +29,17 @@ binary.meta
 *.modified_timestamps
 *.debian.tar.*
 *.orig.tar.*
-
-# Trunk linter
-/.trunk/
-
-# Editor/OS Files e Logs
 .DS_Store
 *.swp
 *~
 *.log
-work/
-/log/
-
-# Projetos e Segredos
-.gemini/
-gha-creds-*.json
-.env
-.idea/
-.vscode/
 
 # Build Temporaries
+.Trash-1000
+.sisyphus
+.trunk
 include/tmp/
 EOF
-
-# Cache e artefatos de build
-docker/cache/
-docker/work/
-docker/dist/
-docker/logs/
-work/
 
 # Binários ZFSBootMenu (baixados via tools/download-zfsbootmenu.sh)
 include/usr/share/zfsbootmenu/*.EFI
