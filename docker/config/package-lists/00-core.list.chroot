@@ -1,0 +1,44 @@
+# 00-core.list.chroot - Núcleo do Sistema Aurora OS
+# Contém o sistema base mínimo para boot e ZFS
+
+# === Live System Base ===
+live-boot
+live-config
+live-config-systemd
+systemd-sysv
+
+# === ZFS Support ===
+zfs-dkms
+zfsutils-linux
+zfs-initramfs
+zfs-zed
+
+# === Kernel & Modules ===
+linux-image-amd64
+linux-headers-amd64
+dkms
+firmware-linux
+firmware-linux-nonfree
+firmware-misc-nonfree
+firmware-realtek
+firmware-iwlwifi
+firmware-atheros
+firmware-libertas
+
+# === Essential Tools ===
+console-setup
+locales
+ca-certificates
+parted
+gdisk
+dosfstools
+efibootmgr
+busybox
+initramfs-tools
+keyboard-configuration
+tzdata
+curl
+wget
+apt-utils
+bash-completion
+sudo

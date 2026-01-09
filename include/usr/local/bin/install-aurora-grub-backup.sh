@@ -210,7 +210,7 @@ check_memory() {
 
 # Verificar comandos necessários
 check_required_commands() {
-	local commands=("gum" "wipefs" "sgdisk" "mkfs.vfat" "efibootmgr" "unsquashfs" "rsync" "syslinux" "dd")
+	local commands=("gum" "wipefs" "sgdisk" "mkfs.vfat" "efibootmgr" "unsquashfs" "rsync")
 	local missing=()
 
 	for cmd in "${commands[@]}"; do
@@ -221,15 +221,6 @@ check_required_commands() {
 
 	if [[ ${#missing[@]} -gt 0 ]]; then
 		error_exit "Comandos necessários não encontrados: ${missing[*]}"
-	fi
-
-	# Verificar se arquivos do syslinux existem (gptmbr.bin é crucial)
-	if [[ ! -f /usr/lib/syslinux/mbr/gptmbr.bin ]]; then
-		missing+=("syslinux-common (gptmbr.bin)")
-	fi
-
-	if [[ ${#missing[@]} -gt 0 ]]; then
-		error_exit "Dependências do Syslinux não encontradas: ${missing[*]}"
 	fi
 
 	log "Comandos necessários verificados: OK"
@@ -507,49 +498,19 @@ partition_disk() {
 
 	log "Particionando disco ${disk}..."
 
-	# Estrutura para Syslinux (BIOS) + ZBM (UEFI):
-	# 1. ESP (EFI System Partition) - FAT32 - 512MB
-	#    - Carrega ZBM via UEFI (direto)
-	#    - Carrega Syslinux via BIOS (ponte)
-	#    - Deve ter atributo Legacy Boot (bit 2) para Syslinux funcionar
-	# 2. ZFS Root - ZFS - Restante
-
-	sgdisk -n 1:2048:+512M -t 1:EF00 -c 1:'EFI System' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição EFI em ${disk}"
-	
-	# Habilitar Legacy Boot na ESP (BIOS bootable)
-	sgdisk -A 1:set:2 "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao definir atributo Legacy Boot na ESP"
+	sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição BIOS Boot em ${disk}"
+	sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição EFI em ${disk}"
 
 	if [[ -n "${HDSIZE}" ]]; then
 		local hdsize_bytes=$((HDSIZE * 1024 * 1024 * 1024 / 512))
-		sgdisk -n 2:0:+${hdsize_bytes} -t 2:BF00 -c 2:'ZFS Root' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição ZFS em ${disk} com hdsize"
+		sgdisk -n 3:0:+${hdsize_bytes} -t 3:BF00 -c 3:'ZFS Root' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição ZFS em ${disk} com hdsize"
 	else
-		sgdisk -n 2:0:0 -t 2:BF00 -c 2:'ZFS Root' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição ZFS em ${disk}"
+		sgdisk -n 3:0:0 -t 3:BF00 -c 3:'ZFS Root' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição ZFS em ${disk}"
 	fi
 
 	partprobe "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao executar partprobe em ${disk}"
 	sync
 	log "Particionamento de ${disk} concluído"
-}
-
-# Selecionar perfil de instalação
-select_profile() {
-	section_header "Seleção de Perfil"
-
-	local selected
-	selected=$(gum choose \
-		--header "Selecione o perfil de instalação:" \
-		"Server" \
-		"Workstation" \
-		--selected "Server")
-
-	if [[ -z "${selected}" ]]; then
-		PROFILE="Server"
-	else
-		PROFILE="${selected}"
-	fi
-	
-	log "Perfil selecionado: ${PROFILE}"
-	gum format -- "✓ Perfil selecionado: ${PROFILE}"
 }
 
 # Preparar todos os discos selecionados
@@ -571,9 +532,9 @@ prepare_disks() {
 			partition_cmd="
 				wipefs -a '${disk}'
 				sgdisk --zap-all '${disk}'
-				sgdisk -n 1:2048:+512M -t 1:EF00 -c 1:'EFI System' '${disk}'
-				sgdisk -A 1:set:2 '${disk}'
-				sgdisk -n 2:0:+${hdsize_bytes} -t 2:BF00 -c 2:'ZFS Root' '${disk}'
+				sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' '${disk}'
+				sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' '${disk}'
+				sgdisk -n 3:0:+${hdsize_bytes} -t 3:BF00 -c 3:'ZFS Root' '${disk}'
 				partprobe '${disk}'
 				sleep 2
 			"
@@ -581,9 +542,9 @@ prepare_disks() {
 			partition_cmd="
 				wipefs -a '${disk}'
 				sgdisk --zap-all '${disk}'
-				sgdisk -n 1:2048:+512M -t 1:EF00 -c 1:'EFI System' '${disk}'
-				sgdisk -A 1:set:2 '${disk}'
-				sgdisk -n 2:0:0 -t 2:BF00 -c 2:'ZFS Root' '${disk}'
+				sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' '${disk}'
+				sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' '${disk}'
+				sgdisk -n 3:0:0 -t 3:BF00 -c 3:'ZFS Root' '${disk}'
 				partprobe '${disk}'
 				sleep 2
 			"
@@ -614,16 +575,14 @@ get_zfs_partitions() {
 		[[ -z "${disk}" ]] && continue
 		local part_suffix
 		part_suffix=$(get_part_suffix "${disk}")
-		# Partição 2 agora é ZFS Root (antes era 3)
-		log "Disco: ${disk}, Sufixo: ${part_suffix}, Partição: ${disk}${part_suffix}2"
-		zfs_parts+=("${disk}${part_suffix}2")
+		log "Disco: ${disk}, Sufixo: ${part_suffix}, Partição: ${disk}${part_suffix}3"
+		zfs_parts+=("${disk}${part_suffix}3")
 	done
 
 	for part in "${zfs_parts[@]}"; do
 		echo "${part}"
 	done
 }
-
 
 # Criar pool ZFS com topologia e opções selecionadas
 create_pool() {
@@ -832,10 +791,9 @@ create_datasets() {
 # Validar existência do arquivo squashfs
 validate_squashfs() {
 	local squashfs_paths=(
-		"/run/live/medium/live/00-core.squashfs"
-		"/lib/live/mount/medium/live/00-core.squashfs"
-		"/cdrom/live/00-core.squashfs"
 		"/run/live/medium/live/filesystem.squashfs"
+		"/lib/live/mount/medium/live/filesystem.squashfs"
+		"/cdrom/live/filesystem.squashfs"
 	)
 	local found_path=""
 
@@ -852,8 +810,8 @@ validate_squashfs() {
 		gum format -- "
 ## ❌ Arquivo Squashfs Não Encontrado
 
-O instalador não conseguiu encontrar o arquivo \`00-core.squashfs\` (ou filesystem.squashfs).
-Este arquivo é necessário para extrair o sistema base.
+O instalador não conseguiu encontrar o arquivo \`filesystem.squashfs\`.
+Este arquivo é necessário para extrair o sistema.
 
 **Caminhos verificados:**
 \`\`\`
@@ -908,55 +866,17 @@ extract_system() {
 
 	# unsquashfs precisa de stdin redirecionado de /dev/null para evitar
 	# "inappropriate ioctl for device" quando executado via gum spin
-	local squash_dir
-	squash_dir=$(dirname "${SQUASHFS_PATH}")
-	
-	# Função auxiliar para extrair um squashfs
-	extract_layer() {
-		local layer_file="$1"
-		local layer_name="$2"
-		
-		if [[ ! -f "${layer_file}" ]]; then
-			log_warn "Camada ${layer_name} não encontrada em ${layer_file}, pulando."
-			return 0
-		fi
-		
-		log "Extraindo camada: ${layer_name}..."
-		local log_tmp
-		log_tmp=$(mktemp)
-		
-		if ! gum spin --spinner dot --title "Extraindo camada ${layer_name}..." -- \
-			bash -c "unsquashfs -f -n -d '${MOUNT_POINT}' '${layer_file}' </dev/null >'${log_tmp}' 2>&1"; then
-			cat "${log_tmp}" >>"${LOG_FILE}"
-			rm -f "${log_tmp}"
-			error_exit "Falha ao extrair ${layer_name}."
-		fi
-		cat "${log_tmp}" >>"${LOG_FILE}"
-		rm -f "${log_tmp}"
-	}
+	local unsquashfs_log
+	unsquashfs_log=$(mktemp)
 
-	# 1. Extrair Base (Core)
-	# SQUASHFS_PATH já aponta para 00-core via validate_squashfs (ou filesystem.squashfs)
-	extract_layer "${SQUASHFS_PATH}" "Core System"
-
-	# 2. Extrair Camadas Adicionais baseadas no Perfil
-	if [[ "${PROFILE}" == "Server" ]]; then
-		extract_layer "${squash_dir}/10-server.squashfs" "Server Profile"
-	elif [[ "${PROFILE}" == "Workstation" ]]; then
-		# Workstation geralmente inclui Server layer + GUI, ou é independente?
-		# No nosso design: Workstation é "Workstation Base". Se precisar de server utils, deve instalar ambos?
-		# Assumindo camadas exclusivas por enquanto ou cumulativas se desejado.
-		# A lista 20-workstation parece adicionar GUI. Vamos extrair Server TAMBÉM?
-		# No package lists: 10-server (admin tools), 20-workstation (gui).
-		# Geralmente workstation precisa de admin tools também.
-		# Vamos extrair 10-server SE desejado, ou assumir que workstation é superset.
-		# Olhando as listas, 20-workstation tem "Workstation Base".
-		# Vamos extrair AMBOS para Workstation se a ideia for aditiva.
-		# Se for excludente, apenas 20.
-		# Decisão: Extrair 10-server para Workstation também garante ferramentas de admin.
-		extract_layer "${squash_dir}/10-server.squashfs" "Server Profile (Base Tools)"
-		extract_layer "${squash_dir}/20-workstation.squashfs" "Workstation Profile (GUI)"
+	if ! gum spin --spinner dot --title "Extraindo sistema (isso pode levar alguns minutos)..." -- \
+		bash -c "unsquashfs -f -n -d '${MOUNT_POINT}' '${SQUASHFS_PATH}' </dev/null >'${unsquashfs_log}' 2>&1"; then
+		cat "${unsquashfs_log}" >>"${LOG_FILE}"
+		rm -f "${unsquashfs_log}"
+		error_exit "Falha ao extrair sistema do squashfs. Verifique ${LOG_FILE} para detalhes."
 	fi
+	cat "${unsquashfs_log}" >>"${LOG_FILE}"
+	rm -f "${unsquashfs_log}"
 
 	log "Sistema extraído com sucesso em ${MOUNT_POINT}"
 
@@ -1181,8 +1101,7 @@ get_efi_partition() {
 	local part_suffix
 	part_suffix=$(get_part_suffix "${disk}")
 
-	# Partição 1 agora é ESP (antes era 2)
-	echo "${disk}${part_suffix}1"
+	echo "${disk}${part_suffix}2"
 }
 
 # Formatar partição EFI
@@ -1284,105 +1203,60 @@ copy_zbm_binaries() {
 	gum format -- "✓ Binários ZFSBootMenu copiados"
 }
 
-# Configuração de Boot BIOS via Syslinux
+# Configuração de Boot BIOS
 configure_bios_boot() {
-	log "Configurando Boot BIOS (Legacy) com Syslinux..."
-	gum format -- "### Configurando Boot BIOS (Syslinux)"
+	log "Configurando Boot BIOS (Legacy) com GRUB..."
+	gum format -- "### Configurando Boot BIOS (GRUB)"
 
-	local esp_part
-	esp_part=$(get_efi_partition)
-	local disk=${SELECTED_DISKS[0]}
+	# 1. Instalar GRUB na ESP para evitar problemas com ZFS
+	# Usamos a ESP (FAT32) para armazenar os módulos e configuração do GRUB
+	local grub_boot_dir="${MOUNT_POINT}/boot/efi"
 
-	# 1. Gravar MBR GPT (gptmbr.bin) no disco
-	# Isso permite que a BIOS boote um disco GPT e procure a partição ativa (Legacy Boot)
-	local mbr_bin="/usr/lib/syslinux/mbr/gptmbr.bin"
-	
-	if [[ ! -f "${mbr_bin}" ]]; then
-		error_exit "Arquivo MBR não encontrado: ${mbr_bin}. Instale syslinux-common."
+	log "Instalando GRUB no disco ${SELECTED_DISKS[0]} (usando ESP)..."
+	if ! grub-install --target=i386-pc --boot-directory="${grub_boot_dir}" --recheck "${SELECTED_DISKS[0]}" 2>>"${LOG_FILE}"; then
+		error_exit "Falha ao instalar GRUB no disco ${SELECTED_DISKS[0]}. Verifique os logs."
 	fi
 
-	log "Gravando MBR GPT em ${disk}..."
-	# Gravamos apenas os primeiros 440 bytes para não sobrescrever a assinatura do disco
-	if ! dd if="${mbr_bin}" of="${disk}" bs=440 count=1 conv=notrunc 2>>"${LOG_FILE}"; then
-		error_exit "Falha ao gravar MBR em ${disk}"
-	fi
+	# 2. Copiar binários componentes do ZFSBootMenu para a ESP
+	# IMPORTANTE: GRUB em modo BIOS não pode carregar binários EFI (PE executáveis)
+	# Precisamos usar os arquivos separados: vmlinuz-bootmenu + initramfs-bootmenu.img
+	local zbm_grub_dir="${grub_boot_dir}/zbm"
+	mkdir -p "${zbm_grub_dir}"
 
-	# 2. Instalar Syslinux na ESP
-	# O comando syslinux instala o ldlinux.sys na partição FAT32 sem formatá-la
-	log "Instalando Syslinux na partição ${esp_part}..."
-	if ! syslinux --install "${esp_part}" 2>>"${LOG_FILE}"; then
-		error_exit "Falha ao instalar Syslinux na partição ${esp_part}"
-	fi
-
-	# 3. Configurar syslinux.cfg na ESP
-	# O Syslinux procura syslinux.cfg na raiz da partição ou em /boot/syslinux/
-	local syslinux_cfg="${MOUNT_POINT}/boot/efi/syslinux.cfg"
-	
-	log "Criando configuração ${syslinux_cfg}..."
-	
-	# Usamos os componentes separados do ZBM para garantir compatibilidade máxima em modo legado
-	# Caminhos são relativos à raiz da partição ESP, então /zbm/vmlinuz funciona se estiver em /boot/efi/zbm/
-	
-	# Verificar se diretório ZBM existe na ESP e copiar componentes se necessário
-	# (A função copy_zbm_binaries já deve ter cuidado da cópia dos binários .EFI,
-	# mas para syslinux precisamos garantir vmlinuz e initramfs separados se o .EFI não for bootável direto pelo syslinux)
-	
-	# ATENÇÃO: O binário VMLINUZ.EFI do ZFSBootMenu é um kernel stub EFI.
-	# Syslinux (versões recentes) consegue bootar kernels modernos, mas para segurança,
-	# vamos usar os componentes separados que baixamos/copiamos.
-	# Vamos checar se configure_bios_boot precisa copiar esses arquivos.
-	
-	local zbm_dir="${MOUNT_POINT}/boot/efi/zbm"
-	mkdir -p "${zbm_dir}"
-
-	# Tentar copiar componentes separados da fonte original
 	local vmlinuz_src="${ZBM_BIN_DIR}/vmlinuz-bootmenu"
 	local initramfs_src="${ZBM_BIN_DIR}/initramfs-bootmenu.img"
-	
+
 	if [[ -f "${vmlinuz_src}" ]] && [[ -f "${initramfs_src}" ]]; then
-		cp "${vmlinuz_src}" "${zbm_dir}/vmlinuz" 2>>"${LOG_FILE}" || log_warn "Falha ao copiar vmlinuz"
-		cp "${initramfs_src}" "${zbm_dir}/initramfs.img" 2>>"${LOG_FILE}" || log_warn "Falha ao copiar initramfs"
+		cp "${vmlinuz_src}" "${zbm_grub_dir}/vmlinuz" 2>>"${LOG_FILE}" || error_exit "Falha ao copiar vmlinuz-bootmenu"
+		cp "${initramfs_src}" "${zbm_grub_dir}/initramfs.img" 2>>"${LOG_FILE}" || error_exit "Falha ao copiar initramfs-bootmenu.img"
+		log "Binários ZBM (kernel+initramfs) copiados para ${zbm_grub_dir}"
 	else
-		# Fallback: Se não temos os componentes separados, tentamos usar o unificado .EFI como kernel
-		# (O ZBM .EFI muitas vezes funciona como bzImage)
-		log "Componentes separados não encontrados. Tentando usar VMLINUZ.EFI como kernel."
-		cp "${MOUNT_POINT}/boot/efi/EFI/ZBM/VMLINUZ.EFI" "${zbm_dir}/vmlinuz" 2>>"${LOG_FILE}" || true
-		# Initramfs está embutido no .EFI, então talvez não precisemos de initrd...
-		# Mas para ZBM, o .EFI é um bundle.
-		# SE estivermos usando o script de download oficial, teriamos os componentes.
-		# Vamos assumir que temos os componentes ou erro.
-		if [[ ! -f "${zbm_dir}/vmlinuz" ]]; then
-			error_exit "Componentes do ZFSBootMenu não encontrados para configuração BIOS."
-		fi
+		error_exit "Binários componentes do ZFSBootMenu não encontrados em ${ZBM_BIN_DIR}. Necessários: vmlinuz-bootmenu e initramfs-bootmenu.img"
 	fi
 
-	cat <<EOF >"${syslinux_cfg}"
-UI menu.c32
-PROMPT 0
-TIMEOUT 0
+	# 3. Configurar grub.cfg para carregar kernel + initramfs
+	mkdir -p "${grub_boot_dir}/grub"
+	cat <<EOF >"${grub_boot_dir}/grub/grub.cfg"
+set timeout=5
+set default=0
 
-LABEL zfsbootmenu
-    MENU LABEL ZFSBootMenu
-    LINUX /zbm/vmlinuz
-    INITRD /zbm/initramfs.img
-    APPEND zbm.prefer_policy=hostid quiet loglevel=0
+# Carregar módulos para leitura da ESP
+insmod part_gpt
+insmod fat
+
+menuentry "ZFSBootMenu" {
+    linux /zbm/vmlinuz zbm.skip-hostid quiet loglevel=0
+    initrd /zbm/initramfs.img
+}
+
+menuentry "ZFSBootMenu (Recovery)" {
+    linux /zbm/vmlinuz zbm.skip-hostid zbm.show
+    initrd /zbm/initramfs.img
+}
 EOF
 
-	# Copiar menu.c32 e libutil.c32 se necessários (para UI menu.c32 funcionar)
-	# Muitos sistemas modernos podem não precisar se usarmos UI none ou apenas PROMPT 0
-	# Mas para segurança, vamos copiar os módulos se existirem no host
-	local syslinux_lib_dir="/usr/lib/syslinux/modules/bios"
-	if [[ ! -d "${syslinux_lib_dir}" ]]; then
-		syslinux_lib_dir="/usr/lib/syslinux/bios" # Debians antigos
-	fi
-	
-	if [[ -d "${syslinux_lib_dir}" ]]; then
-		cp "${syslinux_lib_dir}/menu.c32" "${MOUNT_POINT}/boot/efi/" 2>/dev/null || true
-		cp "${syslinux_lib_dir}/libutil.c32" "${MOUNT_POINT}/boot/efi/" 2>/dev/null || true
-	fi
-
-	log "Syslinux configurado com sucesso na ESP."
-	gum format -- "✓ Syslinux BIOS configurado"
+	log "Boot BIOS configurado com sucesso (kernel+initramfs na ESP)."
+	gum format -- "✓ GRUB BIOS configurado"
 }
 
 # Configurar entrada EFI com efibootmgr
@@ -1522,25 +1396,6 @@ export_pool() {
 	fi
 }
 
-# Remover pacotes do GRUB do sistema instalado
-remove_grub_packages() {
-	log "Removendo pacotes do GRUB para evitar conflitos..."
-	gum format -- "### Removendo GRUB (Proteção)"
-
-	# Lista de pacotes para remover
-	local packages="grub-pc grub-efi-amd64-bin grub-common os-prober"
-
-	if ! chroot "${MOUNT_POINT}" apt-get purge -y ${packages} 2>>"${LOG_FILE}"; then
-		log_warn "Falha ao remover alguns pacotes do GRUB (talvez não estivessem instalados)"
-	fi
-	
-	# Garantir autoremove para limpar dependências órfãs
-	chroot "${MOUNT_POINT}" apt-get autoremove -y 2>>"${LOG_FILE}" || true
-
-	log "Pacotes GRUB removidos."
-	gum format -- "✓ GRUB removido do sistema alvo"
-}
-
 # Configuração de perfis e pacotes adicionais
 configure_profile() {
 	gum format -- "### Configurando Perfil: **${PROFILE}**"
@@ -1603,12 +1458,12 @@ main() {
 	select_disks
 
 	# Selecionar topologia se múltiplos discos
+	if [[ ${#SELECTED_DISKS[@]} -gt 1 ]]; then
+		select_topology
 	else
 		RAID_TOPOLOGY="Single"
 		log "Único disco selecionado, topologia definida como Single"
 	fi
-
-	select_profile
 
 	configure_zfs_options
 	collect_info
@@ -1634,7 +1489,6 @@ main() {
 	configure_profile
 	configure_fstab
 	generate_hostid
-	remove_grub_packages
 	update_initramfs
 
 	# Fase 7: Instalação ZFSBootMenu

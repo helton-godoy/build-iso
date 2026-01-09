@@ -1,0 +1,17 @@
+# 01-live-tools.list.chroot - Ferramentas do Ambiente Live (Instalador)
+# Ferramentas necessárias apenas para rodar o install-aurora.sh
+
+# === Installer Dependencies ===
+squashfs-tools
+rsync
+debootstrap
+pv
+dialog
+
+# === Bootloader Management for Target ===
+syslinux
+syslinux-common
+# (grub packages removed intentionally as per new strategy)
+
+# === Disk Management ===
+# (Already in core: gdisk, parted, dosfstools, efibootmgr)

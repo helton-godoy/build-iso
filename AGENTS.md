@@ -150,9 +150,23 @@ curl -LJO https://get.zfsbootmenu.org/efi
 
 | Partição  | Tamanho  | Tipo   | Finalidade                     |
 | --------- | -------- | ------ | ------------------------------ |
-| BIOS boot | 1 MiB    | `EF02` | Syslinux/GRUB stage 2 (legado) |
+| BIOS boot | 1 MiB    | `EF02` | Syslinux                       |
 | ESP       | 512 MiB  | `EF00` | VFAT - ZFSBootMenu EFI         |
 | Pool ZFS  | Restante | `BF00` | ZFS - sistema root             |
+
+**ZFSBootMenu (ZBM):** Gestor de boot primário.
+    - **UEFI:** Boot direto via `efibootmgr` (Unified EFI Binary).
+    - **BIOS (Legacy):** Boot via **Syslinux** (ponte leve), carregando kernel/initramfs do ZBM.
+    - **GRUB:** Removido do processo de boot e do sistema instalado (para evitar overwrites).
+
+### 2. Gestão de Pacotes
+A lista de pacotes (`docker/config/package-lists/`) segue uma taxonomia modular:
+- **`00-core`**: Sistema base mínimo (Kernel, ZFS, Live Boot).
+- **`01-live-tools`**: Ferramentas exclusivas do ambiente Live (Instalador, Syslinux).
+- **`10-server`**: Perfil Servidor (CLI, SSH, Utils).
+- **`20-workstation`**: Perfil Workstation (KDE Plasma Minimal).
+
+Isso permite criar builds customizados (ex: apenas Servidor) removendo listas específicas antes do build.
 
 ## KERNEL PARAMETERS (ZFSBootMenu)
 
