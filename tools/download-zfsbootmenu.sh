@@ -18,10 +18,11 @@ readonly C_RED=$'\033[31m'
 
 # Configuração
 readonly BASE_URL="https://get.zfsbootmenu.org"
-readonly TEMP_DIR=$(mktemp -d)
+TEMP_DIR=$(mktemp -d)
+readonly TEMP_DIR
 DEST_DIR="include/usr/share/zfsbootmenu"
-BUILD_TYPE="release"
-VERIFY_SIGNATURES=false
+_BUILD_TYPE="release"
+_VERIFY_SIGNATURES=false
 FORCE=false
 
 # Funções de logging
@@ -34,7 +35,7 @@ log_error() {
 }
 
 function cleanup() {
-	[[ -d "$TEMP_DIR" ]] && rm -rf "$TEMP_DIR"
+	[[ -d ${TEMP_DIR} ]] && rm -rf "${TEMP_DIR}"
 }
 trap cleanup EXIT
 
@@ -63,11 +64,11 @@ while [[ $# -gt 0 ]]; do
 		shift 2
 		;;
 	-b | --build-type)
-		BUILD_TYPE="$2"
+		_BUILD_TYPE="$2"
 		shift 2
 		;;
 	-v | --verify)
-		VERIFY_SIGNATURES=true
+		_VERIFY_SIGNATURES=true
 		shift
 		;;
 	-f | --force)
@@ -82,81 +83,81 @@ done
 function detect_version() {
 	log_info "Detectando versão mais recente..."
 	local version
-	version=$(curl -sIL "$BASE_URL/latest" | grep -i "location:" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1) ||
+	version=$(curl -sIL "${BASE_URL}/latest" | grep -i "location:" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1) ||
 		version=$(curl -s "https://api.github.com/repos/zbm-dev/zfsbootmenu/releases/latest" | grep -oP '"tag_name": "\K[^"]+')
 
-	[[ -z "$version" ]] && log_error "Falha ao detectar versão."
-	echo "$version"
+	[[ -z ${version} ]] && log_error "Falha ao detectar versão."
+	echo "${version}"
 }
 
 function main() {
 	# Verificar se já existe (pular se não forçado)
-	if [[ "$FORCE" == false ]] && [[ -f "$DEST_DIR/VMLINUZ.EFI" ]] && [[ -f "$DEST_DIR/VMLINUZ-RECOVERY.EFI" ]]; then
-		log_ok "ZFSBootMenu (release + recovery) já instalado em $DEST_DIR."
+	if [[ ${FORCE} == false ]] && [[ -f "${DEST_DIR}/VMLINUZ.EFI" ]] && [[ -f "${DEST_DIR}/VMLINUZ-RECOVERY.EFI" ]]; then
+		log_ok "ZFSBootMenu (release + recovery) já instalado em ${DEST_DIR}."
 		return 0
 	fi
 
 	local version
 	version=$(detect_version)
-	log_info "Versão: $version"
+	log_info "Versão: ${version}"
 
-	mkdir -p "$DEST_DIR"
+	mkdir -p "${DEST_DIR}"
 
 	# Baixar ambos os tipos: release e recovery
 	local types=("release" "recovery")
 
 	for build_type in "${types[@]}"; do
-		local build_url="$BASE_URL/components"
-		[[ "$build_type" == "recovery" ]] && build_url="$BASE_URL/components/recovery"
+		local build_url="${BASE_URL}/components"
+		[[ ${build_type} == "recovery" ]] && build_url="${BASE_URL}/components/recovery"
 
 		local tarball="zfsbootmenu-${build_type}-x86_64-${version}.tar.gz"
 
-		log_info "Baixando $tarball..."
-		if ! curl -L -f -s -o "$TEMP_DIR/$tarball" "$build_url"; then
-			log_warn "Falha ao baixar $tarball"
+		log_info "Baixando ${tarball}..."
+		if ! curl -L -f -s -o "${TEMP_DIR}/${tarball}" "${build_url}"; then
+			log_warn "Falha ao baixar ${tarball}"
 			continue
 		fi
 
-		log_info "Extraindo $build_type..."
-		tar -xzf "$TEMP_DIR/$tarball" -C "$TEMP_DIR"
+		log_info "Extraindo ${build_type}..."
+		tar -xzf "${TEMP_DIR}/${tarball}" -C "${TEMP_DIR}"
 
 		local src_dir
-		src_dir=$(find "$TEMP_DIR" -maxdepth 1 -type d -name "zfsbootmenu-*" | head -n 1)
+		src_dir=$(find "${TEMP_DIR}" -maxdepth 1 -type d -name "zfsbootmenu-*" | head -n 1)
 
-		if [[ -n "$src_dir" ]]; then
+		if [[ -n ${src_dir} ]]; then
 			# Copiar componentes com sufixo se for recovery
-			if [[ "$build_type" == "release" ]]; then
-				cp "$src_dir/vmlinuz-bootmenu" "$DEST_DIR/" 2>/dev/null || true
-				cp "$src_dir/initramfs-bootmenu.img" "$DEST_DIR/" 2>/dev/null || true
+			if [[ ${build_type} == "release" ]]; then
+				cp "${src_dir}/vmlinuz-bootmenu" "${DEST_DIR}/" 2>/dev/null || true
+				cp "${src_dir}/initramfs-bootmenu.img" "${DEST_DIR}/" 2>/dev/null || true
 			else
-				cp "$src_dir/vmlinuz-bootmenu" "$DEST_DIR/vmlinuz-bootmenu-recovery" 2>/dev/null || true
-				cp "$src_dir/initramfs-bootmenu.img" "$DEST_DIR/initramfs-bootmenu-recovery.img" 2>/dev/null || true
+				cp "${src_dir}/vmlinuz-bootmenu" "${DEST_DIR}/vmlinuz-bootmenu-recovery" 2>/dev/null || true
+				cp "${src_dir}/initramfs-bootmenu.img" "${DEST_DIR}/initramfs-bootmenu-recovery.img" 2>/dev/null || true
 			fi
-			find "$src_dir" -name "*.EFI" -exec cp {} "$DEST_DIR/" \; 2>/dev/null || true
-			rm -rf "$src_dir"
+			find "${src_dir}" -name "*.EFI" -exec cp {} "${DEST_DIR}/" \; 2>/dev/null || true
+			rm -rf "${src_dir}"
 		fi
 	done
 
 	# Baixar binários EFI unificados (release e recovery)
 	log_info "Baixando binário EFI release..."
-	if curl -L -f -s -o "$DEST_DIR/VMLINUZ.EFI" "$BASE_URL/efi"; then
+	if curl -L -f -s -o "${DEST_DIR}/VMLINUZ.EFI" "${BASE_URL}/efi"; then
 		log_ok "Binário EFI release: VMLINUZ.EFI"
 		# Criar backup
-		cp "$DEST_DIR/VMLINUZ.EFI" "$DEST_DIR/VMLINUZ-BACKUP.EFI" 2>/dev/null || true
+		cp "${DEST_DIR}/VMLINUZ.EFI" "${DEST_DIR}/VMLINUZ-BACKUP.EFI" 2>/dev/null || true
 	else
 		log_warn "Falha ao baixar EFI release"
 	fi
 
 	log_info "Baixando binário EFI recovery..."
-	if curl -L -f -s -o "$DEST_DIR/VMLINUZ-RECOVERY.EFI" "$BASE_URL/efi/recovery"; then
+	if curl -L -f -s -o "${DEST_DIR}/VMLINUZ-RECOVERY.EFI" "${BASE_URL}/efi/recovery"; then
 		log_ok "Binário EFI recovery: VMLINUZ-RECOVERY.EFI"
 	else
 		log_warn "Falha ao baixar EFI recovery"
 	fi
 
-	log_ok "ZFSBootMenu instalado com sucesso em $DEST_DIR"
+	log_ok "ZFSBootMenu instalado com sucesso em ${DEST_DIR}"
 	log_info "Conteúdo:"
-	ls -lh "$DEST_DIR"
+	ls -lh "${DEST_DIR}"
 }
 
 main

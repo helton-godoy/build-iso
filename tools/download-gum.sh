@@ -19,7 +19,8 @@ readonly C_RED=$'\033[31m'
 # Configurações
 readonly REPO="charmbracelet/gum"
 readonly DEST_DIR="include/usr/local/bin"
-readonly TEMP_DIR=$(mktemp -d)
+TEMP_DIR=$(mktemp -d)
+readonly TEMP_DIR
 FORCE=false
 
 # Funções de logging
@@ -32,7 +33,7 @@ log_error() {
 }
 
 function cleanup() {
-	[[ -d "$TEMP_DIR" ]] && rm -rf "$TEMP_DIR"
+	[[ -d ${TEMP_DIR} ]] && rm -rf "${TEMP_DIR}"
 }
 trap cleanup EXIT
 
@@ -65,36 +66,36 @@ while [[ $# -gt 0 ]]; do
 done
 
 function main() {
-	if [[ "$FORCE" == false ]] && [[ -f "$DEST_DIR/gum" ]]; then
-		log_ok "Gum já está instalado em $DEST_DIR/gum."
+	if [[ ${FORCE} == false ]] && [[ -f "${DEST_DIR}/gum" ]]; then
+		log_ok "Gum já está instalado em ${DEST_DIR}/gum."
 		return 0
 	fi
 
 	log_info "Detectando a versão mais recente do gum..."
 	local version
-	version=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep -oP '"tag_name": "\K[^"]+') || log_error "Não foi possível detectar a versão."
+	version=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep -oP '"tag_name": "\K[^"]+') || log_error "Não foi possível detectar a versão."
 
-	log_info "Versão detectada: $version"
+	log_info "Versão detectada: ${version}"
 
 	local clean_version="${version#v}"
-	local url="https://github.com/$REPO/releases/download/$version/gum_${clean_version}_Linux_x86_64.tar.gz"
+	local url="https://github.com/${REPO}/releases/download/${version}/gum_${clean_version}_Linux_x86_64.tar.gz"
 
 	log_info "Baixando release..."
-	if ! curl -L -f -s -o "$TEMP_DIR/gum.tar.gz" "$url"; then
-		log_error "Falha no download da URL: $url"
+	if ! curl -L -f -s -o "${TEMP_DIR}/gum.tar.gz" "${url}"; then
+		log_error "Falha no download da URL: ${url}"
 	fi
 
 	log_info "Extraindo e instalando..."
-	tar -xzf "$TEMP_DIR/gum.tar.gz" -C "$TEMP_DIR"
+	tar -xzf "${TEMP_DIR}/gum.tar.gz" -C "${TEMP_DIR}"
 
-	mkdir -p "$DEST_DIR"
+	mkdir -p "${DEST_DIR}"
 	local gum_bin
-	gum_bin=$(find "$TEMP_DIR" -name "gum" -type f | head -n 1)
+	gum_bin=$(find "${TEMP_DIR}" -name "gum" -type f | head -n 1)
 
-	if [[ -n "$gum_bin" ]]; then
-		cp "$gum_bin" "$DEST_DIR/gum"
-		chmod +x "$DEST_DIR/gum"
-		log_ok "Gum instalado com sucesso em $DEST_DIR/gum"
+	if [[ -n ${gum_bin} ]]; then
+		cp "${gum_bin}" "${DEST_DIR}/gum"
+		chmod +x "${DEST_DIR}/gum"
+		log_ok "Gum instalado com sucesso em ${DEST_DIR}/gum"
 	else
 		log_error "Binário do gum não encontrado no pacote baixado."
 	fi
