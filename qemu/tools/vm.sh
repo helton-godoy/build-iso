@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ==============================================================================
-# vm.sh - Gerenciador de VM para Testes da ISO
+# vm.sh - Gerenciador de VM para Testes da ISO e Instalação
 #
 # Suporta boot UEFI e BIOS (Legacy).
 # Requer: qemu-system-x86_64, ovmf (para UEFI)
@@ -63,6 +63,11 @@ VM_MEMORY="4G"
 VM_CPUS="2"
 DISK_SIZE="20G"
 VM_VGA="virtio"
+
+# Variáveis de Estado
+MODE="UEFI"
+BOOT_DEVICE="d" # d = cdrom, c = hard disk
+NUM_DISKS=1
 
 function read_config() {
   if [[ -f "$TEMPLATE_FILE" ]] && command -v jq &>/dev/null; then
@@ -129,20 +134,31 @@ function get_latest_iso() {
 }
 
 function start_vm() {
-  local mode=$1
   read_config
   local iso=$(get_latest_iso)
-  local disk_img="$VM_DISK_DIR/disk-1.qcow2"
-
+  
   mkdir -p "$VM_DISK_DIR" "$VM_UEFI_DIR" "$VM_VIRTIOFS_DIR"
-  [[ ! -f "$disk_img" ]] && {
-    log_info "Criando disco virtual..."
-    qemu-img create -f qcow2 "$disk_img" "$DISK_SIZE"
-  }
 
-  log_info "Iniciando VM ($mode)..."
-  local qemu_args=(-enable-kvm -m "$VM_MEMORY" -smp "$VM_CPUS" -drive "file=$disk_img,format=qcow2" -cdrom "$iso" -net nic -net user -vga "$VM_VGA" -display gtk)
+  local qemu_args=(-enable-kvm -m "$VM_MEMORY" -smp "$VM_CPUS" -net nic -net user -vga "$VM_VGA" -display gtk)
 
+  # Adicionar discos
+  for i in $(seq 1 "$NUM_DISKS"); do
+    local disk_img="$VM_DISK_DIR/disk-$i.qcow2"
+    [[ ! -f "$disk_img" ]] && {
+      log_info "Criando disco virtual $i ($DISK_SIZE)..."
+      qemu-img create -f qcow2 "$disk_img" "$DISK_SIZE"
+    }
+    qemu_args+=(-drive "file=$disk_img,format=qcow2,if=virtio")
+  done
+
+  # Adicionar ISO
+  qemu_args+=(-cdrom "$iso")
+
+  # Ordem de boot
+  qemu_args+=(-boot "order=$BOOT_DEVICE,menu=on")
+
+  log_info "Iniciando VM ($MODE) - Boot por: $([[ "$BOOT_DEVICE" == "d" ]] && echo "ISO" || echo "Disco")..."
+  
   # Localização do virtiofsd
   local vfs_bin
   vfs_bin=$(command -v virtiofsd || true)
@@ -165,7 +181,7 @@ function start_vm() {
     [[ -S "$socket" ]] && qemu_args+=(-chardev "socket,id=char0,path=$socket" -device "vhost-user-fs-pci,queue-size=1024,chardev=char0,tag=hostshare" -object "memory-backend-file,id=mem,size=$VM_MEMORY,mem-path=/dev/shm,share=on" -numa "node,memdev=mem") || log_warn "virtiofsd falhou ao criar socket."
   fi
 
-  if [[ "$mode" == "UEFI" ]]; then
+  if [[ "$MODE" == "UEFI" ]]; then
     if [[ -z "$OVMF_VARS" ]]; then
       log_error "OVMF_VARS não encontrado. Certifique-se que o pacote 'ovmf' está instalado."
       exit 1
@@ -189,30 +205,62 @@ function start_vm() {
 function show_help() {
   cat <<EOF
 ${C_BOLD}${C_PURPLE}🌌 AURORA OS - VM MANAGER${C_RESET}
-${C_CYAN}Gerenciador de VM otimizado para testes de ISO${C_RESET}
+${C_CYAN}Gerenciador de VM otimizado para testes de ISO e Boot pós-instalação${C_RESET}
 
-${C_BOLD}Uso:${C_RESET} \$0 ${C_GREEN}[OPÇÃO]${C_RESET}
+${C_BOLD}Uso:${C_RESET} \$0 ${C_GREEN}[OPÇÕES]${C_RESET}
 
-${C_BOLD}Opções:${C_RESET}
-  ${C_GREEN}--check${C_RESET}        Verifica e instala dependências necessárias
-  ${C_GREEN}--start-uefi${C_RESET}   Inicia a VM em modo ${C_CYAN}UEFI${C_RESET} (Recomendado)
-  ${C_GREEN}--start-bios${C_RESET}   Inicia a VM em modo ${C_YELLOW}BIOS${C_RESET} (Legacy)
-  ${C_GREEN}--clean${C_RESET}        Limpa discos e arquivos temporários da VM
-  ${C_GREEN}--help${C_RESET}         Exibe esta ajuda
+${C_BOLD}Comandos:${C_RESET}
+  ${C_GREEN}--check${C_RESET}             Verifica e instala dependências necessárias
+  ${C_GREEN}--start-uefi${C_RESET}        Inicia a VM em modo ${C_CYAN}UEFI${C_RESET}
+  ${C_GREEN}--start-bios${C_RESET}        Inicia a VM em modo ${C_YELLOW}BIOS${C_RESET}
+  ${C_GREEN}--clean${C_RESET}             Limpa discos e arquivos temporários da VM
+  ${C_GREEN}--help${C_RESET}              Exibe esta ajuda
+
+${C_BOLD}Modificadores:${C_RESET}
+  ${C_GREEN}--disks N${C_RESET}          Define o número de discos (Ex: --disks 3 para RAID-Z)
+  ${C_GREEN}--boot-disk${C_RESET}        Altera a ordem de boot para priorizar o disco (pós-instalação)
+  ${C_GREEN}--uefi${C_RESET}             Força modo UEFI (usado com outros comandos)
+  ${C_GREEN}--bios${C_RESET}             Força modo BIOS (usado com outros comandos)
+
+${C_PURPLE}Exemplos:${C_RESET}
+  $0 --start-uefi --disks 3        # Testa instalação RAID-Z em UEFI
+  $0 --start-uefi --boot-disk      # Valida boot UEFI pelo disco após instalação
+  $0 --start-bios --boot-disk      # Valida boot BIOS pelo disco após instalação
 
 ${C_PURPLE}Dica:${C_RESET} O diretório atual será montado via ${C_CYAN}virtiofs${C_RESET} com a tag ${C_BOLD}hostshare${C_RESET}.
 EOF
   exit 0
 }
 
-case "${1:-}" in
-  --check) check_deps ;;
-  --start-uefi) start_vm "UEFI" ;;
-  --start-bios) start_vm "BIOS" ;;
-  --clean)
-    log_info "Limpando..."
-    rm -rf "$VM_WORK_DIR"
-    log_ok "Concluído."
-    ;;
-  --help | *) show_help ;;
-esac
+# Parsing simplificado
+if [[ $# -eq 0 ]]; then
+  start_vm
+  exit 0
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --check) check_deps; exit 0 ;;
+    --start-uefi) MODE="UEFI"; BOOT_DEVICE="d"; start_vm; exit 0 ;;
+    --start-bios) MODE="BIOS"; BOOT_DEVICE="d"; start_vm; exit 0 ;;
+    --uefi) MODE="UEFI" ;;
+    --bios) MODE="BIOS" ;;
+    --boot-disk) BOOT_DEVICE="c" ;;
+    --disks) 
+      NUM_DISKS="$2"
+      shift
+      ;;
+    --clean)
+      log_info "Limpando..."
+      rm -rf "$VM_WORK_DIR"
+      log_ok "Concluído."
+      exit 0
+      ;;
+    --help) show_help ;;
+    *) log_error "Opção desconhecida: $1"; show_help ;;
+  esac
+  shift
+done
+
+# Caso tenha sobrado algo (modificadores sem comando explícito)
+start_vm
