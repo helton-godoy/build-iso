@@ -55,21 +55,21 @@ styled_box() {
 	clear
 	gum style \
 		--border rounded \
-		--border-foreground "$color" \
+		--border-foreground "${color}" \
 		--padding "1 2" \
 		--margin "1 1" \
-		--width "$UI_WIDTH" \
-		"$(gum style --foreground "$color" --bold "$title")" "" "$@"
+		--width "${UI_WIDTH}" \
+		"$(gum style --foreground "${color}" --bold "${title}")" "" "$@"
 }
 
 # Renderizar um cabeçalho de seção
 # Uso: section_header "Título da Seção"
 section_header() {
 	gum style \
-		--foreground "$COLOR_PRIMARY" \
+		--foreground "${COLOR_PRIMARY}" \
 		--bold \
 		--margin "1 0 0 0" \
-		"─── $1 ──────────────────────────────────────────────────────────" | cut -c1-"$UI_WIDTH"
+		"─── $1 ──────────────────────────────────────────────────────────" | cut -c1-"${UI_WIDTH}"
 }
 
 # =============================================================================
@@ -79,13 +79,19 @@ section_header() {
 # Log de informações
 # Uso: log "Mensagem de log"
 log() {
-	echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >>"$LOG_FILE"
+	echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >>"${LOG_FILE}"
+}
+
+# Log de aviso (não crítico)
+# Uso: log_warn "Mensagem de aviso"
+log_warn() {
+	echo "[$(date +'%Y-%m-%d %H:%M:%S')] WARN: $*" >>"${LOG_FILE}"
 }
 
 # Log de erro e saída
 # Uso: error_exit "Mensagem de erro"
 error_exit() {
-	styled_box "$COLOR_ERROR" "❌ ERRO CRÍTICO" "$1"
+	styled_box "${COLOR_ERROR}" "❌ ERRO CRÍTICO" "$1"
 	log "ERROR: $*"
 	cleanup
 	exit 1
@@ -101,29 +107,29 @@ cleanup() {
 	sync
 
 	# Desmontar ESP se estiver montado
-	if mountpoint -q "$MOUNT_POINT/boot/efi"; then
-		log "Desmontando $MOUNT_POINT/boot/efi"
-		umount "$MOUNT_POINT/boot/efi" 2>/dev/null || true
+	if mountpoint -q "${MOUNT_POINT}/boot/efi"; then
+		log "Desmontando ${MOUNT_POINT}/boot/efi"
+		umount "${MOUNT_POINT}/boot/efi" 2>/dev/null || true
 	fi
 
 	# Desmontar sistemas virtuais se estiverem montados
 	for dir in dev proc sys run; do
-		if mountpoint -q "$MOUNT_POINT/$dir"; then
-			log "Desmontando $MOUNT_POINT/$dir"
-			umount -l "$MOUNT_POINT/$dir" 2>/dev/null || true
+		if mountpoint -q "${MOUNT_POINT}/${dir}"; then
+			log "Desmontando ${MOUNT_POINT}/${dir}"
+			umount -l "${MOUNT_POINT}/${dir}" 2>/dev/null || true
 		fi
 	done
 
 	# Desmontar root se estiver montado
-	if mountpoint -q "$MOUNT_POINT"; then
-		log "Desmontando $MOUNT_POINT"
-		umount -l "$MOUNT_POINT" 2>/dev/null || true
+	if mountpoint -q "${MOUNT_POINT}"; then
+		log "Desmontando ${MOUNT_POINT}"
+		umount -l "${MOUNT_POINT}" 2>/dev/null || true
 	fi
 
 	# Exportar pool ZFS se existir
-	if zpool list "$POOL_NAME" >/dev/null 2>&1; then
-		log "Exportando pool $POOL_NAME"
-		zpool export "$POOL_NAME" 2>/dev/null || true
+	if zpool list "${POOL_NAME}" >/dev/null 2>&1; then
+		log "Exportando pool ${POOL_NAME}"
+		zpool export "${POOL_NAME}" 2>/dev/null || true
 	fi
 
 	log "Limpeza concluída."
@@ -138,7 +144,7 @@ trap cleanup ERR SIGINT SIGTERM
 
 # Verificar se está rodando como root
 check_root() {
-	if [[ $EUID -ne 0 ]]; then
+	if [[ ${EUID} -ne 0 ]]; then
 		error_exit "Este script precisa ser executado como root."
 	fi
 	log "Verificação de root: OK"
@@ -150,7 +156,7 @@ load_zfs_module() {
 	if [[ ! -d /sys/module/zfs ]] || ! grep -qw "^zfs " /proc/modules; then
 		log "Carregando módulo ZFS..."
 		sync
-		if ! modprobe zfs 2>>"$LOG_FILE"; then
+		if ! modprobe zfs 2>>"${LOG_FILE}"; then
 			error_exit "Falha ao carregar o módulo ZFS. Verifique se o ZFS está instalado corretamente."
 		fi
 		log "Módulo ZFS carregado com sucesso."
@@ -180,7 +186,7 @@ check_zfs_commands() {
 
 # Testar funcionalidade zpool
 test_zpool() {
-	if ! zpool version >>"$LOG_FILE" 2>&1; then
+	if ! zpool version >>"${LOG_FILE}" 2>&1; then
 		error_exit "Comando zpool não funcionou. Módulo ZFS pode estar corrompido."
 	fi
 	log "Teste zpool version: OK"
@@ -196,7 +202,7 @@ check_memory() {
 
 	log "Memória detectada: ${mem_mb}MB (${mem_gb}GB)"
 
-	if [[ $mem_gb -lt 2 ]]; then
+	if [[ ${mem_gb} -lt 2 ]]; then
 		gum format -- "> ⚠️ Aviso: Memória baixa detectada (${mem_mb}MB). ZFS recomenda 2GB+."
 		log "AVISO: Memória baixa: ${mem_mb}MB"
 	fi
@@ -208,8 +214,8 @@ check_required_commands() {
 	local missing=()
 
 	for cmd in "${commands[@]}"; do
-		if ! command -v "$cmd" >/dev/null 2>&1; then
-			missing+=("$cmd")
+		if ! command -v "${cmd}" >/dev/null 2>&1; then
+			missing+=("${cmd}")
 		fi
 	done
 
@@ -240,7 +246,7 @@ preflight_checks() {
 # =============================================================================
 
 welcome_screen() {
-	styled_box "$COLOR_PRIMARY" "🌌 AURORA OS" \
+	styled_box "${COLOR_PRIMARY}" "🌌 AURORA OS" \
 		"Bem-vindo ao instalador oficial do **Aurora OS**." \
 		"" \
 		"Este assistente irá guiá-lo através da instalação do Debian com" \
@@ -257,17 +263,17 @@ select_disks() {
 	# Verificar se há discos disponíveis antes de prosseguir
 	disks=$(lsblk -d -n -o NAME,SIZE,MODEL -e 7,11 | awk '{printf "/dev/%s (%s - %s)\n", $1, $2, substr($0, index($0,$3))}')
 
-	if [[ -z "$disks" ]]; then
+	if [[ -z "${disks}" ]]; then
 		error_exit "Nenhum disco adequado para instalação foi encontrado pelo lsblk."
 	fi
 
 	local raw_selection
 	# Capturar seleção com indicadores visuais claros de checkbox (X em verde)
-	if ! raw_selection=$(echo -n "$disks" | gum choose \
+	if ! raw_selection=$(echo -n "${disks}" | gum choose \
 		--header "Selecione o(s) disco(s) (ESPAÇO para marcar, ENTER para confirmar):" \
 		--no-limit \
 		--cursor="> " \
-		--selected-prefix="[$(gum style --foreground "$COLOR_SUCCESS" "X")] " \
+		--selected-prefix="[$(gum style --foreground "${COLOR_SUCCESS}" "X")] " \
 		--unselected-prefix="[ ] " \
 		--cursor-prefix="[ ] " \
 		--selected.foreground=""); then
@@ -275,36 +281,36 @@ select_disks() {
 	fi
 
 	log "Seleção bruta do gum (raw_selection):
-$raw_selection"
+${raw_selection}"
 
-	if [[ -z "$raw_selection" ]]; then
+	if [[ -z "${raw_selection}" ]]; then
 		error_exit "Nenhum disco selecionado."
 	fi
 
 	SELECTED_DISKS=()
 	# Processar cada linha selecionada
 	while IFS= read -r sel; do
-		[[ -z "$sel" ]] && continue
-		log "Processando linha de seleção: '$sel'"
+		[[ -z "${sel}" ]] && continue
+		log "Processando linha de seleção: '${sel}'"
 
 		local dev
 		# Extrair o caminho do dispositivo de forma robusta (/dev/sdX, /dev/nvmeXnX, /dev/mmcblkX, etc)
-		dev=$(echo "$sel" | grep -oE '/dev/[a-z0-9/]+' | head -n 1)
+		dev=$(echo "${sel}" | grep -oE '/dev/[a-z0-9/]+' | head -n 1)
 
-		if [[ -n "$dev" ]] && [[ -b "$dev" ]]; then
-			SELECTED_DISKS+=("$dev")
-			gum format -- "✓ Selecionado: **$dev**"
-			log "Dispositivo extraído com sucesso: $dev"
+		if [[ -n "${dev}" ]] && [[ -b "${dev}" ]]; then
+			SELECTED_DISKS+=("${dev}")
+			gum format -- "✓ Selecionado: **${dev}**"
+			log "Dispositivo extraído com sucesso: ${dev}"
 		else
-			log "AVISO: Falha ao extrair dispositivo válido da linha: '$sel' (extraído: '$dev')"
+			log "AVISO: Falha ao extrair dispositivo válido da linha: '${sel}' (extraído: '${dev}')"
 		fi
-	done <<<"$raw_selection"
+	done <<<"${raw_selection}"
 
 	if [[ ${#SELECTED_DISKS[@]} -eq 0 ]]; then
 		error_exit "Não foi possível identificar dispositivos válidos na sua seleção."
 	fi
 
-	styled_box "$COLOR_WARNING" "⚠️ ALERTA DE SEGURANÇA" \
+	styled_box "${COLOR_WARNING}" "⚠️ ALERTA DE SEGURANÇA" \
 		"TODOS OS DADOS nos discos selecionados serão APAGADOS permanentEMENTE." \
 		"" \
 		"Discos: **${SELECTED_DISKS[*]}**"
@@ -319,10 +325,10 @@ collect_info() {
 	USERNAME=$(gum input --prompt " 👤 Usuário:  " --placeholder "Ex: admin" --value "admin")
 
 	section_header "Configurações de Segurança"
-	USER_PASS=$(gum input --prompt " 🔑 Senha ($USERNAME): " --password --placeholder "Digite a senha do usuário")
+	USER_PASS=$(gum input --prompt " 🔑 Senha (${USERNAME}): " --password --placeholder "Digite a senha do usuário")
 	ROOT_PASS=$(gum input --prompt " 🛡️  Senha (root):     " --password --placeholder "Digite a senha do root")
 
-	if [[ -z "$USER_PASS" || -z "$ROOT_PASS" ]]; then
+	if [[ -z "${USER_PASS}" || -z "${ROOT_PASS}" ]]; then
 		error_exit "As senhas não podem ser vazias."
 	fi
 
@@ -334,7 +340,7 @@ collect_info() {
 		error_exit "A senha do root deve ter pelo menos 6 caracteres."
 	fi
 
-	log "Coletadas informações: hostname=$HOSTNAME, username=$USERNAME"
+	log "Coletadas informações: hostname=${HOSTNAME}, username=${USERNAME}"
 }
 
 confirm_installation() {
@@ -346,23 +352,23 @@ confirm_installation() {
 
 	local summary_text
 	summary_text="
-$(gum style --foreground "$COLOR_SECONDARY" --bold "🌍 GERAL")
+$(gum style --foreground "${COLOR_SECONDARY}" --bold "🌍 GERAL")
 • Discos:     ${SELECTED_DISKS[*]}
-• Topologia:  $RAID_TOPOLOGY
-• Hostname:   $HOSTNAME
-• Usuário:    $USERNAME
-• Perfil:     $PROFILE
+• Topologia:  ${RAID_TOPOLOGY}
+• Hostname:   ${HOSTNAME}
+• Usuário:    ${USERNAME}
+• Perfil:     ${PROFILE}
 
-$(gum style --foreground "$COLOR_SECONDARY" --bold "⚡ ZFS")
-• Pool:       $POOL_NAME
-• ashift:     $ASHIFT
-• compress:   $COMPRESSION
-• checksum:   $CHECKSUM
-• copies:     $COPIES
-• Crypto:     $ENCRYPTION
+$(gum style --foreground "${COLOR_SECONDARY}" --bold "⚡ ZFS")
+• Pool:       ${POOL_NAME}
+• ashift:     ${ASHIFT}
+• compress:   ${COMPRESSION}
+• checksum:   ${CHECKSUM}
+• copies:     ${COPIES}
+• Crypto:     ${ENCRYPTION}
 "
 
-	styled_box "$COLOR_INFO" "📋 RESUMO DA INSTALAÇÃO" "$summary_text"
+	styled_box "${COLOR_INFO}" "📋 RESUMO DA INSTALAÇÃO" "${summary_text}"
 	gum confirm "As configurações estão corretas? Iniciar instalação?" || exit 0
 }
 
@@ -371,7 +377,7 @@ select_topology() {
 	local num_disks=${#SELECTED_DISKS[@]}
 	local options=()
 
-	case $num_disks in
+	case ${num_disks} in
 	1)
 		options=("Single")
 		;;
@@ -390,7 +396,7 @@ select_topology() {
 	esac
 
 	RAID_TOPOLOGY=$(echo "${options[@]}" | tr ' ' '\n' | gum choose --header "Selecione a topologia RAID:")
-	log "Topologia selecionada: $RAID_TOPOLOGY"
+	log "Topologia selecionada: ${RAID_TOPOLOGY}"
 }
 
 # Configurar opções ZFS avançadas
@@ -415,9 +421,9 @@ configure_zfs_options() {
 
 	HDSIZE=$(gum input --prompt "Limite de tamanho do disco em GB (opcional, pressione Enter para ignorar):" --placeholder "" || echo "")
 
-	if [[ -n "$HDSIZE" ]]; then
+	if [[ -n "${HDSIZE}" ]]; then
 		# Validar que HDSIZE é um número
-		if ! [[ "$HDSIZE" =~ ^[0-9]+$ ]]; then
+		if ! [[ "${HDSIZE}" =~ ^[0-9]+$ ]]; then
 			error_exit "HDSIZE deve ser um número inteiro positivo."
 		fi
 
@@ -434,12 +440,12 @@ configure_zfs_options() {
 		"off" "on" \
 		--selected "off" || echo "off")
 
-	if [[ "$ENCRYPTION" == "on" ]]; then
+	if [[ "${ENCRYPTION}" == "on" ]]; then
 		ENCRYPTION_PASSPHRASE=$(gum input --password --prompt "Digite a passphrase do pool ZFS:" --placeholder "Passphrase")
 		local confirm_pass
 		confirm_pass=$(gum input --password --prompt "Confirme a passphrase:" --placeholder "Passphrase")
 
-		if [[ "$ENCRYPTION_PASSPHRASE" != "$confirm_pass" ]]; then
+		if [[ "${ENCRYPTION_PASSPHRASE}" != "${confirm_pass}" ]]; then
 			error_exit "As passphrases não coincidem."
 		fi
 
@@ -448,7 +454,7 @@ configure_zfs_options() {
 		fi
 	fi
 
-	log "Opções ZFS: ashift=$ASHIFT, compression=$COMPRESSION, checksum=$CHECKSUM, copies=$COPIES${HDSIZE:+, hdsize=$HDSIZE}, encryption=$ENCRYPTION, profile=$PROFILE"
+	log "Opções ZFS: ashift=${ASHIFT}, compression=${COMPRESSION}, checksum=${CHECKSUM}, copies=${COPIES}${HDSIZE:+, hdsize=${HDSIZE}}, encryption=${ENCRYPTION}, profile=${PROFILE}"
 }
 
 # =============================================================================
@@ -459,25 +465,25 @@ configure_zfs_options() {
 wipe_disk() {
 	local disk=$1
 
-	log "Limpando disco $disk..."
+	log "Limpando disco ${disk}..."
 
-	if ! wipefs -a "$disk" >>"$LOG_FILE" 2>&1; then
-		error_exit "Falha ao executar wipefs em $disk"
+	if ! wipefs -a "${disk}" >>"${LOG_FILE}" 2>&1; then
+		error_exit "Falha ao executar wipefs em ${disk}"
 	fi
 
-	if ! sgdisk --zap-all "$disk" >>"$LOG_FILE" 2>&1; then
-		error_exit "Falha ao executar sgdisk --zap-all em $disk"
+	if ! sgdisk --zap-all "${disk}" >>"${LOG_FILE}" 2>&1; then
+		error_exit "Falha ao executar sgdisk --zap-all em ${disk}"
 	fi
 
 	sync
-	log "Disco $disk limpo com sucesso"
+	log "Disco ${disk} limpo com sucesso"
 }
 
 # Determinar sufixo de partição (para /dev/sdX vs /dev/nvme0n1)
 get_part_suffix() {
 	local disk=$1
 
-	if [[ $disk =~ /dev/nvme ]]; then
+	if [[ ${disk} =~ /dev/nvme ]]; then
 		echo "p"
 	else
 		echo ""
@@ -488,23 +494,23 @@ get_part_suffix() {
 partition_disk() {
 	local disk=$1
 	local part_suffix
-	part_suffix=$(get_part_suffix "$disk")
+	part_suffix=$(get_part_suffix "${disk}")
 
-	log "Particionando disco $disk..."
+	log "Particionando disco ${disk}..."
 
-	sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' "$disk" >>"$LOG_FILE" 2>&1 || error_exit "Falha ao criar partição BIOS Boot em $disk"
-	sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' "$disk" >>"$LOG_FILE" 2>&1 || error_exit "Falha ao criar partição EFI em $disk"
+	sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição BIOS Boot em ${disk}"
+	sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição EFI em ${disk}"
 
-	if [[ -n "$HDSIZE" ]]; then
+	if [[ -n "${HDSIZE}" ]]; then
 		local hdsize_bytes=$((HDSIZE * 1024 * 1024 * 1024 / 512))
-		sgdisk -n 3:0:+${hdsize_bytes} -t 3:BF00 -c 3:'ZFS Root' "$disk" >>"$LOG_FILE" 2>&1 || error_exit "Falha ao criar partição ZFS em $disk com hdsize"
+		sgdisk -n 3:0:+${hdsize_bytes} -t 3:BF00 -c 3:'ZFS Root' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição ZFS em ${disk} com hdsize"
 	else
-		sgdisk -n 3:0:0 -t 3:BF00 -c 3:'ZFS Root' "$disk" >>"$LOG_FILE" 2>&1 || error_exit "Falha ao criar partição ZFS em $disk"
+		sgdisk -n 3:0:0 -t 3:BF00 -c 3:'ZFS Root' "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao criar partição ZFS em ${disk}"
 	fi
 
-	partprobe "$disk" >>"$LOG_FILE" 2>&1 || error_exit "Falha ao executar partprobe em $disk"
+	partprobe "${disk}" >>"${LOG_FILE}" 2>&1 || error_exit "Falha ao executar partprobe em ${disk}"
 	sync
-	log "Particionamento de $disk concluído"
+	log "Particionamento de ${disk} concluído"
 }
 
 # Preparar todos os discos selecionados
@@ -513,40 +519,44 @@ prepare_disks() {
 
 	for disk in "${SELECTED_DISKS[@]}"; do
 		local disk_title
-		if [[ -n "$HDSIZE" ]]; then
-			disk_title="$disk (${HDSIZE}GB)"
+		if [[ -n "${HDSIZE}" ]]; then
+			disk_title="${disk} (${HDSIZE}GB)"
 		else
-			disk_title="$disk"
+			disk_title="${disk}"
 		fi
 
 		# Construir comando de particionamento baseado em HDSIZE
 		local partition_cmd
-		if [[ -n "$HDSIZE" ]]; then
+		if [[ -n "${HDSIZE}" ]]; then
 			local hdsize_bytes=$((HDSIZE * 1024 * 1024 * 1024 / 512))
 			partition_cmd="
-				wipefs -a '$disk'
-				sgdisk --zap-all '$disk'
-				sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' '$disk'
-				sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' '$disk'
-				sgdisk -n 3:0:+${hdsize_bytes} -t 3:BF00 -c 3:'ZFS Root' '$disk'
-				partprobe '$disk'
+				wipefs -a '${disk}'
+				sgdisk --zap-all '${disk}'
+				sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' '${disk}'
+				sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' '${disk}'
+				sgdisk -n 3:0:+${hdsize_bytes} -t 3:BF00 -c 3:'ZFS Root' '${disk}'
+				partprobe '${disk}'
 				sleep 2
 			"
 		else
 			partition_cmd="
-				wipefs -a '$disk'
-				sgdisk --zap-all '$disk'
-				sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' '$disk'
-				sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' '$disk'
-				sgdisk -n 3:0:0 -t 3:BF00 -c 3:'ZFS Root' '$disk'
-				partprobe '$disk'
+				wipefs -a '${disk}'
+				sgdisk --zap-all '${disk}'
+				sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' '${disk}'
+				sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' '${disk}'
+				sgdisk -n 3:0:0 -t 3:BF00 -c 3:'ZFS Root' '${disk}'
+				partprobe '${disk}'
 				sleep 2
 			"
 		fi
 
-		gum spin --spinner dot --title "Limpando e particionando $disk_title..." -- bash -c "$partition_cmd" || error_exit "Falha ao preparar disco $disk"
-		log "Disco $disk preparado com sucesso"
+		gum spin --spinner dot --title "Limpando e particionando ${disk_title}..." -- bash -c "${partition_cmd}" || error_exit "Falha ao preparar disco ${disk}"
+		log "Disco ${disk} preparado com sucesso"
 	done
+
+	# Atualizar symlinks de dispositivos após particionamento
+	udevadm trigger
+	udevadm settle
 
 	gum format -- "✓ Todos os discos preparados com sucesso!"
 	log "Preparação de discos concluída"
@@ -562,15 +572,15 @@ get_zfs_partitions() {
 
 	log "Gerando lista de partições para discos: ${SELECTED_DISKS[*]}"
 	for disk in "${SELECTED_DISKS[@]}"; do
-		[[ -z "$disk" ]] && continue
+		[[ -z "${disk}" ]] && continue
 		local part_suffix
-		part_suffix=$(get_part_suffix "$disk")
-		log "Disco: $disk, Sufixo: $part_suffix, Partição: ${disk}${part_suffix}3"
+		part_suffix=$(get_part_suffix "${disk}")
+		log "Disco: ${disk}, Sufixo: ${part_suffix}, Partição: ${disk}${part_suffix}3"
 		zfs_parts+=("${disk}${part_suffix}3")
 	done
 
 	for part in "${zfs_parts[@]}"; do
-		echo "$part"
+		echo "${part}"
 	done
 }
 
@@ -586,54 +596,54 @@ create_pool() {
 	log "Partições ZFS detectadas: ${zfs_parts[*]}"
 
 	# Verificar se já existe pool com esse nome e forçar exportação
-	if zpool list "$POOL_NAME" >/dev/null 2>&1; then
-		log "Pool $POOL_NAME já existe, iniciando procedimento de limpeza..."
-		gum format -- "> Pool $POOL_NAME existente detectado, limpando..."
+	if zpool list "${POOL_NAME}" >/dev/null 2>&1; then
+		log "Pool ${POOL_NAME} já existe, iniciando procedimento de limpeza..."
+		gum format -- "> Pool ${POOL_NAME} existente detectado, limpando..."
 
 		# 1. Sincronizar todos os buffers
 		sync
 
 		# 2. Desabilitar swap se estiver em ZFS
-		swapoff -a 2>>"$LOG_FILE" || true
+		swapoff -a 2>>"${LOG_FILE}" || true
 
 		# 3. Desmontagem recursiva do mountpoint com lazy unmount
-		if [[ -d "$MOUNT_POINT" ]]; then
-			log "Desmontando recursivamente $MOUNT_POINT (lazy)..."
-			umount -Rl "$MOUNT_POINT" 2>>"$LOG_FILE" || true
+		if [[ -d "${MOUNT_POINT}" ]]; then
+			log "Desmontando recursivamente ${MOUNT_POINT} (lazy)..."
+			umount -Rl "${MOUNT_POINT}" 2>>"${LOG_FILE}" || true
 			sleep 1
 		fi
 
 		# 4. Desmontar todos os datasets do pool (lazy)
-		for ds in $(zfs list -H -o name -r "$POOL_NAME" 2>/dev/null | tac); do
-			log "Desmontando dataset: $ds"
-			zfs unmount -f "$ds" 2>>"$LOG_FILE" || true
+		for ds in $(zfs list -H -o name -r "${POOL_NAME}" 2>/dev/null | tac); do
+			log "Desmontando dataset: ${ds}"
+			zfs unmount -f "${ds}" 2>>"${LOG_FILE}" || true
 		done
 
 		# 5. Identificar e logar processos usando o pool (apenas informativo)
 		if command -v lsof >/dev/null 2>&1; then
 			local busy_procs
-			busy_procs=$(lsof +D "$MOUNT_POINT" 2>/dev/null || true)
-			if [[ -n "$busy_procs" ]]; then
-				log "Processos ainda usando $MOUNT_POINT:"
-				log "$busy_procs"
+			busy_procs=$(lsof +D "${MOUNT_POINT}" 2>/dev/null || true)
+			if [[ -n "${busy_procs}" ]]; then
+				log "Processos ainda usando ${MOUNT_POINT}:"
+				log "${busy_procs}"
 			fi
 		fi
 
 		# 6. Tentar exportar com força
-		log "Tentando exportar pool $POOL_NAME..."
+		log "Tentando exportar pool ${POOL_NAME}..."
 		sync
 		sleep 1
-		if ! zpool export -f "$POOL_NAME" 2>>"$LOG_FILE"; then
+		if ! zpool export -f "${POOL_NAME}" 2>>"${LOG_FILE}"; then
 			log "Primeira tentativa de export falhou, aguardando e tentando novamente..."
 			sleep 2
 			sync
-			zpool export -f "$POOL_NAME" 2>>"$LOG_FILE" || true
+			zpool export -f "${POOL_NAME}" 2>>"${LOG_FILE}" || true
 		fi
 
 		# 7. Se ainda existir, destruir forçadamente
-		if zpool list "$POOL_NAME" >/dev/null 2>&1; then
+		if zpool list "${POOL_NAME}" >/dev/null 2>&1; then
 			log "Pool ainda existe após export, tentando destruir..."
-			zpool destroy -f "$POOL_NAME" 2>>"$LOG_FILE" || {
+			zpool destroy -f "${POOL_NAME}" 2>>"${LOG_FILE}" || {
 				log "ERRO CRÍTICO: Não foi possível remover o pool existente."
 				log "O pool pode estar sendo usado por outro processo."
 				log "Tente reiniciar o sistema live e executar novamente."
@@ -646,53 +656,53 @@ create_pool() {
 
 	# Limpar labels ZFS existentes nas partições
 	for part in "${zfs_parts[@]}"; do
-		zpool labelclear -f "$part" 2>>"$LOG_FILE" || true
+		zpool labelclear -f "${part}" 2>>"${LOG_FILE}" || true
 	done
 
-	gum format -- "### Criando Pool ZFS ($RAID_TOPOLOGY)"
+	gum format -- "### Criando Pool ZFS (${RAID_TOPOLOGY})"
 
 	local pool_cmd=(
 		zpool create -f
-		-o "ashift=$ASHIFT"
+		-o "ashift=${ASHIFT}"
 		-o autotrim=on
 		-O acltype=posixacl
 		-O canmount=off
-		-O "compression=$COMPRESSION"
+		-O "compression=${COMPRESSION}"
 		-O dnodesize=auto
 		-O normalization=formD
 		-O relatime=on
 		-O xattr=sa
 		-O mountpoint=none
-		-O "checksum=$CHECKSUM"
-		-O "copies=$COPIES"
-		-R "$MOUNT_POINT"
+		-O "checksum=${CHECKSUM}"
+		-O "copies=${COPIES}"
+		-R "${MOUNT_POINT}"
 	)
 
 	# Construir argumentos de topologia
 	local -a topology_args=()
-	case $RAID_TOPOLOGY in
+	case ${RAID_TOPOLOGY} in
 	Single)
-		topology_args+=("$POOL_NAME" "${zfs_parts[0]}")
+		topology_args+=("${POOL_NAME}" "${zfs_parts[0]}")
 		;;
 	Stripe)
-		topology_args+=("$POOL_NAME" "${zfs_parts[@]}")
+		topology_args+=("${POOL_NAME}" "${zfs_parts[@]}")
 		;;
 	Mirror)
-		topology_args+=("$POOL_NAME" mirror "${zfs_parts[@]}")
+		topology_args+=("${POOL_NAME}" mirror "${zfs_parts[@]}")
 		;;
 	RAIDZ1)
-		topology_args+=("$POOL_NAME" raidz1 "${zfs_parts[@]}")
+		topology_args+=("${POOL_NAME}" raidz1 "${zfs_parts[@]}")
 		;;
 	RAIDZ2)
-		topology_args+=("$POOL_NAME" raidz2 "${zfs_parts[@]}")
+		topology_args+=("${POOL_NAME}" raidz2 "${zfs_parts[@]}")
 		;;
 	RAIDZ3)
-		topology_args+=("$POOL_NAME" raidz3 "${zfs_parts[@]}")
+		topology_args+=("${POOL_NAME}" raidz3 "${zfs_parts[@]}")
 		;;
 	esac
 
 	# Adicionar opções de criptografia se habilitado
-	if [[ "$ENCRYPTION" == "on" ]]; then
+	if [[ "${ENCRYPTION}" == "on" ]]; then
 		log "Habilitando criptografia nativa no pool..."
 		pool_cmd+=(
 			-O encryption=aes-256-gcm
@@ -703,19 +713,22 @@ create_pool() {
 		# Executar com pipe para a senha
 		log "Executando zpool create com criptografia: ${pool_cmd[*]} ${topology_args[*]}"
 		sync
-		if ! echo "$ENCRYPTION_PASSPHRASE" | "${pool_cmd[@]}" "${topology_args[@]}" 2>>"$LOG_FILE"; then
-			error_exit "Falha ao criar pool ZFS criptografado. Verifique $LOG_FILE."
+		if ! echo "${ENCRYPTION_PASSPHRASE}" | "${pool_cmd[@]}" "${topology_args[@]}" 2>>"${LOG_FILE}"; then
+			error_exit "Falha ao criar pool ZFS criptografado. Verifique ${LOG_FILE}."
 		fi
 	else
 		log "Executando zpool create: ${pool_cmd[*]} ${topology_args[*]}"
 		sync
-		if ! "${pool_cmd[@]}" "${topology_args[@]}" 2>>"$LOG_FILE"; then
-			error_exit "Falha ao criar pool ZFS. Verifique $LOG_FILE."
+		if ! "${pool_cmd[@]}" "${topology_args[@]}" 2>>"${LOG_FILE}"; then
+			error_exit "Falha ao criar pool ZFS. Verifique ${LOG_FILE}."
 		fi
 	fi
 
-	log "Pool ZFS '$POOL_NAME' criado com sucesso em $RAID_TOPOLOGY"
-	gum format -- "✓ Pool ZFS criado: $POOL_NAME ($RAID_TOPOLOGY)"
+	# Configurar cachefile para garantir importação correta no boot
+	zpool set cachefile=/etc/zfs/zpool.cache "${POOL_NAME}" 2>>${LOG_FILE} || true
+
+	log "Pool ZFS '${POOL_NAME}' criado com sucesso em ${RAID_TOPOLOGY}"
+	gum format -- "✓ Pool ZFS criado: ${POOL_NAME} (${RAID_TOPOLOGY})"
 }
 
 # Criar hierarquia de datasets ZFS
@@ -723,47 +736,47 @@ create_datasets() {
 	gum format -- "### Criando Datasets ZFS"
 
 	log "Criando dataset ROOT..."
-	zfs create -o canmount=off -o mountpoint=none "$POOL_NAME/ROOT" 2>>"$LOG_FILE" ||
+	zfs create -o canmount=off -o mountpoint=none "${POOL_NAME}/ROOT" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao criar dataset ROOT"
 
 	log "Criando dataset ROOT/debian..."
-	zfs create -o canmount=noauto -o mountpoint=/ -o com.sun:auto-snapshot=true "$POOL_NAME/ROOT/debian" 2>>"$LOG_FILE" ||
+	zfs create -o canmount=noauto -o mountpoint=/ -o com.sun:auto-snapshot=true "${POOL_NAME}/ROOT/debian" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao criar dataset ROOT/debian"
 
-	zfs mount "$POOL_NAME/ROOT/debian" 2>>"$LOG_FILE" ||
+	zfs mount "${POOL_NAME}/ROOT/debian" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao montar dataset ROOT/debian"
 
 	log "Criando dataset home..."
-	zfs create -o mountpoint=/home -o com.sun:auto-snapshot=true "$POOL_NAME/home" 2>>"$LOG_FILE" ||
+	zfs create -o mountpoint=/home -o com.sun:auto-snapshot=true "${POOL_NAME}/home" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao criar dataset home"
 
 	log "Criando dataset home/root..."
-	zfs create -o mountpoint=/root "$POOL_NAME/home/root" 2>>"$LOG_FILE" ||
+	zfs create -o mountpoint=/root "${POOL_NAME}/home/root" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao criar dataset home/root"
 
 	log "Criando dataset var..."
-	zfs create -o mountpoint=/var -o canmount=off "$POOL_NAME/var" 2>>"$LOG_FILE" ||
+	zfs create -o mountpoint=/var -o canmount=off "${POOL_NAME}/var" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao criar dataset var"
 
 	log "Criando dataset var/log..."
-	zfs create -o com.sun:auto-snapshot=true "$POOL_NAME/var/log" 2>>"$LOG_FILE" ||
+	zfs create -o com.sun:auto-snapshot=true "${POOL_NAME}/var/log" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao criar dataset var/log"
 
 	log "Criando dataset var/cache..."
-	zfs create -o com.sun:auto-snapshot=false "$POOL_NAME/var/cache" 2>>"$LOG_FILE" ||
+	zfs create -o com.sun:auto-snapshot=false "${POOL_NAME}/var/cache" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao criar dataset var/cache"
 
 	log "Criando dataset var/tmp..."
-	zfs create -o com.sun:auto-snapshot=false "$POOL_NAME/var/tmp" 2>>"$LOG_FILE" ||
+	zfs create -o com.sun:auto-snapshot=false "${POOL_NAME}/var/tmp" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao criar dataset var/tmp"
 
 	log "Configurando propriedade de linha de comando para ZFSBootMenu..."
-	zfs set org.zfsbootmenu:commandline="quiet" "$POOL_NAME/ROOT/debian" 2>>"$LOG_FILE" ||
+	zfs set org.zfsbootmenu:commandline="quiet" "${POOL_NAME}/ROOT/debian" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao configurar commandline do ZFSBootMenu"
 
 	# Definir bootfs conforme documentação oficial - indica o BE padrão para boot
 	log "Definindo bootfs padrão..."
-	zpool set bootfs="$POOL_NAME/ROOT/debian" "$POOL_NAME" 2>>"$LOG_FILE" ||
+	zpool set bootfs="${POOL_NAME}/ROOT/debian" "${POOL_NAME}" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao definir bootfs"
 
 	gum format -- "✓ Datasets ZFS criados com sucesso!"
@@ -786,14 +799,14 @@ validate_squashfs() {
 
 	log "Buscando arquivo squashfs..."
 	for path in "${squashfs_paths[@]}"; do
-		if [[ -f "$path" ]]; then
-			found_path="$path"
-			log "Squashfs encontrado em: $found_path"
+		if [[ -f "${path}" ]]; then
+			found_path="${path}"
+			log "Squashfs encontrado em: ${found_path}"
 			break
 		fi
 	done
 
-	if [[ -z "$found_path" ]]; then
+	if [[ -z "${found_path}" ]]; then
 		gum format -- "
 ## ❌ Arquivo Squashfs Não Encontrado
 
@@ -819,22 +832,22 @@ ${squashfs_paths[*]}
 	fi
 
 	# Exportar caminho encontrado para uso em outras funções
-	export SQUASHFS_PATH="$found_path"
-	gum format -- "✓ Arquivo squashfs encontrado: $SQUASHFS_PATH"
+	export SQUASHFS_PATH="${found_path}"
+	gum format -- "✓ Arquivo squashfs encontrado: ${SQUASHFS_PATH}"
 }
 
 # Criar diretórios essenciais no sistema de destino
 create_essential_dirs() {
 	log "Criando diretórios essenciais..."
 
-	mkdir -p "$MOUNT_POINT" || error_exit "Falha ao criar diretório $MOUNT_POINT"
-	mkdir -p "$MOUNT_POINT/dev" || error_exit "Falha ao criar $MOUNT_POINT/dev"
-	mkdir -p "$MOUNT_POINT/proc" || error_exit "Falha ao criar $MOUNT_POINT/proc"
-	mkdir -p "$MOUNT_POINT/sys" || error_exit "Falha ao criar $MOUNT_POINT/sys"
-	mkdir -p "$MOUNT_POINT/run" || error_exit "Falha ao criar $MOUNT_POINT/run"
-	mkdir -p "$MOUNT_POINT/tmp" || error_exit "Falha ao criar $MOUNT_POINT/tmp"
+	mkdir -p "${MOUNT_POINT}" || error_exit "Falha ao criar diretório ${MOUNT_POINT}"
+	mkdir -p "${MOUNT_POINT}/dev" || error_exit "Falha ao criar ${MOUNT_POINT}/dev"
+	mkdir -p "${MOUNT_POINT}/proc" || error_exit "Falha ao criar ${MOUNT_POINT}/proc"
+	mkdir -p "${MOUNT_POINT}/sys" || error_exit "Falha ao criar ${MOUNT_POINT}/sys"
+	mkdir -p "${MOUNT_POINT}/run" || error_exit "Falha ao criar ${MOUNT_POINT}/run"
+	mkdir -p "${MOUNT_POINT}/tmp" || error_exit "Falha ao criar ${MOUNT_POINT}/tmp"
 
-	chmod 1777 "$MOUNT_POINT/tmp" || error_exit "Falha ao definir permissões em $MOUNT_POINT/tmp"
+	chmod 1777 "${MOUNT_POINT}/tmp" || error_exit "Falha ao definir permissões em ${MOUNT_POINT}/tmp"
 
 	log "Diretórios essenciais criados com sucesso"
 	gum format -- "✓ Diretórios essenciais criados"
@@ -842,11 +855,11 @@ create_essential_dirs() {
 
 # Extrair sistema do arquivo squashfs
 extract_system() {
-	log "Iniciando extração do sistema de $SQUASHFS_PATH..."
+	log "Iniciando extração do sistema de ${SQUASHFS_PATH}..."
 
 	# Verificar novamente se o arquivo existe (segurança)
-	if [[ ! -f "$SQUASHFS_PATH" ]]; then
-		error_exit "Arquivo squashfs desapareceu: $SQUASHFS_PATH"
+	if [[ ! -f "${SQUASHFS_PATH}" ]]; then
+		error_exit "Arquivo squashfs desapareceu: ${SQUASHFS_PATH}"
 	fi
 
 	gum format -- "### Extraindo Sistema"
@@ -857,23 +870,23 @@ extract_system() {
 	unsquashfs_log=$(mktemp)
 
 	if ! gum spin --spinner dot --title "Extraindo sistema (isso pode levar alguns minutos)..." -- \
-		bash -c "unsquashfs -f -n -d '$MOUNT_POINT' '$SQUASHFS_PATH' </dev/null >'$unsquashfs_log' 2>&1"; then
-		cat "$unsquashfs_log" >>"$LOG_FILE"
-		rm -f "$unsquashfs_log"
-		error_exit "Falha ao extrair sistema do squashfs. Verifique $LOG_FILE para detalhes."
+		bash -c "unsquashfs -f -n -d '${MOUNT_POINT}' '${SQUASHFS_PATH}' </dev/null >'${unsquashfs_log}' 2>&1"; then
+		cat "${unsquashfs_log}" >>"${LOG_FILE}"
+		rm -f "${unsquashfs_log}"
+		error_exit "Falha ao extrair sistema do squashfs. Verifique ${LOG_FILE} para detalhes."
 	fi
-	cat "$unsquashfs_log" >>"$LOG_FILE"
-	rm -f "$unsquashfs_log"
+	cat "${unsquashfs_log}" >>"${LOG_FILE}"
+	rm -f "${unsquashfs_log}"
 
-	log "Sistema extraído com sucesso em $MOUNT_POINT"
+	log "Sistema extraído com sucesso em ${MOUNT_POINT}"
 
 	# Verificar se a extração foi bem-sucedida checando arquivos críticos
-	local critical_files=("$MOUNT_POINT/bin/bash" "$MOUNT_POINT/etc/passwd" "$MOUNT_POINT/usr/bin")
+	local critical_files=("${MOUNT_POINT}/bin/bash" "${MOUNT_POINT}/etc/passwd" "${MOUNT_POINT}/usr/bin")
 	local missing_files=()
 
 	for file in "${critical_files[@]}"; do
-		if [[ ! -e "$file" ]]; then
-			missing_files+=("$file")
+		if [[ ! -e "${file}" ]]; then
+			missing_files+=("${file}")
 		fi
 	done
 
@@ -892,6 +905,11 @@ A extração pode ter falhado parcialmente.
 	fi
 
 	gum format -- "✓ Sistema extraído com sucesso!"
+
+	# Copiar zpool.cache para o sistema instalado (ajuda na importação no boot)
+	mkdir -p "${MOUNT_POINT}/etc/zfs"
+	cp /etc/zfs/zpool.cache "${MOUNT_POINT}/etc/zfs/" 2>>${LOG_FILE} || true
+	log "zpool.cache copiado para ${MOUNT_POINT}/etc/zfs/"
 }
 
 # =============================================================================
@@ -902,19 +920,19 @@ A extração pode ter falhado parcialmente.
 mount_chroot_filesystems() {
 	log "Montando sistemas de arquivos virtuais..."
 
-	if ! mount --make-private --rbind /dev "$MOUNT_POINT/dev" 2>>"$LOG_FILE"; then
+	if ! mount --make-private --rbind /dev "${MOUNT_POINT}/dev" 2>>"${LOG_FILE}"; then
 		error_exit "Falha ao montar /dev"
 	fi
 
-	if ! mount --make-private --rbind /proc "$MOUNT_POINT/proc" 2>>"$LOG_FILE"; then
+	if ! mount --make-private --rbind /proc "${MOUNT_POINT}/proc" 2>>"${LOG_FILE}"; then
 		error_exit "Falha ao montar /proc"
 	fi
 
-	if ! mount --make-private --rbind /sys "$MOUNT_POINT/sys" 2>>"$LOG_FILE"; then
+	if ! mount --make-private --rbind /sys "${MOUNT_POINT}/sys" 2>>"${LOG_FILE}"; then
 		error_exit "Falha ao montar /sys"
 	fi
 
-	if ! mount --make-private --rbind /run "$MOUNT_POINT/run" 2>>"$LOG_FILE"; then
+	if ! mount --make-private --rbind /run "${MOUNT_POINT}/run" 2>>"${LOG_FILE}"; then
 		error_exit "Falha ao montar /run"
 	fi
 
@@ -923,18 +941,16 @@ mount_chroot_filesystems() {
 }
 
 # Configurar hostname e /etc/hosts
-
-# Configurar hostname e /etc/hosts
 configure_hostname() {
-	log "Configurando hostname: $HOSTNAME"
+	log "Configurando hostname: ${HOSTNAME}"
 
-	if ! echo "$HOSTNAME" >"$MOUNT_POINT/etc/hostname" 2>>"$LOG_FILE"; then
+	if ! echo "${HOSTNAME}" >"${MOUNT_POINT}/etc/hostname" 2>>"${LOG_FILE}"; then
 		error_exit "Falha ao configurar /etc/hostname"
 	fi
 
-	if ! cat >"$MOUNT_POINT/etc/hosts" <<HOSTSEOF; then
+	if ! cat >"${MOUNT_POINT}/etc/hosts" <<HOSTSEOF; then
 127.0.0.1	localhost
-127.0.1.1	$HOSTNAME
+127.0.1.1	${HOSTNAME}
 ::1		localhost ip6-localhost ip6-loopback
 ff02::1	ip6-allnodes
 ff02::2	ip6-allrouters
@@ -943,20 +959,20 @@ HOSTSEOF
 	fi
 
 	log "Hostname configurado com sucesso"
-	gum format -- "✓ Hostname configurado: $HOSTNAME"
+	gum format -- "✓ Hostname configurado: ${HOSTNAME}"
 }
 # Configurar usuários e senhas
 configure_users() {
 	log "Configurando usuários..."
 
-	chroot "$MOUNT_POINT" /bin/bash -c "echo 'root:$ROOT_PASS' | chpasswd" 2>>"$LOG_FILE" ||
+	chroot "${MOUNT_POINT}" /bin/bash -c "echo 'root:${ROOT_PASS}' | chpasswd" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao definir senha do root"
 
-	chroot "$MOUNT_POINT" /bin/bash -c "useradd -m -s /bin/bash -G sudo,dip,plugdev,cdrom '$USERNAME'" 2>>"$LOG_FILE" ||
-		error_exit "Falha ao criar usuário $USERNAME"
+	chroot "${MOUNT_POINT}" /bin/bash -c "useradd -m -s /bin/bash -G sudo,dip,plugdev,cdrom '${USERNAME}'" 2>>"${LOG_FILE}" ||
+		error_exit "Falha ao criar usuário ${USERNAME}"
 
-	chroot "$MOUNT_POINT" /bin/bash -c "echo '$USERNAME:$USER_PASS' | chpasswd" 2>>"$LOG_FILE" ||
-		error_exit "Falha ao definir senha do usuário $USERNAME"
+	chroot "${MOUNT_POINT}" /bin/bash -c "echo '${USERNAME}:${USER_PASS}' | chpasswd" 2>>"${LOG_FILE}" ||
+		error_exit "Falha ao definir senha do usuário ${USERNAME}"
 
 	log "Usuários configurados com sucesso"
 	gum format -- "✓ Usuários configurados"
@@ -973,34 +989,34 @@ configure_locales() {
 		"en_US.UTF-8" \
 		--selected "pt_BR.UTF-8")
 
-	if [[ -z "$selected_locale" ]]; then
+	if [[ -z "${selected_locale}" ]]; then
 		selected_locale="pt_BR.UTF-8"
 	fi
 
-	if ! echo "$selected_locale UTF-8" >"$MOUNT_POINT/etc/locale.gen" 2>>"$LOG_FILE"; then
+	if ! echo "${selected_locale} UTF-8" >"${MOUNT_POINT}/etc/locale.gen" 2>>"${LOG_FILE}"; then
 		error_exit "Falha ao configurar /etc/locale.gen"
 	fi
 
-	chroot "$MOUNT_POINT" locale-gen 2>>"$LOG_FILE" ||
+	chroot "${MOUNT_POINT}" locale-gen 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao executar locale-gen"
 
 	# Extrair código de linguagem (pt_BR, en_US, etc)
 	local lang_code
-	lang_code=$(echo "$selected_locale" | cut -d. -f1)
+	lang_code=$(echo "${selected_locale}" | cut -d. -f1)
 
-	chroot "$MOUNT_POINT" /bin/bash -c "update-locale LANG=$selected_locale LANGUAGE=$lang_code" 2>>"$LOG_FILE" ||
+	chroot "${MOUNT_POINT}" /bin/bash -c "update-locale LANG=${selected_locale} LANGUAGE=${lang_code}" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao executar update-locale"
 
 	# Selecionar timezone
 	local selected_timezone
 	selected_timezone=$(gum input --prompt "Timezone:" --value "America/Sao_Paulo" --placeholder "America/Sao_Paulo")
 
-	if [[ -n "$selected_timezone" ]]; then
-		if ! echo "$selected_timezone" >"$MOUNT_POINT/etc/timezone" 2>>"$LOG_FILE"; then
+	if [[ -n "${selected_timezone}" ]]; then
+		if ! echo "${selected_timezone}" >"${MOUNT_POINT}/etc/timezone" 2>>"${LOG_FILE}"; then
 			error_exit "Falha ao configurar /etc/timezone"
 		fi
 
-		chroot "$MOUNT_POINT" dpkg-reconfigure -f noninteractive tzdata 2>>"$LOG_FILE" ||
+		chroot "${MOUNT_POINT}" dpkg-reconfigure -f noninteractive tzdata 2>>"${LOG_FILE}" ||
 			error_exit "Falha ao reconfigurar tzdata"
 	fi
 
@@ -1009,22 +1025,20 @@ configure_locales() {
 }
 
 # Configurar /etc/fstab
-
-# Configurar /etc/fstab
 configure_fstab() {
 	log "Configurando /etc/fstab..."
 
-	if ! cat >"$MOUNT_POINT/etc/fstab" <<FSTABEOF; then
+	if ! cat >"${MOUNT_POINT}/etc/fstab" <<FSTABEOF; then
 # /etc/fstab: arquivo de configuração de sistemas de arquivos estáticos
 #
 # Use 'blkid' para imprimir o UUID de dispositivos
 # <file system> <mount point>   <type>  <options>       <dump>  <pass>
-$POOL_NAME/ROOT/debian	/	zfs	defaults,noatime,xattr=sa	0	0
-$POOL_NAME/home		/home	zfs	defaults,noatime,xattr=sa	0	0
-$POOL_NAME/home/root	/root	zfs	defaults,noatime,xattr=sa	0	0
-$POOL_NAME/var/log	/var/log	zfs	defaults,noatime,xattr=sa	0	0
-$POOL_NAME/var/cache	/var/cache	zfs	defaults,noatime,xattr=sa	0	0
-$POOL_NAME/var/tmp	/var/tmp	zfs	defaults,noatime,xattr=sa	0	0
+${POOL_NAME}/ROOT/debian	/	zfs	defaults,noatime,xattr=sa	0	0
+${POOL_NAME}/home		/home	zfs	defaults,noatime,xattr=sa	0	0
+${POOL_NAME}/home/root	/root	zfs	defaults,noatime,xattr=sa	0	0
+${POOL_NAME}/var/log	/var/log	zfs	defaults,noatime,xattr=sa	0	0
+${POOL_NAME}/var/cache	/var/cache	zfs	defaults,noatime,xattr=sa	0	0
+${POOL_NAME}/var/tmp	/var/tmp	zfs	defaults,noatime,xattr=sa	0	0
 tmpfs		/tmp		tmpfs	defaults,nosuid,nodev,noexec,mode=1777	0	0
 FSTABEOF
 		error_exit "Falha ao configurar /etc/fstab"
@@ -1038,12 +1052,12 @@ generate_hostid() {
 	log "Gerando hostid..."
 
 	# Remover hostid existente (pode vir do squashfs) antes de gerar novo
-	if [[ -f "$MOUNT_POINT/etc/hostid" ]]; then
+	if [[ -f "${MOUNT_POINT}/etc/hostid" ]]; then
 		log "Removendo /etc/hostid existente..."
-		rm -f "$MOUNT_POINT/etc/hostid"
+		rm -f "${MOUNT_POINT}/etc/hostid"
 	fi
 
-	chroot "$MOUNT_POINT" zgenhostid 2>>"$LOG_FILE" ||
+	chroot "${MOUNT_POINT}" zgenhostid 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao gerar hostid com zgenhostid"
 
 	log "Hostid gerado"
@@ -1055,19 +1069,25 @@ update_initramfs() {
 	log "Habilitando serviços systemd ZFS..."
 
 	# Habilitar serviços ZFS conforme documentação oficial
-	chroot "$MOUNT_POINT" systemctl enable zfs.target 2>>"$LOG_FILE" || true
-	chroot "$MOUNT_POINT" systemctl enable zfs-import-cache 2>>"$LOG_FILE" || true
-	chroot "$MOUNT_POINT" systemctl enable zfs-mount 2>>"$LOG_FILE" || true
-	chroot "$MOUNT_POINT" systemctl enable zfs-import.target 2>>"$LOG_FILE" || true
+	chroot "${MOUNT_POINT}" systemctl enable zfs.target 2>>"${LOG_FILE}" || true
+	chroot "${MOUNT_POINT}" systemctl enable zfs-import-cache 2>>"${LOG_FILE}" || true
+	chroot "${MOUNT_POINT}" systemctl enable zfs-mount 2>>"${LOG_FILE}" || true
+	chroot "${MOUNT_POINT}" systemctl enable zfs-import.target 2>>"${LOG_FILE}" || true
 
 	log "Serviços systemd ZFS habilitados"
 
 	log "Regenerando initramfs..."
 
-	chroot "$MOUNT_POINT" update-initramfs -c -k all 2>>"$LOG_FILE" ||
+	chroot "${MOUNT_POINT}" update-initramfs -c -k all 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao regenerar initramfs"
 
 	log "Initramfs regenerado com sucesso"
+
+	# Configurar DKMS para rebuild automático do initramfs quando ZFS for atualizado
+	mkdir -p "${MOUNT_POINT}/etc/dkms"
+	echo "REMAKE_INITRD=yes" > "${MOUNT_POINT}/etc/dkms/zfs.conf"
+	log "DKMS configurado para rebuild automático do initramfs"
+
 	gum format -- "✓ Initramfs regenerado"
 }
 
@@ -1079,7 +1099,7 @@ update_initramfs() {
 get_efi_partition() {
 	local disk=${SELECTED_DISKS[0]}
 	local part_suffix
-	part_suffix=$(get_part_suffix "$disk")
+	part_suffix=$(get_part_suffix "${disk}")
 
 	echo "${disk}${part_suffix}2"
 }
@@ -1089,10 +1109,10 @@ format_esp() {
 	local efi_part
 	efi_part=$(get_efi_partition)
 
-	log "Formatando partição EFI: $efi_part"
+	log "Formatando partição EFI: ${efi_part}"
 
-	mkfs.vfat -F 32 -n EFI "$efi_part" 2>>"$LOG_FILE" ||
-		error_exit "Falha ao formatar partição EFI $efi_part"
+	mkfs.vfat -F 32 -n EFI "${efi_part}" 2>>"${LOG_FILE}" ||
+		error_exit "Falha ao formatar partição EFI ${efi_part}"
 
 	log "Partição EFI formatada com sucesso"
 	gum format -- "✓ Partição EFI formatada"
@@ -1103,13 +1123,13 @@ mount_esp() {
 	local efi_part
 	efi_part=$(get_efi_partition)
 
-	log "Montando ESP em $MOUNT_POINT/boot/efi..."
+	log "Montando ESP em ${MOUNT_POINT}/boot/efi..."
 
-	mkdir -p "$MOUNT_POINT/boot/efi" ||
-		error_exit "Falha ao criar diretório $MOUNT_POINT/boot/efi"
+	mkdir -p "${MOUNT_POINT}/boot/efi" ||
+		error_exit "Falha ao criar diretório ${MOUNT_POINT}/boot/efi"
 
-	mount "$efi_part" "$MOUNT_POINT/boot/efi" 2>>"$LOG_FILE" ||
-		error_exit "Falha ao montar ESP em $MOUNT_POINT/boot/efi"
+	mount "${efi_part}" "${MOUNT_POINT}/boot/efi" 2>>"${LOG_FILE}" ||
+		error_exit "Falha ao montar ESP em ${MOUNT_POINT}/boot/efi"
 
 	log "ESP montado com sucesso"
 	gum format -- "✓ ESP montado em /boot/efi"
@@ -1119,39 +1139,39 @@ mount_esp() {
 copy_zbm_binaries() {
 	log "Copiando binários do ZFSBootMenu..."
 
-	mkdir -p "$MOUNT_POINT/boot/efi/EFI/ZBM" ||
+	mkdir -p "${MOUNT_POINT}/boot/efi/EFI/ZBM" ||
 		error_exit "Falha ao criar diretório ZBM"
 
-	mkdir -p "$MOUNT_POINT/boot/efi/EFI/BOOT" ||
+	mkdir -p "${MOUNT_POINT}/boot/efi/EFI/BOOT" ||
 		error_exit "Falha ao criar diretório BOOT"
 
 	local zbm_binary=""
 
 	# Primeiro, tentar encontrar binário local (se incluído na ISO pelo download-zfsbootmenu.sh)
-	if [[ -d "$ZBM_BIN_DIR" ]]; then
-		log "Procurando binário ZBM local em $ZBM_BIN_DIR..."
+	if [[ -d "${ZBM_BIN_DIR}" ]]; then
+		log "Procurando binário ZBM local em ${ZBM_BIN_DIR}..."
 		log "Conteúdo do diretório:"
-		ls -la "$ZBM_BIN_DIR" >>"$LOG_FILE" 2>&1 || true
+		ls -la "${ZBM_BIN_DIR}" >>"${LOG_FILE}" 2>&1 || true
 
 		# Padrões em ordem de preferência (inclui formatos do download-zfsbootmenu.sh)
 		for pattern in "VMLINUZ.EFI" "VMLINUZ-RECOVERY.EFI" "release-x86_64.EFI" "recovery-x86_64.EFI" "vmlinuz-bootmenu" "vmlinuz.EFI" "zfsbootmenu.EFI" "*.EFI" "*.efi"; do
-			zbm_binary=$(find "$ZBM_BIN_DIR" -maxdepth 1 -name "$pattern" -type f 2>/dev/null | grep -vi signed | head -n 1)
-			[[ -n "$zbm_binary" ]] && break
+			zbm_binary=$(find "${ZBM_BIN_DIR}" -maxdepth 1 -name "${pattern}" -type f 2>/dev/null | grep -vi signed | head -n 1)
+			[[ -n "${zbm_binary}" ]] && break
 		done
 	fi
 
 	# Se não encontrou localmente, baixar da internet (conforme documentação oficial)
-	if [[ -z "$zbm_binary" ]]; then
+	if [[ -z "${zbm_binary}" ]]; then
 		log "Binário ZBM não encontrado localmente, baixando da URL oficial..."
 		gum format -- "> Baixando ZFSBootMenu de https://get.zfsbootmenu.org/efi..."
 
 		if command -v curl >/dev/null 2>&1; then
-			if curl -fsSL -o "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ.EFI" "https://get.zfsbootmenu.org/efi" 2>>"$LOG_FILE"; then
+			if curl -fsSL -o "${MOUNT_POINT}/boot/efi/EFI/ZBM/VMLINUZ.EFI" "https://get.zfsbootmenu.org/efi" 2>>"${LOG_FILE}"; then
 				log "ZFSBootMenu baixado com sucesso"
 				# Criar backup
-				cp "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ.EFI" "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ-BACKUP.EFI" 2>>"$LOG_FILE" || true
+				cp "${MOUNT_POINT}/boot/efi/EFI/ZBM/VMLINUZ.EFI" "${MOUNT_POINT}/boot/efi/EFI/ZBM/VMLINUZ-BACKUP.EFI" 2>>"${LOG_FILE}" || true
 				# Copiar para BOOT como fallback UEFI
-				cp "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ.EFI" "$MOUNT_POINT/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>>"$LOG_FILE" || true
+				cp "${MOUNT_POINT}/boot/efi/EFI/ZBM/VMLINUZ.EFI" "${MOUNT_POINT}/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>>"${LOG_FILE}" || true
 				log "Binários ZFSBootMenu instalados com sucesso"
 				gum format -- "✓ ZFSBootMenu baixado e instalado"
 				return 0
@@ -1163,21 +1183,21 @@ copy_zbm_binaries() {
 		fi
 
 		# Se chegou aqui, falhou
-		log "Conteúdo de $ZBM_BIN_DIR (se existir):"
-		ls -la "$ZBM_BIN_DIR" >>"$LOG_FILE" 2>&1 || echo "Diretório não existe" >>"$LOG_FILE"
+		log "Conteúdo de ${ZBM_BIN_DIR} (se existir):"
+		ls -la "${ZBM_BIN_DIR}" >>"${LOG_FILE}" 2>&1 || echo "Diretório não existe" >>"${LOG_FILE}"
 		error_exit "Binário ZFSBootMenu não encontrado e download falhou. Verifique conexão de rede."
 	fi
 
 	# Usar binário local encontrado
-	log "Binário ZBM encontrado localmente: $zbm_binary"
-	cp "$zbm_binary" "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ.EFI" 2>>"$LOG_FILE" ||
+	log "Binário ZBM encontrado localmente: ${zbm_binary}"
+	cp "${zbm_binary}" "${MOUNT_POINT}/boot/efi/EFI/ZBM/VMLINUZ.EFI" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao copiar binário ZBM"
 
 	# Criar backup
-	cp "$zbm_binary" "$MOUNT_POINT/boot/efi/EFI/ZBM/VMLINUZ-BACKUP.EFI" 2>>"$LOG_FILE" || true
+	cp "${zbm_binary}" "${MOUNT_POINT}/boot/efi/EFI/ZBM/VMLINUZ-BACKUP.EFI" 2>>"${LOG_FILE}" || true
 
 	# Copiar para BOOT como fallback UEFI
-	cp "$zbm_binary" "$MOUNT_POINT/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>>"$LOG_FILE" || true
+	cp "${zbm_binary}" "${MOUNT_POINT}/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>>"${LOG_FILE}" || true
 
 	log "Binários ZFSBootMenu copiados com sucesso"
 	gum format -- "✓ Binários ZFSBootMenu copiados"
@@ -1188,65 +1208,37 @@ configure_bios_boot() {
 	log "Configurando Boot BIOS (Legacy) com GRUB..."
 	gum format -- "### Configurando Boot BIOS (GRUB)"
 
-	# 1. Instalar GRUB
-	# O target i386-pc é para BIOS. --boot-directory define onde o grub colocará seus arquivos.
-	log "Instalando GRUB no disco ${SELECTED_DISKS[0]}..."
-	if ! grub-install --target=i386-pc --boot-directory="$MOUNT_POINT/boot" --recheck "${SELECTED_DISKS[0]}" 2>>"$LOG_FILE"; then
+	# 1. Instalar GRUB na ESP para evitar problemas com ZFS
+	# Usamos a ESP (FAT32) para armazenar os módulos e configuração do GRUB
+	local grub_boot_dir="${MOUNT_POINT}/boot/efi"
+
+	log "Instalando GRUB no disco ${SELECTED_DISKS[0]} (usando ESP)..."
+	if ! grub-install --target=i386-pc --boot-directory="${grub_boot_dir}" --recheck "${SELECTED_DISKS[0]}" 2>>"${LOG_FILE}"; then
 		error_exit "Falha ao instalar GRUB no disco ${SELECTED_DISKS[0]}. Verifique os logs."
 	fi
 
-	# 2. Copiar binários do ZFSBootMenu para local acessível pelo GRUB
-	local zbm_dest="$MOUNT_POINT/boot/zfsbootmenu"
-	mkdir -p "$zbm_dest"
-
-	# Usar binários locais identificados em ZBM_BIN_DIR
-	local vmlinuz_src="$ZBM_BIN_DIR/vmlinuz-bootmenu"
-	local initramfs_src="$ZBM_BIN_DIR/initramfs-bootmenu.img"
-
-	if [[ -f "$vmlinuz_src" ]]; then
-		cp "$vmlinuz_src" "$zbm_dest/" 2>>"$LOG_FILE"
-		cp "$initramfs_src" "$zbm_dest/" 2>>"$LOG_FILE"
-		log "Binários ZBM copiados para $zbm_dest"
-	else
-		# Fallback: tentar usar o unificado se o separado não existir (GRUB moderno consegue bootar EFI as vezes, mas arriscado)
-		# Melhor erro se não achar
-		log_warn "Binários separados (vmlinuz/initramfs) não encontrados. Tentando extrair ou usar EFI renomeado..."
-		# Verificando se existe algo
-		if [[ -f "$ZBM_BIN_DIR/VMLINUZ.EFI" ]]; then
-			log "Usando VMLINUZ.EFI como kernel (expermental para BIOS)..."
-			cp "$ZBM_BIN_DIR/VMLINUZ.EFI" "$zbm_dest/vmlinuz-bootmenu"
-			# ZBM EFI geralmente contém initramfs embutido, então não precisamos de initrd externo?
-			# Kexec precisa de initramfs. O EFI binário do ZNM é um kernel com initramfs embedded? Sim.
-			# Então grub linux command pode funcionar sem initrd.
-		else
-			error_exit "Binários do ZFSBootMenu não encontrados para instalação BIOS."
-		fi
-	fi
-
-	# 3. Criar grub.cfg minimalista para carregar ZBM
-	mkdir -p "$MOUNT_POINT/boot/grub"
-	cat <<EOF >"$MOUNT_POINT/boot/grub/grub.cfg"
+	# 2. Configurar grub.cfg
+	# O GRUB está na ESP, então a raiz (/) para o GRUB é a própria ESP.
+	# Apontamos para os binários unificados do ZBM que já estão na ESP.
+	mkdir -p "${grub_boot_dir}/grub"
+	cat <<EOF >"${grub_boot_dir}/grub/grub.cfg"
 set timeout=0
 set default=0
 
-# Carregar módulos necessários
+# Carregar módulos para leitura da ESP
 insmod part_gpt
-insmod zfs
-insmod ext2
-insmod part_msdos
+insmod fat
 
 menuentry "ZFSBootMenu" {
-    linux /boot/zfsbootmenu/vmlinuz-bootmenu ro quiet loglevel=0 zbm.skip-hostid
-    initrd /boot/zfsbootmenu/initramfs-bootmenu.img
+    linux /EFI/ZBM/VMLINUZ.EFI zbm.skip-hostid
 }
 
-menuentry "ZFSBootMenu (Recovery)" {
-    linux /boot/zfsbootmenu/vmlinuz-bootmenu ro quiet loglevel=0 zbm.skip-hostid zbm.prefer_recovery
-    initrd /boot/zfsbootmenu/initramfs-bootmenu.img
+menuentry "ZFSBootMenu (Backup)" {
+    linux /EFI/ZBM/VMLINUZ-BACKUP.EFI zbm.skip-hostid
 }
 EOF
 
-	log "Boot BIOS configurado com sucesso."
+	log "Boot BIOS configurado com sucesso (arquivos na ESP)."
 	gum format -- "✓ GRUB BIOS configurado"
 }
 
@@ -1268,17 +1260,22 @@ configure_efi() {
 		return 0
 	fi
 
+	# Montar efivarfs se não estiver montado (necessário em alguns ambientes live)
+	if [[ ! -d /sys/firmware/efi/efivars ]] || ! mountpoint -q /sys/firmware/efi/efivars 2>/dev/null; then
+		mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>>${LOG_FILE} || true
+	fi
+
 	# Criar entrada de backup primeiro (conforme documentação oficial)
 	efibootmgr -c -d "${SELECTED_DISKS[0]}" -p 2 \
 		-L "ZFSBootMenu (Backup)" \
 		-l "\EFI\ZBM\VMLINUZ-BACKUP.EFI" \
-		2>>"$LOG_FILE" || true
+		2>>"${LOG_FILE}" || true
 
 	# Criar entrada principal (será a primeira na ordem de boot)
 	efibootmgr -c -d "${SELECTED_DISKS[0]}" -p 2 \
 		-L "ZFSBootMenu" \
 		-l "\EFI\ZBM\VMLINUZ.EFI" \
-		2>>"$LOG_FILE" || {
+		2>>"${LOG_FILE}" || {
 		log "Falha ao configurar entrada EFI principal"
 		gum format -- "> ⚠️ Falha ao configurar entrada EFI - continue manualmente"
 		return 0
@@ -1292,7 +1289,7 @@ configure_efi() {
 configure_commandline() {
 	log "Configurando propriedade de commandline para ZFSBootMenu..."
 
-	zfs set org.zfsbootmenu:commandline="quiet loglevel=4" "$POOL_NAME/ROOT/debian" 2>>"$LOG_FILE" ||
+	zfs set org.zfsbootmenu:commandline="quiet loglevel=4" "${POOL_NAME}/ROOT/debian" 2>>"${LOG_FILE}" ||
 		error_exit "Falha ao configurar commandline do ZFSBootMenu"
 
 	log "Propriedade commandline configurada com sucesso"
@@ -1308,16 +1305,21 @@ create_snapshot() {
 	log "Criando snapshot inicial do sistema..."
 
 	# Verificar se snapshot já existe
-	if zfs list -t snapshot | grep -q "$POOL_NAME/ROOT/debian@install"; then
+	if zfs list -t snapshot | grep -q "${POOL_NAME}/ROOT/debian@install"; then
 		log "Snapshot @install já existe, removendo..."
-		zfs destroy -r "$POOL_NAME/ROOT/debian@install" 2>>"$LOG_FILE" || true
+		zfs destroy -r "${POOL_NAME}/ROOT/debian@install" 2>>"${LOG_FILE}" || true
 	fi
 
-	if ! zfs snapshot "$POOL_NAME/ROOT/debian@install" 2>>"$LOG_FILE"; then
+	if ! zfs snapshot "${POOL_NAME}/ROOT/debian@install" 2>>"${LOG_FILE}"; then
 		error_exit "Falha ao criar snapshot inicial"
 	fi
 
-	log "Snapshot inicial criado: $POOL_NAME/ROOT/debian@install"
+	log "Snapshot inicial criado: ${POOL_NAME}/ROOT/debian@install"
+
+	# Garantir que o dataset raiz não monte automaticamente (será montado pelo initramfs)
+	zfs set canmount=noauto "${POOL_NAME}/ROOT/debian" 2>>${LOG_FILE} || true
+	log "canmount=noauto definido em ${POOL_NAME}/ROOT/debian"
+
 	gum format -- "✓ Snapshot inicial criado"
 }
 
@@ -1327,36 +1329,36 @@ unmount_all() {
 
 	# Desmontar sistemas virtuais primeiro
 	for dir in dev proc sys run; do
-		if mountpoint -q "$MOUNT_POINT/$dir"; then
-			log "Desmontando $MOUNT_POINT/$dir"
-			umount -l "$MOUNT_POINT/$dir" 2>>"$LOG_FILE" || true
+		if mountpoint -q "${MOUNT_POINT}/${dir}"; then
+			log "Desmontando ${MOUNT_POINT}/${dir}"
+			umount -l "${MOUNT_POINT}/${dir}" 2>>"${LOG_FILE}" || true
 		fi
 	done
 
 	# Desmontar ESP se estiver montado
-	if mountpoint -q "$MOUNT_POINT/boot/efi"; then
-		log "Desmontando $MOUNT_POINT/boot/efi"
-		umount "$MOUNT_POINT/boot/efi" 2>>"$LOG_FILE" || true
+	if mountpoint -q "${MOUNT_POINT}/boot/efi"; then
+		log "Desmontando ${MOUNT_POINT}/boot/efi"
+		umount "${MOUNT_POINT}/boot/efi" 2>>"${LOG_FILE}" || true
 	fi
 
 	# Desmontar datasets ZFS em ordem inversa
-	if mountpoint -q "$MOUNT_POINT/var/tmp"; then
-		zfs umount "$POOL_NAME/var/tmp" 2>>"$LOG_FILE" || true
+	if mountpoint -q "${MOUNT_POINT}/var/tmp"; then
+		zfs umount "${POOL_NAME}/var/tmp" 2>>"${LOG_FILE}" || true
 	fi
-	if mountpoint -q "$MOUNT_POINT/var/cache"; then
-		zfs umount "$POOL_NAME/var/cache" 2>>"$LOG_FILE" || true
+	if mountpoint -q "${MOUNT_POINT}/var/cache"; then
+		zfs umount "${POOL_NAME}/var/cache" 2>>"${LOG_FILE}" || true
 	fi
-	if mountpoint -q "$MOUNT_POINT/var/log"; then
-		zfs umount "$POOL_NAME/var/log" 2>>"$LOG_FILE" || true
+	if mountpoint -q "${MOUNT_POINT}/var/log"; then
+		zfs umount "${POOL_NAME}/var/log" 2>>"${LOG_FILE}" || true
 	fi
-	if mountpoint -q "$MOUNT_POINT/home"; then
-		zfs umount "$POOL_NAME/home" 2>>"$LOG_FILE" || true
+	if mountpoint -q "${MOUNT_POINT}/home"; then
+		zfs umount "${POOL_NAME}/home" 2>>"${LOG_FILE}" || true
 	fi
-	if mountpoint -q "$MOUNT_POINT/home/root"; then
-		zfs umount "$POOL_NAME/home/root" 2>>"$LOG_FILE" || true
+	if mountpoint -q "${MOUNT_POINT}/home/root"; then
+		zfs umount "${POOL_NAME}/home/root" 2>>"${LOG_FILE}" || true
 	fi
-	if mountpoint -q "$MOUNT_POINT"; then
-		zfs umount "$POOL_NAME/ROOT/debian" 2>>"$LOG_FILE" || true
+	if mountpoint -q "${MOUNT_POINT}"; then
+		zfs umount "${POOL_NAME}/ROOT/debian" 2>>"${LOG_FILE}" || true
 	fi
 
 	sync
@@ -1368,29 +1370,29 @@ unmount_all() {
 export_pool() {
 	log "Exportando pool ZFS..."
 
-	if zpool export "$POOL_NAME" 2>>"$LOG_FILE"; then
-		log "Pool $POOL_NAME exportado com sucesso"
+	if zpool export "${POOL_NAME}" 2>>"${LOG_FILE}"; then
+		log "Pool ${POOL_NAME} exportado com sucesso"
 		gum format -- "✓ Pool ZFS exportado"
 	else
-		log "Aviso: Falha ao exportar pool $POOL_NAME"
+		log "Aviso: Falha ao exportar pool ${POOL_NAME}"
 		gum format -- "> ⚠️ Aviso: Não foi possível exportar o pool ZFS"
 	fi
 }
 
 # Configuração de perfis e pacotes adicionais
 configure_profile() {
-	gum format -- "### Configurando Perfil: **$PROFILE**"
-	log "Iniciando configuração do perfil $PROFILE..."
+	gum format -- "### Configurando Perfil: **${PROFILE}**"
+	log "Iniciando configuração do perfil ${PROFILE}..."
 
-	if [[ "$PROFILE" == "Workstation" ]]; then
+	if [[ "${PROFILE}" == "Workstation" ]]; then
 		log "Configurando Workstation (habilitando interface gráfica)..."
-		if chroot "$MOUNT_POINT" command -v sddm >/dev/null 2>&1; then
-			chroot "$MOUNT_POINT" systemctl enable sddm 2>>"$LOG_FILE" || true
+		if chroot "${MOUNT_POINT}" command -v sddm >/dev/null 2>&1; then
+			chroot "${MOUNT_POINT}" systemctl enable sddm 2>>"${LOG_FILE}" || true
 		fi
 	else
 		log "Configurando Server (modo console)..."
-		if chroot "$MOUNT_POINT" command -v sddm >/dev/null 2>&1; then
-			chroot "$MOUNT_POINT" systemctl disable sddm 2>>"$LOG_FILE" || true
+		if chroot "${MOUNT_POINT}" command -v sddm >/dev/null 2>&1; then
+			chroot "${MOUNT_POINT}" systemctl disable sddm 2>>"${LOG_FILE}" || true
 		fi
 	fi
 }
@@ -1398,26 +1400,25 @@ configure_profile() {
 # Exibir mensagem de sucesso e instruções
 success_message() {
 	local encryption_note=""
-	if [[ "$ENCRYPTION" == "on" ]]; then
+	if [[ "${ENCRYPTION}" == "on" ]]; then
 		encryption_note="\n\n> 🔐 **Nota:** O ZFSBootMenu solicitará sua passphrase para desbloquear o sistema."
 	fi
 
-	local msg
-	styled_box "$COLOR_SUCCESS" "🎉 INSTALAÇÃO CONCLUÍDA" \
+	styled_box "${COLOR_SUCCESS}" "🎉 INSTALAÇÃO CONCLUÍDA" \
 		"O **Aurora OS** foi instalado com sucesso!" \
 		"" \
 		"**Configuração Realizada:**" \
-		"• Hostname:  $HOSTNAME" \
-		"• Usuário:   $USERNAME" \
-		"• Perfil:    $PROFILE" \
-		"• Crypto:    $ENCRYPTION" \
+		"• Hostname:  ${HOSTNAME}" \
+		"• Usuário:   ${USERNAME}" \
+		"• Perfil:    ${PROFILE}" \
+		"• Crypto:    ${ENCRYPTION}" \
 		"" \
 		"**Próximos Passos:**" \
 		"1. Remova a mídia de instalação" \
 		"2. Reinicie o sistema" \
 		"3. Selecione 'Aurora OS' no boot" \
 		"" \
-		"$encryption_note" \
+		"${encryption_note}" \
 		"" \
 		"**Snapshots:**" \
 		"Use ZFSBootMenu para gerenciar snapshots e rollbacks."
@@ -1430,7 +1431,7 @@ success_message() {
 # =============================================================================
 
 main() {
-	log "=== Iniciando $SCRIPT_NAME v$SCRIPT_VERSION ==="
+	log "=== Iniciando ${SCRIPT_NAME} v${SCRIPT_VERSION} ==="
 
 	# Fase 1: Pré-requisitos
 	preflight_checks
