@@ -2,12 +2,10 @@
 
 # --- Base do Servidor ---
 # (Poderia ser incluída via macro se o live-build suportar, mas listamos o essencial aqui)
-htop
 sudo
 curl
 wget
 git
-vim
 nano
 build-essential
 docker.io
