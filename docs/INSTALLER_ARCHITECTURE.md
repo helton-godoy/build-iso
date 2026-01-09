@@ -20,7 +20,7 @@ Este documento descreve a arquitetura e abordagem técnica do instalador **Auror
 | Velocidade    | 2-3x mais rápido | Mais lento               |
 | Consistência  | Imagem imutável  | Varia com estado do Live |
 | Arquivos temp | Não copia        | Pode copiar              |
-| Offline       | ✅ Sim            | ✅ Sim                    |
+| Offline       | ✅ Sim           | ✅ Sim                   |
 
 **Implementação:**
 
@@ -205,23 +205,19 @@ install-aurora.sh
 ### Projetos Analisados
 
 1. **[pve-zol](https://github.com/stackcoder/pve-zol)** - Base principal
-   
    - Script Bash para Debian
    - debootstrap + chroot
    - Suporte a múltiplos discos
 
 2. **[Proxmox VE Installer](https://github.com/proxmox/pve-installer)** - Referência para opções ZFS
-   
    - Opções ashift, hdsize, compression
    - Topologias RAID-Z
 
 3. **[OpenZFS Debian Root on ZFS](https://openzfs.github.io/openzfs-docs/)** - Documentação oficial
-   
    - Hierarquia de datasets
    - Configuração de boot
 
 4. **[Calamares ZFS Integration](https://github.com/wlfogle/calamares-zfs-integration)** - Referência futura
-   
    - Módulos Python para GUI
    - Post-installation hooks
 

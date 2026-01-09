@@ -47,4 +47,5 @@ docker/dist/live-image-amd64.hybrid.iso
 - **Configuração live-build:** `docker/config/`
 
 ---
+
 Última atualização: 08/01/2026

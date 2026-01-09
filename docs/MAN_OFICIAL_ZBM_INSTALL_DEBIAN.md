@@ -336,13 +336,13 @@ Ao reiniciar:
 
 ### Teclas Úteis no ZFSBootMenu
 
-| Tecla | Ação |
-|-------|------|
-| `Enter` | Boot no BE selecionado |
-| `e` | Editar linha de comando do kernel |
-| `p` | Pool status |
-| `r` | Recovery shell |
-| `Ctrl+D` | Snapshot diff |
+| Tecla    | Ação                              |
+| -------- | --------------------------------- |
+| `Enter`  | Boot no BE selecionado            |
+| `e`      | Editar linha de comando do kernel |
+| `p`      | Pool status                       |
+| `r`      | Recovery shell                    |
+| `Ctrl+D` | Snapshot diff                     |
 
 ---
 

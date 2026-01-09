@@ -80,7 +80,7 @@ flowchart TD
 Diferenciação clara entre o que é necessário para _construir_ e o que vai na _mídia final_.
 
 | Categoria        | Pacotes no Docker (Build Factory)      | Pacotes na ISO Final (Runtime)      | Motivo                                                                           |
-|:---------------- |:-------------------------------------- |:----------------------------------- |:-------------------------------------------------------------------------------- |
+| :--------------- | :------------------------------------- | :---------------------------------- | :------------------------------------------------------------------------------- |
 | **Kernel**       | `linux-headers-amd64`                  | `linux-image-amd64`                 | Headers são necessários apenas para compilar o módulo.                           |
 | **ZFS**          | `zfs-dkms`, `dkms`                     | `zfsutils-linux`, `libzfs*`         | O módulo `.ko` gerado é persistido; o código-fonte pode ser removido (opcional). |
 | **Compiladores** | `build-essential`, `gcc`, `make`       | _Nenhum_                            | Economia de espaço e segurança (reduz superfície de ataque).                     |

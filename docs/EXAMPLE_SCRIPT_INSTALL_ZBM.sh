@@ -20,7 +20,7 @@ MIRROR="http://deb.debian.org/debian"
 # VERIFICAÇÕES INICIAIS
 # =============================================================================
 
-if [ "$(id -u)" -ne 0 ]; then
+if [[ "$(id -u)" -ne 0 ]]; then
 	echo "Este script deve ser executado como root (sudo -i)."
 	exit 1
 fi
@@ -32,20 +32,20 @@ apt-get update
 apt-get install -y debootstrap gdisk dkms zfsutils-linux curl dosfstools efibootmgr
 
 # Seleção do disco se não definido
-if [ -z "$TARGET_DISK" ]; then
+if [[ -z ${TARGET_DISK} ]]; then
 	echo "-----------------------------------------------------"
 	lsblk -d -o NAME,MODEL,SIZE,TYPE,TRAN
 	echo "-----------------------------------------------------"
 	read -p "Digite o caminho completo do disco alvo (ex: /dev/sda): " TARGET_DISK
 fi
 
-if [ ! -b "$TARGET_DISK" ]; then
-	echo "Erro: Disco $TARGET_DISK não encontrado."
+if [[ ! -b ${TARGET_DISK} ]]; then
+	echo "Erro: Disco ${TARGET_DISK} não encontrado."
 	exit 1
 fi
 
 echo "!!! ATENÇÃO !!!"
-echo "O disco $TARGET_DISK será COMPLETAMENTE APAGADO."
+echo "O disco ${TARGET_DISK} será COMPLETAMENTE APAGADO."
 echo "Você tem 10 segundos para cancelar (Ctrl+C)."
 sleep 10
 
@@ -55,7 +55,7 @@ read -s -p "Digite a senha para criptografia do disco (ZFS): " ZFS_PASS
 echo
 read -s -p "Confirme a senha: " ZFS_PASS_CONFIRM
 echo
-if [ "$ZFS_PASS" != "$ZFS_PASS_CONFIRM" ]; then
+if [[ ${ZFS_PASS} != "${ZFS_PASS_CONFIRM}" ]]; then
 	echo "As senhas não conferem."
 	exit 1
 fi
@@ -65,20 +65,20 @@ fi
 # =============================================================================
 
 echo ">>> Limpando disco..."
-wipefs -a "$TARGET_DISK"
-sgdisk --zap-all "$TARGET_DISK"
+wipefs -a "${TARGET_DISK}"
+sgdisk --zap-all "${TARGET_DISK}"
 
 echo ">>> Criando partições..."
 # Partição 1: EFI (1GB)
-sgdisk -n 1:0:+1G -t 1:EF00 "$TARGET_DISK"
+sgdisk -n 1:0:+1G -t 1:EF00 "${TARGET_DISK}"
 # Partição 2: ZFS (Resto)
-sgdisk -n 2:0:0 -t 2:BF01 "$TARGET_DISK"
+sgdisk -n 2:0:0 -t 2:BF01 "${TARGET_DISK}"
 
 # Aguardar o sistema reconhecer as partições
 sleep 2
 
 # Identificar partições (suporta nvme0n1p1 e sda1)
-if [[ "$TARGET_DISK" == *"nvme"* ]]; then
+if [[ ${TARGET_DISK} == *"nvme"* ]]; then
 	PART1="${TARGET_DISK}p1"
 	PART2="${TARGET_DISK}p2"
 else
@@ -92,7 +92,7 @@ fi
 
 echo ">>> Criando Pool 'zroot'..."
 # Echo da senha para o zpool create
-echo "$ZFS_PASS" | zpool create -f -o ashift=12 \
+echo "${ZFS_PASS}" | zpool create -f -o ashift=12 \
 	-O compression=lz4 \
 	-O acltype=posixacl \
 	-O xattr=sa \
@@ -105,7 +105,7 @@ echo "$ZFS_PASS" | zpool create -f -o ashift=12 \
 	-O keylocation=prompt \
 	-O keyformat=passphrase \
 	-R /mnt \
-	zroot "$PART2"
+	zroot "${PART2}"
 
 echo ">>> Criando Datasets..."
 zfs create -o mountpoint=none zroot/ROOT
@@ -118,7 +118,7 @@ zpool set bootfs=zroot/ROOT/debian zroot
 echo ">>> Exportando e reimportando para verificar montagem..."
 zpool export zroot
 zpool import -N -R /mnt zroot
-echo "$ZFS_PASS" | zfs load-key zroot
+echo "${ZFS_PASS}" | zfs load-key zroot
 zfs mount zroot/ROOT/debian
 zfs mount -a
 
@@ -127,7 +127,7 @@ zfs mount -a
 # =============================================================================
 
 echo ">>> Executando Debootstrap..."
-debootstrap bookworm /mnt "$MIRROR"
+debootstrap bookworm /mnt "${MIRROR}"
 
 # =============================================================================
 # CONFIGURAÇÃO PRÉ-CHROOT
@@ -147,10 +147,10 @@ mount --make-private --bind /sys /mnt/sys
 mount --make-private --bind /run /mnt/run
 
 # Preparar partição EFI
-mkfs.vfat -F32 "$PART1"
+mkfs.vfat -F32 "${PART1}"
 mkdir -p /mnt/boot/efi
-mount "$PART1" /mnt/boot/efi
-EFI_UUID=$(blkid -s UUID -o value "$PART1")
+mount "${PART1}" /mnt/boot/efi
+EFI_UUID=$(blkid -s UUID -o value "${PART1}")
 
 # =============================================================================
 # CONFIGURAÇÃO DENTRO DO CHROOT
@@ -162,11 +162,11 @@ chroot /mnt /bin/bash <<EOF
 set -e
 
 # Configurar Hostname
-echo "$MY_HOSTNAME" > /etc/hostname
-echo "127.0.1.1 $MY_HOSTNAME" >> /etc/hosts
+echo "${MY_HOSTNAME}" > /etc/hostname
+echo "127.0.1.1 ${MY_HOSTNAME}" >> /etc/hosts
 
 # Configurar Fstab (EFI)
-echo "UUID=$EFI_UUID /boot/efi vfat umask=0077 0 1" >> /etc/fstab
+echo "UUID=${EFI_UUID} /boot/efi vfat umask=0077 0 1" >> /etc/fstab
 
 # Atualizar repositórios e instalar locales
 apt-get update
@@ -214,7 +214,7 @@ EOF
 # =============================================================================
 
 echo ">>> Adicionando entrada UEFI..."
-efibootmgr -c -d "$TARGET_DISK" \
+efibootmgr -c -d "${TARGET_DISK}" \
 	-p 1 \
 	-L "ZFSBootMenu" \
 	-l '\EFI\ZBM\VMLINUZ.EFI'

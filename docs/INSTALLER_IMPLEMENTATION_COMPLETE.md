@@ -108,17 +108,17 @@ O instalador Aurora OS foi **completamente implementado** seguindo o roadmap def
 
 ### Testes Automatizados: ✅ Todos Passaram
 
-| Categoria           | Status | Detalhes                                                |
-| ------------------- | ------ | ------------------------------------------------------- |
+| Categoria           | Status  | Detalhes                                 |
+| ------------------- | ------- | ---------------------------------------- |
 | Presença do arquivo | ✅ PASS | Arquivo existe em include/usr/local/bin/ |
-| Permissões          | ✅ PASS | Executável                                              |
-| Shebang             | ✅ PASS | #!/usr/bin/env bash                                     |
-| Configuração segura | ✅ PASS | set -euo pipefail                                       |
-| Sintaxe Bash        | ✅ PASS | bash -n sem erros                                       |
-| Shellcheck          | ✅ PASS | Zero warnings                                           |
-| Módulos principais  | ✅ PASS | Todos os 8 módulos implementados                        |
-| Decisões de design  | ✅ PASS | Unsquashfs, Gum, ZFSBootMenu                            |
-| ISO                 | ✅ PASS | ISO construída (376 MB)                                 |
+| Permissões          | ✅ PASS | Executável                               |
+| Shebang             | ✅ PASS | #!/usr/bin/env bash                      |
+| Configuração segura | ✅ PASS | set -euo pipefail                        |
+| Sintaxe Bash        | ✅ PASS | bash -n sem erros                        |
+| Shellcheck          | ✅ PASS | Zero warnings                            |
+| Módulos principais  | ✅ PASS | Todos os 8 módulos implementados         |
+| Decisões de design  | ✅ PASS | Unsquashfs, Gum, ZFSBootMenu             |
+| ISO                 | ✅ PASS | ISO construída (376 MB)                  |
 
 ### Total de Testes: 20+
 
@@ -237,14 +237,14 @@ Instalação (sem internet)
 
 | Métrica                    | Valor      | Status |
 | -------------------------- | ---------- | ------ |
-| Linhas de código           | 1.138      | ✅      |
-| Funções implementadas      | 30+        | ✅      |
-| Fases concluídas           | 8/8 (100%) | ✅      |
-| Testes automatizados       | 20+        | ✅      |
-| Taxa de sucesso dos testes | 100%       | ✅      |
-| Erros de sintaxe           | 0          | ✅      |
-| Warnings shellcheck        | 0          | ✅      |
-| Erros LSP                  | 0          | ✅      |
+| Linhas de código           | 1.138      | ✅     |
+| Funções implementadas      | 30+        | ✅     |
+| Fases concluídas           | 8/8 (100%) | ✅     |
+| Testes automatizados       | 20+        | ✅     |
+| Taxa de sucesso dos testes | 100%       | ✅     |
+| Erros de sintaxe           | 0          | ✅     |
+| Warnings shellcheck        | 0          | ✅     |
+| Erros LSP                  | 0          | ✅     |
 
 ---
 
@@ -273,8 +273,8 @@ Instalação (sem internet)
 
 Os seguintes testes requerem execução manual em VM devido à necessidade de interação humana:
 
-| Teste                  | Prioridade | Status         |
-| ---------------------- | ---------- | -------------- |
+| Teste                  | Prioridade | Status          |
+| ---------------------- | ---------- | --------------- |
 | Teste UEFI single disk | Alta       | ⬜ Não iniciado |
 | Teste UEFI mirror      | Alta       | ⬜ Não iniciado |
 | Teste UEFI raidz1      | Alta       | ⬜ Não iniciado |
@@ -360,8 +360,8 @@ Todos os critérios de aceite definidos no roadmap foram atendidos:
 
 ### Critérios de Qualidade Enterprise Premium Gold
 
-| Categoria        | Requisito           | Status                            |
-| ---------------- | ------------------- | --------------------------------- |
+| Categoria        | Requisito           | Status                             |
+| ---------------- | ------------------- | ---------------------------------- |
 | Confiabilidade   | Zero crashes        | ✅ 100% das instalações            |
 | Performance      | Instalação rápida   | ✅ unsquashfs 2-3x mais rápido     |
 | Usabilidade      | Interface intuitiva | ✅ Gum TUI moderno                 |
