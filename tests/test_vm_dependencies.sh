@@ -5,8 +5,8 @@ echo "Iniciando teste de detecção de dependências da VM..."
 
 # O script deve aceitar uma flag --check-deps e retornar 0 se tudo estiver ok
 if ./tools/test-iso.sh --check-deps; then
-    echo "PASS: Dependências detectadas corretamente."
+	echo "PASS: Dependências detectadas corretamente."
 else
-    echo "FAIL: Falha na detecção de dependências ou flag não suportada."
-    exit 1
+	echo "FAIL: Falha na detecção de dependências ou flag não suportada."
+	exit 1
 fi
