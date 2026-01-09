@@ -205,10 +205,10 @@ erDiagram
 
 > **Nota sobre propriedades ZFS com namespace:**
 > O diagrama acima usa nomes simplificados para evitar problemas de parsing no Mermaid ER. As propriedades reais do ZFS que usam namespace são:
-> 
+>
 > - `zbm_commandline` → equivalente a `org.zfsbootmenu:commandline` (parâmetros do kernel para ZFSBootMenu)
 > - `sun_auto_snapshot` → equivalente a `com.sun:auto-snapshot` (habilita snapshots automáticos)
-> 
+>
 > Estas propriedades podem ser configuradas via `zfs set` após a criação dos datasets.
 
 ### 3.4 Particionamento Híbrido UEFI+BIOS
