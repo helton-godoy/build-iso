@@ -8,6 +8,31 @@
 set -euo pipefail
 
 # =============================================================================
+# CONFIGURAÇÕES DE AMBIENTE AVANÇADAS
+# =============================================================================
+
+# Suporte a cores, emojis e mouse no terminal
+export TERM="xterm-256color"
+export COLORTERM="truecolor"
+export FORCE_COLOR="1"
+export CLICOLOR="1"
+export CLICOLOR_FORCE="1"
+
+# Configurar locale para suporte a UTF-8/emojis
+export LANG="pt_BR.UTF-8"
+export LC_ALL="pt_BR.UTF-8"
+export LC_CTYPE="pt_BR.UTF-8"
+
+# Framebuffer e suporte gráfico no console
+export FRAMEBUFFER="true"
+export FBTERM="true"
+
+# Configurações do Gum para melhor renderização
+export GUM_FORMAT="markdown"
+export GUM_STYLE="border.rounded"
+export GUM_CHOOSE="cursor.prefix=➤"
+
+# =============================================================================
 # CONFIGURAÇÕES GLOBAIS
 # =============================================================================
 
@@ -40,6 +65,64 @@ readonly COLOR_WARNING="#ffaf00"   # Laranja
 readonly COLOR_INFO="#5fafff"      # Azul Claro
 readonly COLOR_BORDER="#afafff"    # Borda Suave
 readonly UI_WIDTH=70
+
+# =============================================================================
+# MÓDULO: DETECÇÃO DE AMBIENTE
+# =============================================================================
+
+# Detectar capacidades do terminal e otimizar ambiente
+detect_terminal_capabilities() {
+	log "Detectando capacidades do terminal..."
+	
+	# Detectar suporte a cores
+	if [[ -n "${COLORTERM:-}" ]] || [[ "${TERM:-}" == *256color* ]] || tput colors >/dev/null 2>&1; then
+		export HAS_COLOR="true"
+		log "✓ Suporte a cores detectado"
+	else
+		export HAS_COLOR="false"
+		log "⚠ Terminal sem suporte a cores"
+	fi
+	
+	# Detectar suporte a UTF-8/emojis
+	if locale -k LC_CTYPE 2>/dev/null | grep -q "charmap.*UTF-8"; then
+		export HAS_UTF8="true"
+		log "✓ Suporte a UTF-8/emojis detectado"
+	else
+		export HAS_UTF8="false"
+		log "⚠ Terminal sem suporte a UTF-8"
+	fi
+	
+	# Detectar suporte a mouse
+	if command -v gpm >/dev/null 2>&1 && [[ -d /dev/input/mice ]]; then
+		export HAS_MOUSE="true"
+		log "✓ Suporte a mouse (GPM) detectado"
+	else
+		export HAS_MOUSE="false"
+		log "⚠ Mouse não disponível"
+	fi
+	
+	# Detectar framebuffer
+	if [[ -d /dev/fb0 ]] || [[ -n "${FRAMEBUFFER:-}" ]]; then
+		export HAS_FRAMEBUFFER="true"
+		log "✓ Framebuffer detectado"
+	else
+		export HAS_FRAMEBUFFER="false"
+		log "⚠ Framebuffer não disponível"
+	fi
+	
+	# Otimizar configurações do Gum baseado nas capacidades
+	if [[ "${HAS_COLOR}" == "true" ]]; then
+		export GUM_STYLE="border.rounded"
+	else
+		export GUM_STYLE="border.normal"
+	fi
+	
+	if [[ "${HAS_UTF8}" == "false" ]]; then
+		# Desabilitar emojis se não houver suporte UTF-8
+		export NO_EMOJIS="true"
+		log "⚠ Emojis desabilitados (sem UTF-8)"
+	fi
+}
 
 # =============================================================================
 # MÓDULO: UTILITÁRIOS DE INTERFACE
@@ -240,6 +323,7 @@ preflight_checks() {
 	log "Executando verificações de pré-requisitos..."
 
 	check_root
+	detect_terminal_capabilities
 	load_zfs_module
 	check_zfs_commands
 	test_zpool
@@ -1310,6 +1394,12 @@ configure_bios_boot() {
 	# 2. Instalar Syslinux na ESP
 	# O comando syslinux instala o ldlinux.sys na partição FAT32 sem formatá-la
 	log "Instalando Syslinux na partição ${esp_part}..."
+	
+	# Verificar versão do Syslinux para compatibilidade
+	local syslinux_version
+	syslinux_version=$(syslinux --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -n1 || echo "unknown")
+	log "Versão do Syslinux detectada: ${syslinux_version}"
+	
 	if ! syslinux --install "${esp_part}" 2>>"${LOG_FILE}"; then
 		error_exit "Falha ao instalar Syslinux na partição ${esp_part}"
 	fi
@@ -1320,20 +1410,25 @@ configure_bios_boot() {
 	
 	log "Criando configuração ${syslinux_cfg}..."
 	
-	# Usamos os componentes separados do ZBM para garantir compatibilidade máxima em modo legado
-	# Caminhos são relativos à raiz da partição ESP, então /zbm/vmlinuz funciona se estiver em /boot/efi/zbm/
-	
-	# Verificar se diretório ZBM existe na ESP e copiar componentes se necessário
-	# (A função copy_zbm_binaries já deve ter cuidado da cópia dos binários .EFI,
-	# mas para syslinux precisamos garantir vmlinuz e initramfs separados se o .EFI não for bootável direto pelo syslinux)
-	
-	# ATENÇÃO: O binário VMLINUZ.EFI do ZFSBootMenu é um kernel stub EFI.
-	# Syslinux (versões recentes) consegue bootar kernels modernos, mas para segurança,
-	# vamos usar os componentes separados que baixamos/copiamos.
-	# Vamos checar se configure_bios_boot precisa copiar esses arquivos.
-	
+	# Verificar compatibilidade de componentes ZBM para Syslinux
 	local zbm_dir="${MOUNT_POINT}/boot/efi/zbm"
 	mkdir -p "${zbm_dir}"
+	
+	# Verificar se temos componentes separados ou apenas .EFI
+	local vmlinuz_src="${MOUNT_POINT}/boot/efi/zbm/vmlinuz"
+	local initramfs_src="${MOUNT_POINT}/boot/efi/zbm/initramfs.img"
+	local efi_stub="${MOUNT_POINT}/boot/efi/zbm/VMLINUZ.EFI"
+	
+	if [[ ! -f "${vmlinuz_src}" ]] && [[ ! -f "${initramfs_src}" ]] && [[ -f "${efi_stub}" ]]; then
+		log "⚠ Apenas EFI stub encontrado. Syslinux pode não conseguir bootar."
+		log "💡 Tentando extrair componentes do EFI stub..."
+		
+		# Tentativa de extração (fallback)
+		if command -v objcopy >/dev/null 2>&1; then
+			objcopy -O binary --only-section=.linux "${efi_stub}" "${vmlinuz_src}" 2>/dev/null || true
+			objcopy -O binary --only-section=.initramfs "${efi_stub}" "${initramfs_src}" 2>/dev/null || true
+		fi
+	fi
 
 	# Tentar copiar componentes separados da fonte original
 	local vmlinuz_src="${ZBM_BIN_DIR}/vmlinuz-bootmenu"
@@ -1357,15 +1452,54 @@ configure_bios_boot() {
 	fi
 
 	cat <<EOF >"${syslinux_cfg}"
+# Configuração Syslinux para Aurora OS (BIOS Legacy)
 UI menu.c32
 PROMPT 0
-TIMEOUT 0
+TIMEOUT 50
 
+# Entrada principal - ZFSBootMenu
 LABEL zfsbootmenu
-    MENU LABEL ZFSBootMenu
+    MENU LABEL ZFSBootMenu (Principal)
     LINUX /zbm/vmlinuz
     INITRD /zbm/initramfs.img
     APPEND zbm.prefer_policy=hostid quiet loglevel=0
+    DEFAULT
+
+# Entrada de emergência - Console direto
+LABEL emergency
+    MENU LABEL Emergência (Console)
+    LINUX /zbm/vmlinuz
+    INITRD /zbm/initramfs.img
+    APPEND zbm.prefer_policy=hostid quiet loglevel=0 zbm.skip
+    TEXT HELP
+    Inicia ZFSBootMenu em modo console para recuperação.
+    ENDTEXT
+
+# Entrada de debug - Verbose
+LABEL debug
+    MENU LABEL Debug (Verbose)
+    LINUX /zbm/vmlinuz
+    INITRD /zbm/initramfs.img
+    APPEND zbm.prefer_policy=hostid loglevel=7 zbm.debug
+    TEXT HELP
+    Inicia com logs detalhados para diagnóstico.
+    ENDTEXT
+
+MENU SEPARATOR
+MENU WIDTH 80
+MENU MARGIN 10
+MENU ROWS 10
+MENU TABMSGROW 12
+MENU TIMEOUTROW 13
+MENU HELPMSGROW 15
+MENU COLOR border 30;44
+MENU COLOR title 1;36;44
+MENU COLOR sel 7;37;40
+MENU COLOR unsel 37;44
+MENU COLOR help 37;40
+MENU COLOR timeout 1;37;40
+MENU COLOR msg07 37;40
+MENU COLOR tabmsg 31;40
 EOF
 
 	# Copiar menu.c32 e libutil.c32 se necessários (para UI menu.c32 funcionar)
@@ -1601,11 +1735,13 @@ main() {
 	# Fase 2: Interface TUI
 	welcome_screen
 	select_disks
-
-	# Selecionar topologia se múltiplos discos
-	else
+	
+	# Selecionar topologia baseada no número de discos
+	if [[ ${#SELECTED_DISKS[@]} -eq 1 ]]; then
 		RAID_TOPOLOGY="Single"
 		log "Único disco selecionado, topologia definida como Single"
+	else
+		select_topology
 	fi
 
 	select_profile
