@@ -1,0 +1,43 @@
+#!/bin/bash
+set -e
+
+# Enable framebuffer support for advanced terminal features
+echo "I: Enabling framebuffer support..."
+
+# Configure kernel parameters for framebuffer
+cat >> /etc/default/grub <<EOF
+# Framebuffer configuration for advanced terminal support
+GRUB_GFXMODE=1024x768
+GRUB_GFXPAYLOAD_LINUX=keep
+EOF
+
+# Enable framebuffer modules
+cat >> /etc/initramfs-tools/modules <<EOF
+# Framebuffer drivers
+fbcon
+vesafb
+efifb
+uvesafb
+EOF
+
+# Configure console for UTF-8 and colors
+cat >> /etc/default/console-setup <<EOF
+# Advanced console configuration
+CHARMAP="UTF-8"
+CODESET="Uni2"
+FONTFACE="Fixed"
+FONTSIZE="8x16"
+EOF
+
+# Enable GPM (General Purpose Mouse) service
+systemctl enable gpm 2>/dev/null || true
+
+# Configure KMSCon as alternative to getty
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/kmscon.conf <<EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/kmscon --seats=seat0 --current-vt --no-login
+EOF
+
+echo "I: Framebuffer support configured"

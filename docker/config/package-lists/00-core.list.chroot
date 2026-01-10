@@ -42,3 +42,10 @@ wget
 apt-utils
 bash-completion
 sudo
+
+# === Terminal Avançado ===
+ncurses-base
+ncurses-bin
+kbd
+console-setup
+kbd-compose

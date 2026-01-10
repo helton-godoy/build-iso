@@ -15,3 +15,25 @@ syslinux-common
 
 # === Disk Management ===
 # (Already in core: gdisk, parted, dosfstools, efibootmgr)
+
+# === Minimal Desktop for Live Testing ===
+# Ambiente gráfico básico para testes durante o Live
+xserver-xorg-core
+xserver-xorg-video-intel
+xserver-xorg-video-amd
+xserver-xorg-video-nouveau
+xinit
+xterm
+openbox
+tint2
+pcmanfm
+network-manager-gnome
+lightdm
+
+# === Advanced Terminal Support ===
+# Suporte a mouse, cores e emojis no modo texto
+gpm
+fbterm
+ncurses-term
+kmscon
+console-setup-linux
