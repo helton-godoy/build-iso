@@ -1603,6 +1603,8 @@ main() {
 	select_disks
 
 	# Selecionar topologia se múltiplos discos
+	if [[ ${#SELECTED_DISKS[@]} -gt 1 ]]; then
+		select_topology
 	else
 		RAID_TOPOLOGY="Single"
 		log "Único disco selecionado, topologia definida como Single"

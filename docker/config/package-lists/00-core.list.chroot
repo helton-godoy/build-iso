@@ -6,6 +6,8 @@ live-boot
 live-config
 live-config-systemd
 systemd-sysv
+syslinux
+squashfs-tools
 
 # === ZFS Support ===
 zfs-dkms
