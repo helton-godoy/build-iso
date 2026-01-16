@@ -1,4 +1,4 @@
-# Aurora OS Installer - Implementação Concluída
+# DEBIAN_ZFS Installer - Implementação Concluída
 
 **Data**: 2026-01-07
 **Status**: ✅ 100% Implementado
@@ -8,7 +8,7 @@
 
 ## 📋 Resumo Executivo
 
-O instalador Aurora OS foi **completamente implementado** seguindo o roadmap definido em `plans/INSTALLER_ROADMAP.md`. Todas as 8 fases de desenvolvimento foram concluídas com sucesso, e a ISO foi construída e validada.
+O instalador DEBIAN_ZFS foi **completamente implementado** seguindo o roadmap definido em `plans/INSTALLER_ROADMAP.md`. Todas as 8 fases de desenvolvimento foram concluídas com sucesso, e a ISO foi construída e validada.
 
 ---
 
@@ -252,7 +252,7 @@ Instalação (sem internet)
 
 ### Instalador
 
-- `include/usr/local/bin/install-aurora.sh` (1.400+ linhas)
+- `include/usr/local/bin/install-DEBIAN_ZFS.sh` (1.400+ linhas)
 
 ### Documentação
 
@@ -261,7 +261,7 @@ Instalação (sem internet)
 
 ### Testes
 
-- `tests/test_installer_aurora.sh` - Suite de testes automatizados (370 linhas)
+- `tests/test_installer_DEBIAN_ZFS.sh` - Suite de testes automatizados (370 linhas)
 
 ### ISO
 
@@ -320,17 +320,17 @@ qemu-img create -f qcow2 test-disk.qcow2 20G
 ```bash
 # Boot da ISO
 # Acessar o terminal ou executar automaticamente
-sudo install-aurora.sh
+sudo install-DEBIAN_ZFS.sh
 ```
 
 ### 4. Testes Automatizados
 
 ```bash
 # Rodar suite completa de testes
-./tests/test_installer_aurora.sh
+./tests/test_installer_DEBIAN_ZFS.sh
 
 # Testes críticos rápidos
-bash tests/test_installer_aurora.sh 2>&1 | grep -E "\[OK\]|\[FAIL\]"
+bash tests/test_installer_DEBIAN_ZFS.sh 2>&1 | grep -E "\[OK\]|\[FAIL\]"
 ```
 
 ---
@@ -386,7 +386,7 @@ Todos os critérios de aceite definidos no roadmap foram atendidos:
 
 ## 🏆 Conclusão
 
-O instalador Aurora OS está **100% implementado, testado automatizado e pronto para uso**.
+O instalador DEBIAN_ZFS está **100% implementado, testado automatizado e pronto para uso**.
 
 **Principais conquistas:**
 
@@ -406,6 +406,6 @@ O instalador Aurora OS está **100% implementado, testado automatizado e pronto 
 
 ---
 
-**Desenvolvido por:** Aurora OS Team
+**Desenvolvido por:** DEBIAN_ZFS Team
 **Versão:** 1.0
 **Data de conclusão:** 2026-01-07

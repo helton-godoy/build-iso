@@ -12,7 +12,7 @@ Este documento descreve a organização de diretórios do projeto e serve como g
   - **`work/`**: Workspace de build (gerado).
   - **`dist/`**: ISOs finalizadas (gerado).
 - **`include/`**: Overlay de arquivos a serem incluídos na ISO.
-  - **`usr/local/bin/`**: Scripts (`install-aurora.sh`, `gum`).
+  - **`usr/local/bin/`**: Scripts (`install-system.sh`, `gum`).
   - **`usr/share/zfsbootmenu/`**: Binários ZFSBootMenu.
 - **`tools/`**: Scripts auxiliares (`download-zfsbootmenu.sh`).
 - **`tests/`**: Suite de testes automatizados (Bash scripts).
@@ -41,7 +41,7 @@ docker/dist/live-image-amd64.hybrid.iso
 ## Guia para Colaboradores
 
 - **Scripts auxiliares:** `tools/`
-- **Instalador Aurora:** `include/usr/local/bin/install-aurora.sh`
+- **DEBIAN_ZFS** `include/usr/local/bin/install-system.sh`
 - **Pacotes na ISO:** `docker/config/package-lists/`
 - **Overlay de arquivos:** `include/`
 - **Configuração live-build:** `docker/config/`

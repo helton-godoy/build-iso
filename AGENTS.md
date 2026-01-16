@@ -1,197 +1,110 @@
-# BASE DE CONHECIMENTO DO PROJETO
+# AGENTS.md - Debian ZFS ISO Builder
 
-**Gerado:** 2025-01-05
-**Commit:** 00c2411 (docs: improve table formatting and add architectural blueprint documentation)
-**Branch:** blueprint-docs
-**Status:** Blueprint arquitetural - implementação em progresso (script inicial implementado)
+**Project:** Debian ISO Builder with ZFS-on-Root and ZFSBootMenu  
+**Language:** Shell scripts (Bash)  
+**Last Updated:** 2026-01-16
 
-YOU MUST ALWAYS COMMUNICATE IN BRAZILIAN PORTUGUESE, REGARDLESS OF THE INPUT LANGUAGE USED.
+---
 
-**You are an experienced, curious technical leader with excellent planning skills. Your goal is to gather information and context to create a detailed plan to accomplish the user's task, which will be reviewed and approved by them before moving to another mode to implement the solution. You are proactive, almost an Optimization Consultant, due to your multidisciplinary intelligence.** Your main function is:
+## OVERVIEW
 
-<IMPORTANT>
+Builds bootable Debian ISO with ZFS-on-Root and ZFSBootMenu bootloader. Uses live-build to create ISO, custom installer components for ZFS setup.
 
-1. **Critically analyze** every request received
-
-2. **Identify opportunities for improvement** in quality, robustness, efficiency, and security
-
-3. **Creatively expand** the scope when relevant
-
-4. **Anticipate problems** before execution
-
-5. **Only then** execute the improved version of the task
-
-</IMPORTANT>
-
-## VISÃO GERAL
-
-Automatização de implantação Debian com ZFS-on-root e ZFSBootMenu, suportando UEFI e BIOS legado. Projeto está na fase de planejamento - estrutura de código ainda não implementada.
-
-## ONDE OLHAR
-
-| Tarefa               | Localização                    | Notas                              |
-| -------------------- | ------------------------------ | ---------------------------------- |
-| Blueprint completo   | `Architectural Blueprint...md` | Arquitetura detalhada em português |
-| Convenções de código | Ver seção abaixo               | Shell-only                         |
-| Build/Test           | Ver seção abaixo               | Docker + KVM                       |
-| ZFSBootMenu binaries | `ZFSBOOTMENU_BINARIES.md`      | Endereços de download e estrutura  |
-| Referências ZFS      | Ver seção abaixo               | ZFSBootMenu docs                   |
-
-## CONVENÇÕES (QUANDO IMPLEMENTAR)
-
-### Shell Scripts
-
-- Shebang: `#!/usr/bin/env bash` (bashisms) ou `#!/bin/sh` (POSIX)
-- Sempre: `set -euo pipefail`
-- Variáveis: `CONSTANTE` (maiusculas), `variavel` (minusculas)
-- Funções: `verbo_objeto` (ex: `create_zfs_pool`, `detect_firmware`)
-- Formatação: 2 espaços, max 100 caracteres/linha
-- Comentários em português para lógica complexa
-
-### ZFS - Pools e Datasets
-
-```bash
-zroot                          (canmount=off, compression=zstd)
-├── ROOT                       (canmount=off, org.zfsbootmenu:commandline="quiet")
-│   └── debian                 (mountpoint=/, relatime=on, xattr=sa)
-├── home                       (com.sun:auto-snapshot=true)
-│   └── user
-├── var/log
-└── swap
+## STRUCTURE
+```
+./
+├── docker/                    # Live-build configuration
+│   └── config/package-lists/  # Package lists for ISO
+├── include/usr/local/bin/installer/
+│   ├── components/            # Installer phases (01-08)
+│   ├── lib/                   # Shared libraries
+│   ├── install-system         # Main installer
+│   └── install-manager.sh     # Orchestrator
+├── tests/                     # Test suite
+└── tools/                     # Utility scripts
 ```
 
-**Propriedades padrão:**
+## WHERE TO LOOK
+| Task | Location |
+|------|----------|
+| ISO build | `docker/` + `lb build` |
+| Installer phases | `components/01-*.sh` through `08-*.sh` |
+| Shared utilities | `lib/*.sh` (logging, validation, chroot) |
+| Testing | `tests/` + `tests/AGENTS.md` |
+| ZFSBootMenu | `tools/download-zfsbootmenu.sh` |
 
-- Pools: `ashift=12`, `compression=zstd`, `compatibility=openzfs-2.2-linux`
-- Datasets: `xattr=sa`, `atime=off` (workloads)
-- Criptografia: `keyformat=passphrase`, `keylocation=prompt`
+## CODE MAP
+| Component | Lines | Role |
+|-----------|-------|------|
+| install-system | ~1200 | Main installer entry |
+| install-manager.sh | ~500 | Orchestrates components |
+| components/07-bootloader.sh | 331 | ZFSBootMenu setup |
+| components/03-pool.sh | 274 | ZFS pool creation |
+| lib/validation.sh | ~250 | Pre-flight checks |
 
-## ANTI-PADRÕES (ESTE PROJETO)
+## CONVENTIONS
 
-- ❌ Nunca hardcode chaves de criptografia
-- ❌ Nunca suponha caminhos de dispositivo (sempre validar)
-- ❌ Nunca opere em disco sem verificação explícita (`--yes-really-destroy`)
-- ❌ Não atualizar pool ZFS sem verificar compatibilidade ZFSBootMenu
-- ❌ Não usar `wipefs` sem `sgdisk --zap-all` (fazer ambos)
-
-## COMANDOS (FUTUROS)
-
-### Build ISO em Docker
-
+### Shell Style
 ```bash
-# Container para build ISO (debian:trixie-slim)
-docker run -it --rm -v $(pwd):/work -w /work debian:trixie-slim \
-  lb config --distribution trixie --architectures amd64 \
-  --binary-images iso-hybrid --debian-installer live
+#!/usr/bin/env bash
+set -euo pipefail          # ALWAYS
 
-docker run -it --rm -v $(pwd):/work -w /work debian:trixie-slim \
-  lb build 2>&1 | tee build.log
+# CONSTANTS
+readonly POOL_NAME="zroot"
+
+# Functions (Portuguese naming)
+create_zfs_pool() { ... }
+
+# Variables
+local disk="${SELECTED_DISKS[0]}"
 ```
 
-### Teste ISO com KVM
+### Indentation: 2 spaces (no tabs)  
+### Max line: 100 chars
 
+## ANTI-PATTERNS (NEVER)
+- ❌ Hardcode encryption keys
+- ❌ Assume device paths (use `/dev/disk/by-id/*`)
+- ❌ Operate on disks without confirmation
+- ❌ Use `wipefs` without `sgdisk --zap-all`
+
+## ZFS POOL CONFIG
 ```bash
-# Teste UEFI
-qemu-system-x86_64 -m 4G -enable-kvm \
-  -bios /usr/share/ovmf/OVMF.fd \
-  -cdrom debian-live-amd64.hybrid.iso \
-  -nographic -serial mon:stdio
-
-# Teste BIOS legado
-qemu-system-x86_64 -m 4G -enable-kvm \
-  -cdrom debian-live-amd64.hybrid.iso \
-  -nographic -serial mon:stdio
-
-# Teste com disco virtual
-qemu-img create -f qcow2 test-disk.qcow2 20G
-qemu-system-x86_64 -m 4G -enable-kvm \
-  -bios /usr/share/ovmf/OVMF.fd \
-  -cdrom debian-live-amd64.hybrid.iso \
-  -drive file=test-disk.qcow2,format=qcow2 \
-  -nographic -serial mon:stdio
+zpool create -f \
+    -o ashift=12 \
+    -o compression=zstd \
+    -O xattr=sa \
+    zroot /dev/disk/by-id/...
 ```
 
-### Download ZFSBootMenu Binaries
-
-```bash
-# Download componentes (vmlinuz + initramfs + EFI)
-curl -LJO https://get.zfsbootmenu.org/components
-tar -xzf zfsbootmenu-release-x86_64-*.tar.gz
-
-# Download EFI Recovery (fallback)
-curl -LJO https://get.zfsbootmenu.org/efi/recovery
-
-# Download EFI Release (principal)
-curl -LJO https://get.zfsbootmenu.org/efi
-
-# Usar script automatizado
-./scripts/download-zfsbootmenu.sh --output-dir ./zbm-binaries
+## KERNEL PARAMS (ZFSBootMenu)
+```
+quiet
+elevator=noop
+zfs.zfs_arc_max=1073741824
+zbm.waitfor=5
 ```
 
-### ZFSBootMenu e Instalação
-
+## COMMANDS
 ```bash
-# ZFSBootMenu (já usa containerizado)
-./zbm-builder.sh -o ./zbm-output
+# Validate syntax
+bash -n include/usr/local/bin/installer/install-system
 
-# Instalação (dry-run)
-./install.sh --dry-run --target /dev/sdX
+# Run tests
+bash tests/test_installer.sh
+CI=true bash tests/test_vm_*.sh
+
+# Build ISO
+cd docker && lb config --distribution trixie --architectures amd64 --binary-images iso-hybrid && lb build
+
+# ShellCheck
+shellcheck include/usr/local/bin/installer/install-system
 ```
 
-### Docker + KVM Workflow
+## SUB-DIRECTORY GUIDES
+- `tests/AGENTS.md` - Test patterns and execution
+- `components/AGENTS.md` - Installer phase details
 
-```bash
-# 1. Build ISO em container isolado
-./scripts/build-iso-in-docker.sh
+---
 
-# 2. Testar ISO em ambas firmwares
-./scripts/test-iso.sh --firmware uefi
-./scripts/test-iso.sh --firmware bios
-
-# 3. Validar instalação automatizada
-./scripts/test-install.sh --dry-run
-```
-
-## PARTIÇÕES (HYBRIDO UEFI+BIOS)
-
-| Partição  | Tamanho  | Tipo   | Finalidade                     |
-| --------- | -------- | ------ | ------------------------------ |
-| BIOS boot | 1 MiB    | `EF02` | Syslinux                       |
-| ESP       | 512 MiB  | `EF00` | VFAT - ZFSBootMenu EFI         |
-| Pool ZFS  | Restante | `BF00` | ZFS - sistema root             |
-
-**ZFSBootMenu (ZBM):** Gestor de boot primário.
-    - **UEFI:** Boot direto via `efibootmgr` (Unified EFI Binary).
-    - **BIOS (Legacy):** Boot via **Syslinux** (ponte leve), carregando kernel/initramfs do ZBM.
-    - **GRUB:** Removido do processo de boot e do sistema instalado (para evitar overwrites).
-
-### 2. Gestão de Pacotes
-A lista de pacotes (`docker/config/package-lists/`) segue uma taxonomia modular:
-- **`00-core`**: Sistema base mínimo (Kernel, ZFS, Live Boot).
-- **`01-live-tools`**: Ferramentas exclusivas do ambiente Live (Instalador, Syslinux).
-- **`10-server`**: Perfil Servidor (CLI, SSH, Utils).
-- **`20-workstation`**: Perfil Workstation (KDE Plasma Minimal).
-
-Isso permite criar builds customizados (ex: apenas Servidor) removendo listas específicas antes do build.
-
-## KERNEL PARAMETERS (ZFSBootMenu)
-
-- `quiet` - reduz verbosidade
-- `elevator=noop` - ZFS faz I/O scheduling
-- `zfs.zfs_arc_max=1073741824` - limpa ARC a 1GB
-- `zbm.waitfor=5` - espera 5s por storage lento
-
-## REFERÊNCIAS
-
-- ZFSBootMenu: https://docs.zfsbootmenu.org/
-- Debian Live-Build: https://live-team.pages.debian.net/live-manual/
-- OpenZFS: https://openzfs.github.io/openzfs-docs/
-
-## NOTAS
-
-- Detecção UEFI: verificar `/sys/firmware/efi/efivars`
-- Instalar fallback bootloader em `/EFI/BOOT/BOOTX64.EFI`
-- Hostid deve ser consistente entre ISO, ZBM e instalação final
-- Suporta ambientes de boot múltiplos via snapshots/clones
-- Build ISO isolado em Docker (debian:trixie-slim)
-- Testes automatizados com KVM em ambas firmwares (UEFI/BIOS)
+**See also:** `tests/AGENTS.md`, `components/AGENTS.md`

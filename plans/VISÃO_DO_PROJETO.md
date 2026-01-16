@@ -531,7 +531,7 @@ build-iso/
 │   └── boot-env-guide.md
 │
 ├── plans/                       # Propostas e planos
-│   └── PROPOSTA-DEBIAN-ZFS.md   # Este documento
+│   └── PROPOSTA-DEBIAN_ZFS.md   # Este documento
 │
 ├── zbm-binaries/                # Binários ZFSBootMenu (gerado)
 ├── output/                      # ISOs geradas (gerado)

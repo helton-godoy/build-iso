@@ -204,7 +204,7 @@ function start_vm() {
 
 function show_help() {
   cat <<EOF
-${C_BOLD}${C_PURPLE}🌌 AURORA OS - VM MANAGER${C_RESET}
+${C_BOLD}${C_PURPLE}🌌 DEBIAN_ZFS - VM MANAGER${C_RESET}
 ${C_CYAN}Gerenciador de VM otimizado para testes de ISO e Boot pós-instalação${C_RESET}
 
 ${C_BOLD}Uso:${C_RESET} \$0 ${C_GREEN}[OPÇÕES]${C_RESET}

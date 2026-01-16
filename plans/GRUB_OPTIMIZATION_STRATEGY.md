@@ -4,7 +4,7 @@ Esta estratégia detalha a abordagem para tornar o GRUB um carregador "invisíve
 
 ## 1. Diagnóstico do Estado Atual
 
-Atualmente, o script `install-aurora.sh` instala o GRUB e gera manualmente um arquivo `grub.cfg`.
+Atualmente, o script `install-DEBIAN_ZFS.sh` instala o GRUB e gera manualmente um arquivo `grub.cfg`.
 - **Pontos Positivos:** Já evita o uso do `update-grub` e scripts complexos de `/etc/grub.d/`, o que nos dá controle total sobre o conteúdo.
 - **Pontos de Melhoria:**
     - `timeout=5`: Adiciona uma espera desnecessária de 5 segundos.
@@ -63,12 +63,12 @@ Manteremos o comando `grub-install` executado pelo instalador (host), apontando 
 Para garantir que uma atualização futura do sistema (`apt upgrade`) não reconfigure o GRUB e sobrescreva nossas otimizações:
 
 1.  **Remoção do GRUB do Alvo:** O sistema operacional instalado (Debian) **não precisa** ter os pacotes `grub-pc`, `grub-efi`, ou `os-prober` instalados. O bootloader já foi gravado pelo instalador.
-2.  **Ação no Instalador:** Adicionaremos uma etapa no `install-aurora.sh` para remover esses pacotes de dentro do ambiente `chroot` antes de finalizar a instalação.
+2.  **Ação no Instalador:** Adicionaremos uma etapa no `install-DEBIAN_ZFS.sh` para remover esses pacotes de dentro do ambiente `chroot` antes de finalizar a instalação.
 3.  **Resultado:** O sistema instalado gerenciará apenas seus kernels/initramfs (para o ZBM encontrar), sem tentar gerenciar o bootloader da BIOS/ESP.
 
 ## 6. Plano de Ação
 
-1.  Modificar `install-aurora.sh` para injetar o novo `grub.cfg`.
+1.  Modificar `install-DEBIAN_ZFS.sh` para injetar o novo `grub.cfg`.
 2.  Adicionar parâmetros de terminal console, timeout 0 e style hidden.
 3.  Implementar função para purgar pacotes GRUB (`apt-get purge -y grub* os-prober`) dentro do chroot.
 4.  Validar parâmetros de kernel do ZBM.

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+#
+# install-system - Wrapper para o novo instalador modular Aurora OS
+# Delega execução para install-manager.sh
+#
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+#SCRIPT_DIR='/usr/local/bin'
+SCRIPT_NAME="Aurora OS Installer (Modular)"
+SCRIPT_VERSION="2.0"
+readonly SCRIPT_DIR
+readonly SCRIPT_NAME
+readonly SCRIPT_VERSION
+
+main() {
+	# Verificar se está rodando como root
+	if [[ ${EUID} -ne 0 ]]; then
+		echo "❌ Erro: Este script precisa ser executado como root."
+		echo "   Use: sudo install-system"
+		exit 1
+	fi
+
+	# Verificar se install-manager.sh existe
+	local manager_script="${SCRIPT_DIR}/install-manager.sh"
+	if [[ ! -f "${manager_script}" ]]; then
+		echo "❌ Erro: install-manager.sh não encontrado em: ${manager_script}"
+		exit 1
+	fi
+
+	# Delegar execução para o orquestrador modular
+	exec bash "${manager_script}" "$@"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+	main "$@"
+fi

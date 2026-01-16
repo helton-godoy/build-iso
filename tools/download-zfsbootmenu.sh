@@ -41,7 +41,7 @@ trap cleanup EXIT
 
 function show_help() {
 	cat <<EOF
-${C_BOLD}${C_PURPLE}🌌 AURORA OS - ZFSBOOTMENU DOWNLOADER${C_RESET}
+${C_BOLD}${C_PURPLE}🌌 DEBIAN_ZFS - ZFSBOOTMENU DOWNLOADER${C_RESET}
 ${C_CYAN}Utilitário para instalação de binários ZFSBootMenu${C_RESET}
 
 ${C_BOLD}Uso:${C_RESET} \$0 ${C_GREEN}[OPÇÕES]${C_RESET}

@@ -39,7 +39,7 @@ trap cleanup EXIT
 
 function show_help() {
 	cat <<EOF
-${C_BOLD}${C_PURPLE}🌌 AURORA OS - GUM DOWNLOADER${C_RESET}
+${C_BOLD}${C_PURPLE}🌌 DEBIAN_ZFS - GUM DOWNLOADER${C_RESET}
 ${C_CYAN}Utilitário para instalação do binário gum${C_RESET}
 
 ${C_BOLD}Uso:${C_RESET} \$0 ${C_GREEN}[OPÇÃO]${C_RESET}

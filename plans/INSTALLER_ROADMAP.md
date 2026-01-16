@@ -7,7 +7,7 @@
 
 ## Objetivo Atual
 
-Implementar as funcionalidades de elite que diferenciam o Aurora OS:
+Implementar as funcionalidades de elite que diferenciam o DEBIAN_ZFS:
 
 - **Criptografia Nativa ZFS**: Proteção total de dados com performance.
 - **Perfis Inteligentes**: Instalação customizada para Server ou Workstation.
@@ -24,7 +24,7 @@ Implementar as funcionalidades de elite que diferenciam o Aurora OS:
 
 ```
 config/includes.chroot/usr/local/bin/
-├── install-aurora.sh          # Instalador principal (novo)
+├── install-DEBIAN_ZFS.sh          # Instalador principal (novo)
 └── install-zfs-debian         # Legado (remover após migração)
 ```
 
@@ -38,8 +38,8 @@ config/includes.chroot/usr/local/bin/
 
 | ID  | Tarefa                       | Descrição                        | Critérios de Aceite                                           |
 | --- | ---------------------------- | -------------------------------- | ------------------------------------------------------------- |
-| 1.1 | Criar `install-aurora.sh`    | Arquivo principal do instalador  | Arquivo criado, shebang correto, `set -euo pipefail`          |
-| 1.2 | Implementar logging          | Funções `log()` e `error_exit()` | Logs em `/var/log/aurora-installer.log`, mensagens formatadas |
+| 1.1 | Criar `install-DEBIAN_ZFS.sh`    | Arquivo principal do instalador  | Arquivo criado, shebang correto, `set -euo pipefail`          |
+| 1.2 | Implementar logging          | Funções `log()` e `error_exit()` | Logs em `/var/log/DEBIAN_ZFS-installer.log`, mensagens formatadas |
 | 1.3 | Implementar cleanup          | Função `cleanup()` com trap      | Desmonta filesystems, exporta pool em caso de erro            |
 | 1.4 | Implementar preflight_checks | Verificações de pré-requisitos   | Verifica root, módulo ZFS, memória, comandos                  |
 
@@ -251,10 +251,10 @@ squashfs_paths=(
 ./scripts/test-iso.sh uefi --create-disk test.qcow2 --disk-size 20G
 
 # Validar sintaxe do instalador
-bash -n config/includes.chroot/usr/local/bin/install-aurora.sh
+bash -n config/includes.chroot/usr/local/bin/install-DEBIAN_ZFS.sh
 
 # Shellcheck
-shellcheck config/includes.chroot/usr/local/bin/install-aurora.sh
+shellcheck config/includes.chroot/usr/local/bin/install-DEBIAN_ZFS.sh
 ```
 
 ---
@@ -269,7 +269,7 @@ shellcheck config/includes.chroot/usr/local/bin/install-aurora.sh
 
 ## Notas para Continuidade
 
-> **IMPORTANTE:** Este documento contém todas as informações necessárias para continuar o desenvolvimento do instalador Aurora OS. Qualquer desenvolvedor (humano ou IA) pode usar este roadmap para implementar as funcionalidades pendentes.
+> **IMPORTANTE:** Este documento contém todas as informações necessárias para continuar o desenvolvimento do instalador DEBIAN_ZFS. Qualquer desenvolvedor (humano ou IA) pode usar este roadmap para implementar as funcionalidades pendentes.
 
 ### Contexto Essencial
 

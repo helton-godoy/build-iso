@@ -1,8 +1,0 @@
-{
-  "track_id": "iso_pipeline_20260105",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-05T00:00:00Z",
-  "updated_at": "2026-01-05T00:00:00Z",
-  "description": "Implementar o pipeline de build da ISO customizada do Debian utilizando Docker e Live-Build, integrando os binários do ZFSBootMenu já baixados."
-}

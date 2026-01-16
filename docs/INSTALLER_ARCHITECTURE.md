@@ -1,11 +1,11 @@
-# Aurora OS Installer - Arquitetura e Abordagem Técnica
+# DEBIAN_ZFS Installer - Arquitetura e Abordagem Técnica
 
 > **Documento de Referência Permanente**
 > Última atualização: 2026-01-07
 
 ## Visão Geral
 
-Este documento descreve a arquitetura e abordagem técnica do instalador **Aurora OS**, um instalador avançado para Debian com ZFS-on-Root e ZFSBootMenu.
+Este documento descreve a arquitetura e abordagem técnica do instalador **DEBIAN_ZFS**, um instalador avançado para Debian com ZFS-on-Root e ZFSBootMenu.
 
 ## Decisões de Design
 
@@ -140,7 +140,7 @@ Instalação (sem internet)
 ## Arquitetura do Instalador
 
 ```bash
-install-aurora.sh
+install-DEBIAN_ZFS.sh
 │
 ├── Módulo: Logging
 │   ├── log()

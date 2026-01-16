@@ -7,7 +7,7 @@
 
 ## 1. Resumo Executivo
 
-A proposta apresentada em `PROPOSTA-DEBIAN-ZFS.md` demonstra **alta qualidade técnica e visão arquitetural sólida**. Entretanto, para atingir plenamente o **nível corporativo**, foram identificadas lacunas críticas em governança, segurança, automação e documentação operacional.
+A proposta apresentada em `PROPOSTA-DEBIAN_ZFS.md` demonstra **alta qualidade técnica e visão arquitetural sólida**. Entretanto, para atingir plenamente o **nível corporativo**, foram identificadas lacunas críticas em governança, segurança, automação e documentação operacional.
 
 ### Pontuação Geral
 
@@ -116,7 +116,7 @@ A proposta menciona "cobertura mínima de 80%" mas:
 
 | Documento                      | Pontos Fortes                              | Lacunas                                        |
 | ------------------------------ | ------------------------------------------ | ---------------------------------------------- |
-| `PROPOSTA-DEBIAN-ZFS.md`       | Arquitetura completa, diagramas excelentes | Falta operacional e compliance                 |
+| `PROPOSTA-DEBIAN_ZFS.md`       | Arquitetura completa, diagramas excelentes | Falta operacional e compliance                 |
 | `AGENTS.md`                    | Convenções claras, anti-padrões úteis      | Muito resumido, falta política de contribuição |
 | `Architectural Blueprint...md` | Fundamentação teórica excelente            | Em inglês (diverge das regras do projeto)      |
 | `ZFSBOOTMENU_BINARIES.md`      | Detalhes de download precisos              | Falta automação de atualização de versões      |
@@ -128,7 +128,7 @@ A proposta menciona "cobertura mínima de 80%" mas:
 
 ### 5.1 Linguagem
 
-- `AGENTS.md` e `PROPOSTA-DEBIAN-ZFS.md` estão em português
+- `AGENTS.md` e `PROPOSTA-DEBIAN_ZFS.md` estão em português
 - `Architectural Blueprint...md` está em **inglês**
 - Proposta menciona "documentação em português brasileiro" como requisito (RNF-06)
 
@@ -346,7 +346,7 @@ jobs:
 +│   └── PULL_REQUEST_TEMPLATE.md
  │
  └── plans/
-     ├── PROPOSTA-DEBIAN-ZFS.md
+     ├── PROPOSTA-DEBIAN_ZFS.md
      └── ANALISE-CRITICA-PROPOSTA.md  # Este documento
 ```
 
