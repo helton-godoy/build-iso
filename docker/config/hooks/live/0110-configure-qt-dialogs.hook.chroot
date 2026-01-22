@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 0110-configure-qt-dialogs.hook.chroot - Configure system to force QT dialogs in KDE Plasma
+# This hook runs inside the chroot during ISO build to set up QT/KDE integration
+
+echo "P: Starting QT dialogs configuration hook..."
+
+# Ensure we are in a chroot environment
+if [ ! -d /proc ]; then
+    echo "E: /proc not found. Are we in a chroot?"
+    exit 1
+fi
+
+# Check if KDE Plasma is installed (workstation profile)
+if ! dpkg -l | grep -q "kde-plasma-desktop\|plasma-desktop"; then
+    echo "W: KDE Plasma not detected. Skipping QT dialogs configuration."
+    exit 0
+fi
+
+echo "P: Configuring xdg-desktop-portal-kde as default portal..."
+
+# Configure xdg-desktop-portal-kde as the default portal
+PORTALS_CONF="/usr/share/xdg-desktop-portal/portals.conf"
+if [ -f "$PORTALS_CONF" ]; then
+    # Backup original file
+    cp "$PORTALS_CONF" "${PORTALS_CONF}.backup"
+
+    # Update portals.conf to prefer KDE portal
+    cat > "$PORTALS_CONF" << 'INNER_EOF'
+[preferred]
+# Default portal for org.freedesktop.impl.portal.FileChooser
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.AppChooser
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.Notification
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.Inhibit
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.Access
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.Account
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.Email
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.DynamicLauncher
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.Lockdown
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.GlobalShortcuts
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.Background
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.Wallpaper
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.Settings
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.Screencast
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.RemoteDesktop
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+# Default portal for org.freedesktop.impl.portal.ScreenShot
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+INNER_EOF
+else
+    echo "W: $PORTALS_CONF not found. Creating default configuration."
+    mkdir -p /usr/share/xdg-desktop-portal
+    cat > "$PORTALS_CONF" << 'INNER_EOF'
+[preferred]
+org.freedesktop.impl.portal.desktop.kde=gtk;lxqt;qt5;qt6;kde;
+INNER_EOF
+fi
+
+echo "P: Setting QT environment variables..."
+
+# Create QT environment configuration
+QT_ENV_FILE="/etc/profile.d/qt-env.sh"
+cat > "$QT_ENV_FILE" << 'INNER_EOF'
+# QT Environment variables for KDE Plasma integration
+export QT_QPA_PLATFORMTHEME=kde
+export QT_STYLE_OVERRIDE=kvantum
+export QT_AUTO_SCREEN_SCALE_FACTOR=1
+export QT_ENABLE_HIGHDPI_SCALING=1
+INNER_EOF
+
+# Make the file executable
+chmod +x "$QT_ENV_FILE"
+
+echo "P: Configuring GTK applications to use portals..."
+
+# Configure GTK to use portals for file dialogs, etc.
+GTK_ENV_FILE="/etc/profile.d/gtk-portal-env.sh"
+cat > "$GTK_ENV_FILE" << 'INNER_EOF'
+# GTK Environment variables to force portal usage
+export GTK_USE_PORTAL=1
+export GTK_CSD=0
+INNER_EOF
+
+chmod +x "$GTK_ENV_FILE"
+
+echo "P: Configuring Firefox to use KDE dialogs via portal..."
+
+# Firefox specific configuration for KDE dialogs
+FIREFOX_CONF_DIR="/etc/firefox-esr"
+if [ -d "$FIREFOX_CONF_DIR" ]; then
+    mkdir -p "$FIREFOX_CONF_DIR/pref"
+    cat > "$FIREFOX_CONF_DIR/pref/kde-dialogs.js" << 'INNER_EOF'
+// Force Firefox to use KDE dialogs via portal
+pref("widget.use-xdg-desktop-portal.file-picker", 1);
+pref("widget.use-xdg-desktop-portal.mime-handler", 1);
+INNER_EOF
+fi
+
+# Also for regular Firefox if installed
+FIREFOX_REGULAR_CONF_DIR="/etc/firefox"
+if [ -d "$FIREFOX_REGULAR_CONF_DIR" ]; then
+    mkdir -p "$FIREFOX_REGULAR_CONF_DIR/pref"
+    cat > "$FIREFOX_REGULAR_CONF_DIR/pref/kde-dialogs.js" << 'INNER_EOF'
+// Force Firefox to use KDE dialogs via portal
+pref("widget.use-xdg-desktop-portal.file-picker", 1);
+pref("widget.use-xdg-desktop-portal.mime-handler", 1);
+INNER_EOF
+fi
+
+echo "P: Ensuring kdialog is available for fallback..."
+
+# Verify kdialog is installed (should be with KDE)
+if ! command -v kdialog >/dev/null 2>&1; then
+    echo "W: kdialog not found. Installing kde-cli-tools..."
+    apt-get update && apt-get install -y kde-cli-tools
+fi
+
+echo "P: QT dialogs configuration hook finished successfully."

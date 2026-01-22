@@ -523,10 +523,6 @@ configure_zfs_options() {
 		gum format -- "> Será usado apenas os primeiros ${HDSIZE}GB de cada disco"
 	fi
 
-	# Seleção de Perfil
-	PROFILE=$(gum choose --header "Selecione o perfil de instalação:" \
-		"Server" "Workstation" \
-		--selected "Server" || echo "Server")
 
 	# Configuração de Criptografia
 	ENCRYPTION=$(gum choose --header "Deseja habilitar criptografia nativa ZFS?" \
@@ -960,7 +956,30 @@ ${squashfs_paths[*]}
 	# Exportar caminho encontrado para uso em outras funções
 	export SQUASHFS_PATH="${found_path}"
 	gum format -- "✓ Arquivo squashfs encontrado: ${SQUASHFS_PATH}"
+
+	# Listar todos os layers disponíveis para diagnóstico
+	local squash_dir
+	squash_dir=$(dirname "${SQUASHFS_PATH}")
+	log "Diretório de layers: ${squash_dir}"
+	log "Layers disponíveis:"
+	
+	local layers_info=""
+	for layer in "${squash_dir}"/*.squashfs; do
+		if [[ -f "${layer}" ]]; then
+			local layer_name layer_size
+			layer_name=$(basename "${layer}")
+			layer_size=$(ls -lh "${layer}" | awk '{print $5}')
+			log "  - ${layer_name} (${layer_size})"
+			layers_info="${layers_info}\n  • ${layer_name} (${layer_size})"
+		fi
+	done
+	
+	gum format -- "
+### Layers Disponíveis
+${layers_info}
+"
 }
+
 
 # Criar diretórios essenciais no sistema de destino
 create_essential_dirs() {
@@ -1452,68 +1471,19 @@ configure_bios_boot() {
 	fi
 
 	cat <<EOF >"${syslinux_cfg}"
-# Configuração Syslinux para Aurora OS (BIOS Legacy)
-UI menu.c32
+# Syslinux - Boot direto para ZFSBootMenu (BIOS Legacy)
+# Configuração mínima: sem menu, boot imediato
+DEFAULT zfsbootmenu
 PROMPT 0
-TIMEOUT 50
+TIMEOUT 0
 
-# Entrada principal - ZFSBootMenu
 LABEL zfsbootmenu
-    MENU LABEL ZFSBootMenu (Principal)
     LINUX /zbm/vmlinuz
     INITRD /zbm/initramfs.img
     APPEND zbm.prefer_policy=hostid quiet loglevel=0
-    DEFAULT
-
-# Entrada de emergência - Console direto
-LABEL emergency
-    MENU LABEL Emergência (Console)
-    LINUX /zbm/vmlinuz
-    INITRD /zbm/initramfs.img
-    APPEND zbm.prefer_policy=hostid quiet loglevel=0 zbm.skip
-    TEXT HELP
-    Inicia ZFSBootMenu em modo console para recuperação.
-    ENDTEXT
-
-# Entrada de debug - Verbose
-LABEL debug
-    MENU LABEL Debug (Verbose)
-    LINUX /zbm/vmlinuz
-    INITRD /zbm/initramfs.img
-    APPEND zbm.prefer_policy=hostid loglevel=7 zbm.debug
-    TEXT HELP
-    Inicia com logs detalhados para diagnóstico.
-    ENDTEXT
-
-MENU SEPARATOR
-MENU WIDTH 80
-MENU MARGIN 10
-MENU ROWS 10
-MENU TABMSGROW 12
-MENU TIMEOUTROW 13
-MENU HELPMSGROW 15
-MENU COLOR border 30;44
-MENU COLOR title 1;36;44
-MENU COLOR sel 7;37;40
-MENU COLOR unsel 37;44
-MENU COLOR help 37;40
-MENU COLOR timeout 1;37;40
-MENU COLOR msg07 37;40
-MENU COLOR tabmsg 31;40
 EOF
 
-	# Copiar menu.c32 e libutil.c32 se necessários (para UI menu.c32 funcionar)
-	# Muitos sistemas modernos podem não precisar se usarmos UI none ou apenas PROMPT 0
-	# Mas para segurança, vamos copiar os módulos se existirem no host
-	local syslinux_lib_dir="/usr/lib/syslinux/modules/bios"
-	if [[ ! -d "${syslinux_lib_dir}" ]]; then
-		syslinux_lib_dir="/usr/lib/syslinux/bios" # Debians antigos
-	fi
-	
-	if [[ -d "${syslinux_lib_dir}" ]]; then
-		cp "${syslinux_lib_dir}/menu.c32" "${MOUNT_POINT}/boot/efi/" 2>/dev/null || true
-		cp "${syslinux_lib_dir}/libutil.c32" "${MOUNT_POINT}/boot/efi/" 2>/dev/null || true
-	fi
+	# Nota: Não copiamos menu.c32/libutil.c32 pois usamos boot direto sem menu
 
 	log "Syslinux configurado com sucesso na ESP."
 	gum format -- "✓ Syslinux BIOS configurado"
@@ -1675,6 +1645,126 @@ remove_grub_packages() {
 	gum format -- "✓ GRUB removido do sistema alvo"
 }
 
+# Configurar console avançado para perfil Server
+# Suporte a framebuffer, mouse (GPM), cores 256/truecolor e emojis
+configure_advanced_console() {
+	log "Configurando console avançado para ambiente texto..."
+	gum format -- "### Configurando Console Avançado"
+
+	# === 1. Habilitar GPM para suporte a mouse no console ===
+	if chroot "${MOUNT_POINT}" command -v gpm >/dev/null 2>&1; then
+		chroot "${MOUNT_POINT}" systemctl enable gpm 2>>"${LOG_FILE}" || true
+		log "GPM (suporte a mouse) habilitado"
+		
+		# Configurar GPM para modo repetidor (útil para terminais como screen/tmux)
+		cat <<'EOF' >"${MOUNT_POINT}/etc/gpm.conf"
+# Configuração GPM para Aurora OS Server
+device=/dev/input/mice
+responsiveness=
+repeat_type=ms3
+type=exps2
+append=""
+sample_rate=
+EOF
+		log "Configuração GPM criada"
+	fi
+
+	# === 2. Configurar console-setup para UTF-8 e fonte com suporte a emojis ===
+	cat <<'EOF' >"${MOUNT_POINT}/etc/default/console-setup"
+# Console setup para Aurora OS - Suporte UTF-8 e caracteres especiais
+ACTIVE_CONSOLES="/dev/tty[1-6]"
+CHARMAP="UTF-8"
+CODESET="Lat15"
+FONTFACE="Terminus"
+FONTSIZE="16x32"
+EOF
+	log "Console-setup configurado para UTF-8"
+
+	# === 3. Configurar kernel cmdline para framebuffer avançado ===
+	# O ZFSBootMenu usa a propriedade org.zfsbootmenu:commandline
+	# Adicionar parâmetros de framebuffer se não existirem
+	local current_cmdline
+	current_cmdline=$(zfs get -H -o value org.zfsbootmenu:commandline "${POOL_NAME}/ROOT/debian" 2>/dev/null || echo "quiet")
+	
+	# Remover loglevel se existir e adicionar parâmetros de framebuffer
+	local new_cmdline="${current_cmdline}"
+	
+	# Adicionar fbcon se não existir
+	if ! echo "${new_cmdline}" | grep -q "fbcon"; then
+		new_cmdline="${new_cmdline} fbcon=nodefer,font:TER16x32"
+	fi
+	
+	# Garantir 256 cores via TERM
+	if ! echo "${new_cmdline}" | grep -q "vt.default_red"; then
+		# Paleta de cores personalizada Aurora (tons de azul/roxo)
+		new_cmdline="${new_cmdline} vt.default_red=0,170,0,170,0,170,0,170,85,255,85,255,85,255,85,255"
+		new_cmdline="${new_cmdline} vt.default_grn=0,0,170,85,0,0,170,170,85,85,255,255,85,85,255,255"
+		new_cmdline="${new_cmdline} vt.default_blu=0,0,0,0,170,170,170,170,85,85,85,85,255,255,255,255"
+	fi
+	
+	zfs set org.zfsbootmenu:commandline="${new_cmdline}" "${POOL_NAME}/ROOT/debian" 2>>"${LOG_FILE}" || true
+	log "Kernel cmdline atualizado com parâmetros de framebuffer"
+
+	# === 4. Criar perfil de terminal avançado em /etc/profile.d ===
+	cat <<'EOF' >"${MOUNT_POINT}/etc/profile.d/aurora-console.sh"
+# Aurora OS - Configuração de Console Avançado
+# Suporte a cores 256, UTF-8 e emojis
+
+# Detectar e configurar TERM corretamente
+if [ "$TERM" = "linux" ]; then
+    # Console Linux padrão - tentar usar 256 cores se disponível
+    if [ -d /sys/module/fbcon ]; then
+        export TERM="linux"
+        # Habilitar cores estendidas via escape sequences
+        export COLORTERM="truecolor"
+    fi
+fi
+
+# Configurar locale para UTF-8 (suporte a emojis)
+export LANG="${LANG:-pt_BR.UTF-8}"
+export LC_ALL="${LC_ALL:-pt_BR.UTF-8}"
+
+# Histórico melhorado
+export HISTSIZE=10000
+export HISTFILESIZE=20000
+export HISTCONTROL=ignoreboth:erasedups
+
+# Prompt colorido para console
+if [ -z "$SSH_CLIENT" ] && [ "$TERM" = "linux" ]; then
+    # Console local - prompt Aurora
+    PS1='\[\e[1;35m\][\u@\h \W]\$\[\e[0m\] '
+else
+    # SSH ou outro terminal - prompt padrão
+    PS1='\[\e[1;32m\][\u@\h \W]\$\[\e[0m\] '
+fi
+
+# Aliases úteis para modo servidor
+alias ll='ls -la --color=auto'
+alias la='ls -A --color=auto'
+alias l='ls -CF --color=auto'
+alias grep='grep --color=auto'
+alias df='df -h'
+alias du='du -h'
+alias free='free -h'
+alias top='htop 2>/dev/null || top'
+EOF
+	chmod 644 "${MOUNT_POINT}/etc/profile.d/aurora-console.sh"
+	log "Perfil de console Aurora criado"
+
+	# === 5. Configurar getty para auto-login opcional (desabilitado por padrão) ===
+	# Criar override para getty@tty1 com configurações otimizadas
+	mkdir -p "${MOUNT_POINT}/etc/systemd/system/getty@tty1.service.d"
+	cat <<'EOF' >"${MOUNT_POINT}/etc/systemd/system/getty@tty1.service.d/override.conf"
+[Service]
+# Garantir que getty use UTF-8 e configurações de terminal corretas
+Environment="LANG=pt_BR.UTF-8"
+Environment="TERM=linux"
+EOF
+	log "Override do getty@tty1 criado"
+
+	gum format -- "✓ Console avançado configurado (GPM, UTF-8, cores)"
+}
+
 # Configuração de perfis e pacotes adicionais
 configure_profile() {
 	gum format -- "### Configurando Perfil: **${PROFILE}**"
@@ -1682,14 +1772,45 @@ configure_profile() {
 
 	if [[ "${PROFILE}" == "Workstation" ]]; then
 		log "Configurando Workstation (habilitando interface gráfica)..."
+		
+		# Definir target gráfico como padrão
+		chroot "${MOUNT_POINT}" systemctl set-default graphical.target 2>>"${LOG_FILE}" || true
+		
+		# Habilitar display manager disponível (prioridade: sddm > lightdm > gdm)
 		if chroot "${MOUNT_POINT}" command -v sddm >/dev/null 2>&1; then
 			chroot "${MOUNT_POINT}" systemctl enable sddm 2>>"${LOG_FILE}" || true
+			log "SDDM habilitado como display manager"
+		elif chroot "${MOUNT_POINT}" command -v lightdm >/dev/null 2>&1; then
+			chroot "${MOUNT_POINT}" systemctl enable lightdm 2>>"${LOG_FILE}" || true
+			log "LightDM habilitado como display manager"
 		fi
 	else
-		log "Configurando Server (modo console)..."
-		if chroot "${MOUNT_POINT}" command -v sddm >/dev/null 2>&1; then
-			chroot "${MOUNT_POINT}" systemctl disable sddm 2>>"${LOG_FILE}" || true
-		fi
+		log "Configurando Server (modo console avançado)..."
+		
+		# === 1. Definir target multi-user (sem GUI) como padrão ===
+		chroot "${MOUNT_POINT}" systemctl set-default multi-user.target 2>>"${LOG_FILE}" || true
+		log "Target definido como multi-user.target"
+		
+		# === 2. Desabilitar TODOS os display managers conhecidos ===
+		local display_managers=("sddm" "lightdm" "gdm" "gdm3" "xdm" "lxdm" "nodm" "slim" "wdm")
+		for dm in "${display_managers[@]}"; do
+			if chroot "${MOUNT_POINT}" systemctl is-enabled "${dm}" 2>/dev/null | grep -q "enabled"; then
+				chroot "${MOUNT_POINT}" systemctl disable "${dm}" 2>>"${LOG_FILE}" || true
+				log "Display manager ${dm} desabilitado"
+			fi
+			# Também mascarar para garantir que não seja iniciado acidentalmente
+			chroot "${MOUNT_POINT}" systemctl mask "${dm}" 2>>"${LOG_FILE}" || true
+		done
+		
+		# === 3. Garantir que getty está habilitado no tty1 ===
+		chroot "${MOUNT_POINT}" systemctl unmask getty@tty1 2>>"${LOG_FILE}" || true
+		chroot "${MOUNT_POINT}" systemctl enable getty@tty1 2>>"${LOG_FILE}" || true
+		log "getty@tty1 habilitado"
+		
+		# === 4. Configurar console avançado com framebuffer ===
+		configure_advanced_console
+		
+		log "Perfil Server configurado com sucesso"
 	fi
 }
 

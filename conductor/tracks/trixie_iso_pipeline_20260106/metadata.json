@@ -1,8 +1,0 @@
-{
-  "track_id": "trixie_iso_pipeline_20260106",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-06T11:45:00Z",
-  "updated_at": "2026-01-06T11:45:00Z",
-  "description": "Implementar pipeline completo de build da ISO Debian Trixie com ZFS, incluindo arquitetura de diretórios organizada e testes automatizados."
-}

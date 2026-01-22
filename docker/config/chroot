@@ -35,3 +35,6 @@ LB_BACKPORTS="true"
 
 # Enable proposed updates
 LB_PROPOSED_UPDATES="false"
+
+# Locale e Timezone para pt_BR
+LB_BOOTAPPEND_LIVE_FAILSAFE="boot=live components locales=pt_BR.UTF-8 keyboard-layouts=br"

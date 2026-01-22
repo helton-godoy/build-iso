@@ -1,43 +1,214 @@
 #!/bin/bash
 set -e
 
-# Enable framebuffer support for advanced terminal features
-echo "I: Enabling framebuffer support..."
+# =============================================================================
+# Hook: Configuração de Terminal Rico para Aurora OS (CORE)
+# Configura kmscon com suporte a emojis, Nerd Fonts e mouse
+# =============================================================================
 
-# Configure kernel parameters for framebuffer
-cat >> /etc/default/grub <<EOF
-# Framebuffer configuration for advanced terminal support
-GRUB_GFXMODE=1024x768
-GRUB_GFXPAYLOAD_LINUX=keep
-EOF
+echo "I: Configuring rich terminal environment for Aurora OS..."
 
-# Enable framebuffer modules
-cat >> /etc/initramfs-tools/modules <<EOF
-# Framebuffer drivers
+# =============================================================================
+# 1. DRIVERS DRM/KMS (para kmscon)
+# =============================================================================
+
+cat >> /etc/initramfs-tools/modules <<'EOF'
+
+# DRM/KMS drivers for kmscon hardware acceleration
+drm
+drm_kms_helper
+i915
+amdgpu
+nouveau
+radeon
+# Fallback framebuffer
 fbcon
-vesafb
 efifb
-uvesafb
+simplefb
 EOF
 
-# Configure console for UTF-8 and colors
-cat >> /etc/default/console-setup <<EOF
-# Advanced console configuration
+# =============================================================================
+# 2. CONFIGURAÇÃO DO CONSOLE UTF-8
+# =============================================================================
+
+cat > /etc/default/console-setup <<'EOF'
+# Console configuration for Aurora OS
+ACTIVE_CONSOLES="/dev/tty[1-6]"
 CHARMAP="UTF-8"
 CODESET="Uni2"
-FONTFACE="Fixed"
-FONTSIZE="8x16"
+FONTFACE="Terminus"
+FONTSIZE="16x32"
 EOF
 
-# Enable GPM (General Purpose Mouse) service
-systemctl enable gpm 2>/dev/null || true
+# =============================================================================
+# 3. FONTCONFIG - Fallback para Emojis
+# =============================================================================
 
-# Configure KMSCon as alternative to getty
-mkdir -p /etc/systemd/system/getty@tty1.service.d
-cat > /etc/systemd/system/getty@tty1.service.d/kmscon.conf <<EOF
+mkdir -p /etc/fonts/conf.d
+cat > /etc/fonts/local.conf <<'EOF'
+<?xml version='1.0'?>
+<!DOCTYPE fontconfig SYSTEM 'fonts.dtd'>
+<fontconfig>
+  <!-- Priorizar Noto Color Emoji como fallback para emojis -->
+  <match target="pattern">
+    <test qual="any" name="family">
+      <string>sans-serif</string>
+    </test>
+    <edit name="family" mode="append" binding="weak">
+      <string>Noto Color Emoji</string>
+    </edit>
+  </match>
+
+  <match target="pattern">
+    <test qual="any" name="family">
+      <string>serif</string>
+    </test>
+    <edit name="family" mode="append" binding="weak">
+      <string>Noto Color Emoji</string>
+    </edit>
+  </match>
+
+  <match target="pattern">
+    <test qual="any" name="family">
+      <string>monospace</string>
+    </test>
+    <edit name="family" mode="append" binding="weak">
+      <string>Noto Color Emoji</string>
+    </edit>
+  </match>
+
+  <!-- Fallback global para qualquer fonte -->
+  <match target="pattern">
+    <edit name="family" mode="append">
+      <string>Noto Color Emoji</string>
+    </edit>
+  </match>
+
+  <!-- Preferir fonte específica para emojis -->
+  <alias>
+    <family>emoji</family>
+    <prefer>
+      <family>Noto Color Emoji</family>
+    </prefer>
+  </alias>
+</fontconfig>
+EOF
+
+# Atualizar cache de fontes
+fc-cache -f 2>/dev/null || true
+
+# =============================================================================
+# 4. CONFIGURAÇÃO DO KMSCON
+# =============================================================================
+
+mkdir -p /etc/kmscon
+cat > /etc/kmscon/kmscon.conf <<'EOF'
+# KMSCon configuration for Aurora OS
+# Terminal avançado com suporte a emojis e ícones
+
+# Fonte principal (FiraCode para ícones, Noto para emojis como fallback)
+font-name=FiraCode,DejaVu Sans Mono,Noto Color Emoji
+font-size=14
+
+# Tema de cores (solarized para melhor legibilidade)
+palette=solarized
+
+# Layout de teclado brasileiro
+xkb-layout=br
+xkb-model=pc105
+
+# Opções de renderização
+render-timing=false
+render-lazy=50
+
+# Zoom com Ctrl+/Ctrl-
+grab-zoom-in=<Ctrl>plus
+grab-zoom-out=<Ctrl>minus
+EOF
+
+# =============================================================================
+# 5. SYSTEMD SERVICE PARA KMSCON
+# =============================================================================
+
+# Criar unit file para kmscon nos TTYs
+cat > /etc/systemd/system/kmsconvt@.service <<'EOF'
+[Unit]
+Description=KMSCon Virtual Terminal on %I
+Documentation=man:kmscon(1)
+After=systemd-user-sessions.service
+After=plymouth-quit-wait.service
+After=systemd-logind.service
+ConditionPathExists=/dev/tty0
+
 [Service]
-ExecStart=
-ExecStart=-/sbin/kmscon --seats=seat0 --current-vt --no-login
+Type=simple
+ExecStart=/usr/bin/kmscon "--vt=%I" --seats=seat0 --no-switchvt --font-name="FiraCode,DejaVu Sans Mono,Noto Color Emoji" --font-size=14 --login -- /bin/login
+ExecStopPost=-/usr/bin/deallocvt %I
+Restart=always
+RestartSec=2
+UtmpIdentifier=%I
+TTYPath=/dev/%I
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
-echo "I: Framebuffer support configured"
+# NÃO habilitar kmscon por padrão no CORE
+# Será habilitado apenas via:
+# - 01-live-tools (ambiente Live)
+# - Ou manualmente pelo usuário após instalação
+
+# =============================================================================
+# 6. SCRIPT PARA ATIVAR KMSCON MANUALMENTE
+# =============================================================================
+
+cat > /usr/local/bin/enable-kmscon <<'EOF'
+#!/bin/bash
+# Habilitar kmscon como terminal padrão nos TTYs 1-6
+set -e
+
+echo "Habilitando kmscon nos TTYs..."
+
+for tty in 1 2 3 4 5 6; do
+    systemctl disable getty@tty${tty}.service 2>/dev/null || true
+    systemctl enable kmsconvt@tty${tty}.service 2>/dev/null || true
+done
+
+echo "kmscon habilitado. Reinicie para aplicar ou execute:"
+echo "  systemctl start kmsconvt@tty1.service"
+EOF
+chmod +x /usr/local/bin/enable-kmscon
+
+cat > /usr/local/bin/disable-kmscon <<'EOF'
+#!/bin/bash
+# Reverter para getty padrão nos TTYs
+set -e
+
+echo "Revertendo para getty padrão..."
+
+for tty in 1 2 3 4 5 6; do
+    systemctl disable kmsconvt@tty${tty}.service 2>/dev/null || true
+    systemctl enable getty@tty${tty}.service 2>/dev/null || true
+done
+
+echo "getty restaurado. Reinicie para aplicar."
+EOF
+chmod +x /usr/local/bin/disable-kmscon
+
+# =============================================================================
+# 7. GPM (Mouse no Console)
+# =============================================================================
+
+# Habilitar GPM por padrão (funciona tanto com getty quanto kmscon)
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl enable gpm 2>/dev/null || true
+fi
+
+echo "I: Rich terminal environment configured successfully"
+echo "I: - kmscon configured (not enabled by default)"
+echo "I: - GPM enabled for mouse support"
+echo "I: - Emoji fonts installed with fontconfig fallback"
+echo "I: - Run 'enable-kmscon' to activate kmscon on TTYs"

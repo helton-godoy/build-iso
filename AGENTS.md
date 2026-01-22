@@ -1,191 +1,136 @@
-# BASE DE CONHECIMENTO DO PROJETO
+# AGENTS.md - Aurora OS Build System
 
-**Gerado:** 2025-01-05
-**Commit:** 00c2411 (docs: improve table formatting and add architectural blueprint documentation)
-**Branch:** blueprint-docs
-**Status:** Blueprint arquitetural - implementação em progresso (script inicial implementado)
+**IDIOMA:** Comunicar-se sempre em **Português (pt_BR)**.
 
-YOU MUST ALWAYS COMMUNICATE IN BRAZILIAN PORTUGUESE, REGARDLESS OF THE INPUT LANGUAGE USED.
+## OVERVIEW
 
-**You are an experienced, curious technical leader with excellent planning skills. Your goal is to gather information and context to create a detailed plan to accomplish the user's task, which will be reviewed and approved by them before moving to another mode to implement the solution. You are proactive, almost an Optimization Consultant, due to your multidisciplinary intelligence.** Your main function is:
+Debian-based ISO builder via Docker + live-build: modular SquashFS layers, ZFSBootMenu bootloader, Gum TUI installer.
 
-<IMPORTANT>
-1. **Critically analyze** every request received
-2. **Identify opportunities for improvement** in quality, robustness, efficiency, and security
-3. **Creatively expand** the scope when relevant
-4. **Anticipate problems** before execution
-5. **Only then** execute the improved version of the task
-<IMPORTANT/>
+## STRUCTURE
 
-## VISÃO GERAL
+```
+./
+├── Makefile                    # Orchestration (build/test/vm)
+├── docker/
+│   ├── config/                 # live-build configs + hooks + layers
+│   └── tools/                  # Dockerfile, build-iso-in-docker.sh
+├── include/usr/local/bin/      # Installer scripts overlay
+├── tools/                      # download-zfsbootmenu.sh, download-gum.sh
+├── qemu/tools/vm.sh            # QEMU/KVM VM manager (UEFI + BIOS)
+├── tests/test_*.sh             # 18 test scripts
+└── docs/                       # Architecture docs
+```
 
-Automatização de implantação Debian com ZFS-on-root e ZFSBootMenu, suportando UEFI e BIOS legado. Projeto está na fase de planejamento - estrutura de código ainda não implementada.
+## WHERE TO LOOK
 
-## ONDE OLHAR
+| Task                 | Location                                      |
+| -------------------- | --------------------------------------------- |
+| Adicionar pacotes    | `docker/config/layers/*.list.chroot`          |
+| Configurar ISO       | `docker/config/binary` (boot params)          |
+| Customizar chroot    | `docker/config/hooks/live/*.hook.chroot`      |
+| Configurar ZFS       | `docker/config/hooks/live/0100-*.hook.chroot` |
+| Modificar instalador | `include/usr/local/bin/install-aurora.sh`     |
+| Testar build         | `tests/test_*.sh` (execute `make test`)       |
+| Testar VM            | `qemu/tools/vm.sh --start-uefi`               |
+| Ajustar Docker       | `docker/tools/Dockerfile`                     |
 
-| Tarefa               | Localização                    | Notas                              |
-| -------------------- | ------------------------------ | ---------------------------------- |
-| Blueprint completo   | `Architectural Blueprint...md` | Arquitetura detalhada em português |
-| Convenções de código | Ver seção abaixo               | Shell-only                         |
-| Build/Test           | Ver seção abaixo               | Docker + KVM                       |
-| ZFSBootMenu binaries | `ZFSBOOTMENU_BINARIES.md`      | Endereços de download e estrutura  |
-| Referências ZFS      | Ver seção abaixo               | ZFSBootMenu docs                   |
+## CODE MAP
 
-## CONVENÇÕES (QUANDO IMPLEMENTAR)
+- **Entry point:** `Makefile` → `make build`
+- **Build orchestrator:** `docker/tools/build-iso-in-docker.sh` (Docker wrapper)
+- **Installer:** `include/usr/local/bin/install-aurora.sh` (1918 lines - Gum TUI)
+- **VM manager:** `qemu/tools/vm.sh` (266 lines - QEMU/KVM)
+- **Layers:** `docker/config/layers/00-core.list.chroot` → 01 → 10 → 20
+- **SquashFS:** `docker/config/hooks/normal/0990-modular-squashfs.hook.binary`
+- **ZFS:** `docker/config/hooks/live/0100-compile-zfs-dkms.hook.chroot`
+
+## CONVENTIONS
 
 ### Shell Scripts
 
-- Shebang: `#!/usr/bin/env bash` (bashisms) ou `#!/bin/sh` (POSIX)
-- Sempre: `set -euo pipefail`
-- Variáveis: `CONSTANTE` (maiusculas), `variavel` (minusculas)
-- Funções: `verbo_objeto` (ex: `create_zfs_pool`, `detect_firmware`)
-- Formatação: 2 espaços, max 100 caracteres/linha
-- Comentários em português para lógica complexa
-
-### ZFS - Pools e Datasets
-
 ```bash
-zroot                          (canmount=off, compression=zstd)
-├── ROOT                       (canmount=off, org.zfsbootmenu:commandline="quiet")
-│   └── debian                 (mountpoint=/, relatime=on, xattr=sa)
-├── home                       (com.sun:auto-snapshot=true)
-│   └── user
-├── var/log
-└── swap
+#!/usr/bin/env bash
+set -euo pipefail  # Strict mode obrigatório
 ```
 
-**Propriedades padrão:**
+- **Cores:** `C_RESET`, `C_CYAN`, `C_GREEN`, `C_YELLOW`, `C_RED` (readonly)
+- **Logging:** `log_info()`, `log_ok()`, `log_warn()`, `log_error()`
+- **Nomenclatura:** `readonly NOME="valor"` (constantes), `local var_name` (locais)
+- **Cleanup:** `trap '[[ -d ${TEMP_DIR} ]] && rm -rf "${TEMP_DIR}"' EXIT`
 
-- Pools: `ashift=12`, `compression=zstd`, `compatibility=openzfs-2.2-linux`
-- Datasets: `xattr=sa`, `atime=off` (workloads)
-- Criptografia: `keyformat=passphrase`, `keylocation=prompt`
+### live-build
 
-## ANTI-PADRÕES (ESTE PROJETO)
+- **Arquivos list:** `NN-descrição.list.chroot` (NN = ordem)
+- **Hooks live:** `NNNN-descrição.hook.chroot` (shebang `#!/bin/sh`)
+- **Hooks binary:** `NNNN-descrição.hook.binary` (squashfs = 0990)
+- **Variáveis LB_:** `LB_BOOTAPPEND_LIVE`, `LB_COMPRESSION="none"`
 
-- ❌ Nunca hardcode chaves de criptografia
-- ❌ Nunca suponha caminhos de dispositivo (sempre validar)
-- ❌ Nunca opere em disco sem verificação explícita (`--yes-really-destroy`)
-- ❌ Não atualizar pool ZFS sem verificar compatibilidade ZFSBootMenu
-- ❌ Não usar `wipefs` sem `sgdisk --zap-all` (fazer ambos)
+### Localização
 
-## COMANDOS (FUTUROS)
+- Textos usuário: **Português (pt_BR.UTF-8)**
+- Comentários código: Inglês (preferido)
+- Fuso: `America/Cuiaba`, Teclado: `br`
 
-### Build ISO em Docker
+## ANTI-PATTERNS
 
-```bash
-# Container para build ISO (debian:trixie-slim)
-docker run -it --rm -v $(pwd):/work -w /work debian:trixie-slim \
-  lb config --distribution trixie --architectures amd64 \
-  --binary-images iso-hybrid --debian-installer live
+- **NUNCA** usar `set -e` fora de hooks (quebra live-build)
+- **NUNCA** modificar `LB_BUILD_WITH_CHROOT="false"` (segurança)
+- **NUNCA** instalar plymouth (quebra boot params sem splash)
+- **NUNCA** pacotes com versão fixa (`pacote=1.2.3`)
+- **NUNCA** pacotes de teste em `00-core` (layer base imutável)
+- **NUNCA** misturar layers sem ordem (00 → 01 → 10 → 20)
+- **NUNCA** usar hooks > 5000 sem revisar (conflito upstream)
+- **NUNCA** deixar blocos catch vazios
 
-docker run -it --rm -v $(pwd):/work -w /work debian:trixie-slim \
-  lb build 2>&1 | tee build.log
-```
+## COMMANDS
 
-### Teste ISO com KVM
-
-```bash
-# Teste UEFI
-qemu-system-x86_64 -m 4G -enable-kvm \
-  -bios /usr/share/ovmf/OVMF.fd \
-  -cdrom debian-live-amd64.hybrid.iso \
-  -nographic -serial mon:stdio
-
-# Teste BIOS legado
-qemu-system-x86_64 -m 4G -enable-kvm \
-  -cdrom debian-live-amd64.hybrid.iso \
-  -nographic -serial mon:stdio
-
-# Teste com disco virtual
-qemu-img create -f qcow2 test-disk.qcow2 20G
-qemu-system-x86_64 -m 4G -enable-kvm \
-  -bios /usr/share/ovmf/OVMF.fd \
-  -cdrom debian-live-amd64.hybrid.iso \
-  -drive file=test-disk.qcow2,format=qcow2 \
-  -nographic -serial mon:stdio
-```
-
-### Download ZFSBootMenu Binaries
+### Build
 
 ```bash
-# Download componentes (vmlinuz + initramfs + EFI)
-curl -LJO https://get.zfsbootmenu.org/components
-tar -xzf zfsbootmenu-release-x86_64-*.tar.gz
-
-# Download EFI Recovery (fallback)
-curl -LJO https://get.zfsbootmenu.org/efi/recovery
-
-# Download EFI Release (principal)
-curl -LJO https://get.zfsbootmenu.org/efi
-
-# Usar script automatizado
-./scripts/download-zfsbootmenu.sh --output-dir ./zbm-binaries
+make build              # Constrói ISO (Docker, inclui deps)
+make prepare            # Baixa ZFSBootMenu + Gum
+make clean              # Limpa build e VM
+make fix-permissions    # Corrige permissões docker/include
 ```
 
-### ZFSBootMenu e Instalação
+### Teste
 
 ```bash
-# ZFSBootMenu (já usa containerizado)
-./zbm-builder.sh -o ./zbm-output
-
-# Instalação (dry-run)
-./install.sh --dry-run --target /dev/sdX
+make test               # Executa TODOS os testes
+./tests/test_*.sh       # Teste individual
 ```
 
-### Docker + KVM Workflow
+### VM Testing
 
 ```bash
-# 1. Build ISO em container isolado
-./scripts/build-iso-in-docker.sh
-
-# 2. Testar ISO em ambas firmwares
-./scripts/test-iso.sh --firmware uefi
-./scripts/test-iso.sh --firmware bios
-
-# 3. Validar instalação automatizada
-./scripts/test-install.sh --dry-run
+make vm-uefi/bios       # Boot ISO (UEFI/BIOS)
+make vm-test-uefi       # Boot do disco (pós-install)
+make vm-raidz[1-3]      # Boot ISO com 3/4/5 discos
+./qemu/tools/vm.sh --check  # Verifica dependências VM
 ```
 
-## PARTIÇÕES (HYBRIDO UEFI+BIOS)
+## NOTES
 
-| Partição  | Tamanho  | Tipo   | Finalidade                     |
-| --------- | -------- | ------ | ------------------------------ |
-| BIOS boot | 1 MiB    | `EF02` | Syslinux                       |
-| ESP       | 512 MiB  | `EF00` | VFAT - ZFSBootMenu EFI         |
-| Pool ZFS  | Restante | `BF00` | ZFS - sistema root             |
+- `docker/config/hooks/normal/` contém symlinks upstream (não modificar)
+- Squashfs modular: `/live/filesystem.squashfs.*` (separado por layers)
+- `LB_COMPRESSION="none"` em config/binary (comprimido no hook 0990)
+- `config/bootstrap`, `config/chroot` são autogerados (não editar)
+- `package-lists/` ≠ `layers/` (não duplicar conteúdo)
+- DKMS ZFS compilado em `hooks/live/0100-compile-zfs-dkms.hook.chroot`
+- Docker roda como `--privileged` (requerido para live-build)
 
-**ZFSBootMenu (ZBM):** Gestor de boot primário.
-    - **UEFI:** Boot direto via `efibootmgr` (Unified EFI Binary).
-    - **BIOS (Legacy):** Boot via **Syslinux** (ponte leve), carregando kernel/initramfs do ZBM.
-    - **GRUB:** Removido do processo de boot e do sistema instalado (para evitar overwrites).
+## VERIFICATION PRÉ-COMMIT
 
-### 2. Gestão de Pacotes
-A lista de pacotes (`docker/config/package-lists/`) segue uma taxonomia modular:
-- **`00-core`**: Sistema base mínimo (Kernel, ZFS, Live Boot).
-- **`01-live-tools`**: Ferramentas exclusivas do ambiente Live (Instalador, Syslinux).
-- **`10-server`**: Perfil Servidor (CLI, SSH, Utils).
-- **`20-workstation`**: Perfil Workstation (KDE Plasma Minimal).
+1. `make test` - Todos os testes passam
+2. `make build` - ISO constrói com sucesso
+3. `make vm-uefi` - Se mudou comportamento de VM
 
-Isso permite criar builds customizados (ex: apenas Servidor) removendo listas específicas antes do build.
+## SEM CONFIGURAÇÕES EXTERNAS
 
-## KERNEL PARAMETERS (ZFSBootMenu)
+Este projeto NÃO possui:
 
-- `quiet` - reduz verbosidade
-- `elevator=noop` - ZFS faz I/O scheduling
-- `zfs.zfs_arc_max=1073741824` - limpa ARC a 1GB
-- `zbm.waitfor=5` - espera 5s por storage lento
+- `.cursor/rules/`, `.cursorrules`
+- `.github/copilot-instructions.md`
+- ESLint/Prettier/TypeScript configs
 
-## REFERÊNCIAS
-
-- ZFSBootMenu: https://docs.zfsbootmenu.org/
-- Debian Live-Build: https://live-team.pages.debian.net/live-manual/
-- OpenZFS: https://openzfs.github.io/openzfs-docs/
-
-## NOTAS
-
-- Detecção UEFI: verificar `/sys/firmware/efi/efivars`
-- Instalar fallback bootloader em `/EFI/BOOT/BOOTX64.EFI`
-- Hostid deve ser consistente entre ISO, ZBM e instalação final
-- Suporta ambientes de boot múltiplos via snapshots/clones
-- Build ISO isolado em Docker (debian:trixie-slim)
-- Testes automatizados com KVM em ambas firmwares (UEFI/BIOS)
+Seguir os padrões documentados acima.

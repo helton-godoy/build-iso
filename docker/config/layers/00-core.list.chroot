@@ -1,0 +1,70 @@
+# 00-core.list.chroot - Núcleo do Sistema Aurora OS (Layer Base)
+# Sistema mínimo para boot, ZFS e terminal avançado com kmscon
+# Este layer é a base para todos os outros
+
+# === Boot System ===
+live-boot
+live-config
+live-config-systemd
+systemd-sysv
+
+# === ZFS Support ===
+zfs-dkms
+zfsutils-linux
+zfs-initramfs
+zfs-zed
+
+# === Kernel & Firmware ===
+linux-image-amd64
+linux-headers-amd64
+dkms
+firmware-linux
+firmware-linux-nonfree
+firmware-misc-nonfree
+firmware-realtek
+firmware-iwlwifi
+firmware-atheros
+firmware-libertas
+
+# === Essential Tools ===
+console-setup
+locales
+ca-certificates
+parted
+gdisk
+dosfstools
+efibootmgr
+busybox
+initramfs-tools
+keyboard-configuration
+tzdata
+bash-completion
+sudo
+apt-utils
+curl
+wget
+
+# === Advanced Terminal (kmscon) ===
+kmscon
+gpm
+ncurses-base
+ncurses-bin
+ncurses-term
+kbd
+console-data
+
+# === Font Rendering (Pango/Cairo/Fontconfig) ===
+fontconfig
+libpango-1.0-0
+libpangocairo-1.0-0
+libcairo2
+
+# === Fonts: Emoji Support ===
+fonts-noto-color-emoji
+fonts-noto-mono
+
+# === Fonts: Base System ===
+fonts-dejavu-core
+fonts-liberation
+fonts-terminus
+fonts-firacode

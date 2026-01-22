@@ -1,90 +1,207 @@
 #!/bin/bash
 set -e
 
+# =============================================================================
+# Hook: Geração Modular de SquashFS para Aurora OS
+# Cria layers separados para cada perfil de instalação
+# =============================================================================
+
 # Configuration
 LAYERS_DIR="config/layers"
 CHROOT_DIR="chroot"
 LIVE_DEST="binary/live"
-MKSQUASHFS_OPTIONS="-comp zstd -Xcompression-level 22"
+MKSQUASHFS_OPTIONS="-comp zstd -Xcompression-level 19"
 
-echo "I: Starting Modular SquashFS Generation Hook..."
+# Layer order for proper overlay mounting
+declare -a LAYER_ORDER=(
+    "01-live-tools"  
+    "10-server"
+    "20-workstation"
+)
 
-# Ensure we have the necessary tools
-if ! command -v squashfs-tools > /dev/null; then
-    echo "W: squashfs-tools not found in host? Ensure it is installed in the build environment."
+echo "I: =============================================="
+echo "I: Starting Modular SquashFS Generation Hook"
+echo "I: =============================================="
+echo "I: PWD: $(pwd)"
+echo "I: Will generate layers: ${LAYER_ORDER[*]}"
+
+# Verificar estrutura
+echo "I: DEBUG - Listando LAYERS_DIR:"
+ls -la "${LAYERS_DIR}/" 2>/dev/null || echo "W: LAYERS_DIR não existe"
+
+# Renomear filesystem.squashfs para 00-core.squashfs
+if [ -f "${LIVE_DEST}/filesystem.squashfs" ]; then
+    echo "I: Renaming filesystem.squashfs to 00-core.squashfs..."
+    mv "${LIVE_DEST}/filesystem.squashfs" "${LIVE_DEST}/00-core.squashfs"
+    ln -sf "00-core.squashfs" "${LIVE_DEST}/filesystem.squashfs"
+    echo "I: Base squashfs renamed successfully."
+else
+    echo "W: filesystem.squashfs not found!"
 fi
 
-# Function to build a layer
+# Verificar mksquashfs
+if ! command -v mksquashfs > /dev/null; then
+    echo "E: mksquashfs not found! Installing..."
+    apt-get update && apt-get install -y squashfs-tools
+fi
+
+# =============================================================================
+# Configurações específicas por layer (executadas no overlay)
+# =============================================================================
+
+configure_01_live_tools() {
+    local merged_dir="$1"
+    echo "I: Applying 01-live-tools specific configuration..."
+    
+    # Habilitar kmscon no TTY1 com auto-login como root
+    # Substitui o getty padrão por kmscon com login automático
+    mkdir -p "${merged_dir}/etc/systemd/system/getty@tty1.service.d"
+    cat > "${merged_dir}/etc/systemd/system/getty@tty1.service.d/override.conf" <<'EOF'
+[Service]
+ExecStart=
+ExecStart=-/usr/bin/kmscon --vt=1 --seats=seat0 --no-switchvt --font-name="FiraCode,DejaVu Sans Mono,Noto Color Emoji" --font-size=14 --login -- /bin/login -f root
+TTYVTDisallocate=no
+EOF
+
+    # .profile do root para auto-start do instalador
+    mkdir -p "${merged_dir}/root"
+    cat > "${merged_dir}/root/.profile" <<'EOF'
+# Aurora OS Live - Auto-start installer
+# Só executa se for terminal interativo e primeira vez
+if [ -z "$AURORA_STARTED" ] && [ -t 0 ]; then
+    export AURORA_STARTED=1
+    if [ -f /usr/local/bin/aurora-welcome.sh ]; then
+        /usr/local/bin/aurora-welcome.sh
+    fi
+fi
+EOF
+
+    cat > "${merged_dir}/root/.bash_profile" <<'EOF'
+# Source .profile for login shells
+if [ -f ~/.profile ]; then
+    . ~/.profile
+fi
+EOF
+
+    # Habilitar GPM 
+    chroot "${merged_dir}" systemctl enable gpm 2>/dev/null || true
+    
+    echo "I: 01-live-tools: kmscon with auto-login + installer configured"
+}
+
+
+
+configure_10_server() {
+    local merged_dir="$1"
+    echo "I: Applying 10-server specific configuration..."
+    
+    # Habilitar SSH
+    chroot "${merged_dir}" systemctl enable ssh 2>/dev/null || true
+    
+    # Não fazer auto-login - comportamento normal de servidor
+    echo "I: 10-server configuration applied (ssh enabled)"
+}
+
+configure_20_workstation() {
+    local merged_dir="$1"
+    echo "I: Applying 20-workstation specific configuration..."
+    
+    # Habilitar SDDM para login gráfico
+    chroot "${merged_dir}" systemctl enable sddm 2>/dev/null || true
+    
+    echo "I: 20-workstation configuration applied (sddm enabled)"
+}
+
+# =============================================================================
+# Função para construir um layer
+# =============================================================================
+
 build_layer() {
     local layer_name="$1"
     local package_list="$2"
     
+    echo "I: ----------------------------------------"
     echo "I: Building layer: $layer_name"
+    echo "I: ----------------------------------------"
     
     # 1. Create temporary directories
     local work_dir="layer_work/${layer_name}"
     mkdir -p "${work_dir}/upper" "${work_dir}/work" "${work_dir}/merged"
     
     # 2. Mount OverlayFS
-    # We mount the clean 'chroot' (base) as lowerdir
-    mount -t overlay overlay -o lowerdir="${CHROOT_DIR}",upperdir="${work_dir}/upper",workdir="${work_dir}/work" "${work_dir}/merged"
-    
-    # 3. Install packages into the overlay
-    echo "I: Installing packages for $layer_name..."
-    
-    # We need to use chroot to install packages inside the merged view
-    # Copiar o sources.list e resoluções de DNS do host/chroot é automático pelo live-build geralmente, 
-    # mas aqui estamos num hook binary, o chroot já está "fechado".
-    # Precisamos garantir que apt funcione.
-    
-    # Bind mount essential special filesystems if not already mounted
-    for mountpoint in /dev /dev/pts /proc /sys; do
-        mount --bind "$mountpoint" "${work_dir}/merged$mountpoint"
-    done
-    
-    # Install packages defined in the list
-    # We strip comments and empty lines from the list
-    local packages=$(grep -vE "^#|^$" "${package_list}" | tr '\n' ' ')
-    
-    if [ -n "$packages" ]; then
-        # Update apt usage inside chroot (assuming network is available in build env)
-        chroot "${work_dir}/merged" apt-get update
-        chroot "${work_dir}/merged" apt-get install --no-install-recommends -y $packages
-        chroot "${work_dir}/merged" apt-get clean
-    else
-        echo "W: No packages found in $package_list"
+    if ! mount -t overlay overlay -o lowerdir="${CHROOT_DIR}",upperdir="${work_dir}/upper",workdir="${work_dir}/work" "${work_dir}/merged"; then
+        echo "E: Failed to mount overlayfs for ${layer_name}"
+        return 1
     fi
     
-    # Unmount special filesystems
+    # 3. Bind mount essential filesystems
+    for mountpoint in /dev /dev/pts /proc /sys; do
+        mount --bind "$mountpoint" "${work_dir}/merged$mountpoint" 2>/dev/null || true
+    done
+    cp -f /etc/resolv.conf "${work_dir}/merged/etc/resolv.conf" 2>/dev/null || true
+    
+    # 4. Install packages
+    local packages
+    packages=$(grep -vE "^#|^$|^[[:space:]]*$" "${package_list}" | tr '\n' ' ')
+    
+    if [ -n "$packages" ]; then
+        echo "I: Installing packages: ${packages}"
+        chroot "${work_dir}/merged" apt-get update -qq
+        chroot "${work_dir}/merged" apt-get install --no-install-recommends -y $packages || true
+        chroot "${work_dir}/merged" apt-get clean
+    fi
+    
+    # 5. Apply layer-specific configuration
+    case "$layer_name" in
+        "01-live-tools")
+            configure_01_live_tools "${work_dir}/merged"
+            ;;
+        "10-server")
+            configure_10_server "${work_dir}/merged"
+            ;;
+        "20-workstation")
+            configure_20_workstation "${work_dir}/merged"
+            ;;
+    esac
+    
+    # 6. Unmount special filesystems
     for mountpoint in /sys /proc /dev/pts /dev; do
-        umount "${work_dir}/merged$mountpoint"
+        umount "${work_dir}/merged$mountpoint" 2>/dev/null || true
     done
     
-    # 4. Create SquashFS of the layer (upperdir only)
-    # We only want the *changes*, which are in 'upper'
+    # 7. Create SquashFS (only upper layer diffs)
     echo "I: Squashing layer $layer_name..."
-    mksquashfs "${work_dir}/upper" "${LIVE_DEST}/${layer_name}.squashfs" ${MKSQUASHFS_OPTIONS}
+    local upper_files
+    upper_files=$(find "${work_dir}/upper" -type f 2>/dev/null | wc -l)
+    echo "I: Upper layer contains ${upper_files} new/modified files"
     
-    # 5. Cleanup
-    umount "${work_dir}/merged"
+    mksquashfs "${work_dir}/upper" "${LIVE_DEST}/${layer_name}.squashfs" ${MKSQUASHFS_OPTIONS} -noappend
+    echo "I: Layer $layer_name: $(ls -lh "${LIVE_DEST}/${layer_name}.squashfs" | awk '{print $5}')"
+    
+    # 8. Cleanup
+    umount "${work_dir}/merged" 2>/dev/null || true
     rm -rf "${work_dir}"
     
-    echo "I: Layer $layer_name created successfully."
+    echo "I: Layer $layer_name completed."
 }
 
-# Ensure destination exists
+# =============================================================================
+# Main
+# =============================================================================
+
 mkdir -p "${LIVE_DEST}"
 
-# Iterate over layer definitions
-# Format: layer_priority-name.list.chroot -> name.squashfs
-for list_file in "${LAYERS_DIR}"/*.list.chroot; do
-    [ -e "$list_file" ] || continue
+for layer_name in "${LAYER_ORDER[@]}"; do
+    list_file="${LAYERS_DIR}/${layer_name}.list.chroot"
     
-    filename=$(basename "$list_file")
-    # Extract name (e.g., 10-server.list.chroot -> 10-server)
-    layer_name="${filename%.list.chroot}"
-    
-    build_layer "$layer_name" "$list_file"
+    if [ -f "$list_file" ]; then
+        build_layer "$layer_name" "$list_file" || echo "W: Failed to build ${layer_name}"
+    else
+        echo "W: Layer not found: $list_file"
+    fi
 done
 
-echo "I: Modular SquashFS generation complete."
+echo "I: =============================================="
+echo "I: Modular SquashFS generation complete"
+echo "I: =============================================="
+ls -lah "${LIVE_DEST}"/*.squashfs 2>/dev/null || echo "W: No squashfs files"

@@ -13,6 +13,7 @@ readonly C_BOLD='\033[1m'
 readonly C_CYAN='\033[38;5;39m'
 readonly C_GREEN='\033[32m'
 readonly C_RED='\033[31m'
+readonly C_YELLOW='\033[33m'
 
 # Nome da Imagem Docker
 readonly IMAGE_NAME="debian-iso-builder"
@@ -33,13 +34,44 @@ readonly AUTO_SRC="${DOCKER_DIR}/auto"
 # Funções de logging
 log_info() { printf "${C_CYAN}ℹ %s${C_RESET}\n" "$*"; }
 log_ok() { printf "${C_GREEN}✔ %s${C_RESET}\n" "$*"; }
+log_warn() { printf "${C_YELLOW}⚠ %s${C_RESET}\n" "$*"; }
 log_error() {
 	printf "${C_RED}${C_BOLD}✖ %s${C_RESET}\n" "$*"
 	exit 1
 }
 
+function ensure_writable_dir() {
+	local target_dir="$1"
+	local fallback_dir="$2"
+	
+	# Verificar se o diretório já existe e é gravável
+	if [[ -d "${target_dir}" ]] && [[ -w "${target_dir}" ]]; then
+		return 0
+	fi
+	
+	# Tentar criar o diretório
+	if mkdir -p "${target_dir}" 2>/dev/null; then
+		return 0
+	fi
+	
+	# Fallback para /tmp se não tiver permissões
+	if [[ -n "${fallback_dir}" ]]; then
+		log_warn "Sem permissões para criar ${target_dir}, usando fallback: ${fallback_dir}"
+		target_dir="${fallback_dir}"
+		mkdir -p "${target_dir}"
+		eval "$1='${target_dir}'"
+		return 0
+	fi
+	
+	log_error "Não foi possível criar diretório ${target_dir} e nenhum fallback disponível"
+}
+
 function prepare_dirs() {
-	mkdir -p "${WORK_DIR_HOST}" "${DIST_DIR_HOST}" "${LOG_DIR_HOST}" "${CACHE_DIR_HOST}"
+	mkdir -p "${WORK_DIR_HOST}" "${DIST_DIR_HOST}" "${LOG_DIR_HOST}" "${CACHE_DIR_HOST}" 2>/dev/null || {
+		log_warn "Sem permissões em ${DOCKER_DIR}/. Corrigindo com sudo..."
+		sudo chown -R "$(whoami):$(whoami)" "${DOCKER_DIR}"
+		mkdir -p "${WORK_DIR_HOST}" "${DIST_DIR_HOST}" "${LOG_DIR_HOST}" "${CACHE_DIR_HOST}"
+	}
 }
 
 function clean() {
@@ -151,7 +183,7 @@ EOF
 	local current_pwd
 	current_pwd=$(pwd)
 
-	docker run --rm --privileged -v "${current_pwd}:/work" "${IMAGE_NAME}" \
+	docker run --rm -v "${current_pwd}:/work" "${IMAGE_NAME}" \
 		chown -R "${current_uid}:${current_gid}" "/work/${DOCKER_DIR}"
 }
 

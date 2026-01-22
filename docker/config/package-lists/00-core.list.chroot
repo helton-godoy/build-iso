@@ -48,4 +48,4 @@ ncurses-base
 ncurses-bin
 kbd
 console-setup
-kbd-compose
+console-data

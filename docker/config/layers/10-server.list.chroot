@@ -1,6 +1,12 @@
 # 10-server.list.chroot - Perfil Servidor Aurora OS
 # Pacotes de administração e rede para servidores (Sem GUI)
 
+# === Advanced Framebuffer Console ===
+kmscon
+gpm
+ncurses-term
+fonts-dejavu-core
+
 # === System Administration ===
 htop
 iotop

@@ -1,5 +1,5 @@
 # 01-live-tools.list.chroot - Ferramentas do Ambiente Live (Instalador)
-# Ferramentas necessárias apenas para rodar o install-aurora.sh
+# Ambiente puramente em modo texto com terminal framebuffer avançado
 
 # === Installer Dependencies ===
 squashfs-tools
@@ -11,29 +11,16 @@ dialog
 # === Bootloader Management for Target ===
 syslinux
 syslinux-common
-# (grub packages removed intentionally as per new strategy)
 
-# === Disk Management ===
-# (Already in core: gdisk, parted, dosfstools, efibootmgr)
-
-# === Minimal Desktop for Live Testing ===
-# Ambiente gráfico básico para testes durante o Live
-xserver-xorg-core
-xserver-xorg-video-intel
-xserver-xorg-video-amd
-xserver-xorg-video-nouveau
-xinit
-xterm
-openbox
-tint2
-pcmanfm
-network-manager-gnome
-lightdm
-
-# === Advanced Terminal Support ===
-# Suporte a mouse, cores e emojis no modo texto
-gpm
-fbterm
-ncurses-term
+# === Advanced Framebuffer Terminal (kmscon) ===
+# Terminal moderno com suporte a KMS/DRM, Unicode, HiDPI
 kmscon
+gpm
+ncurses-term
 console-setup-linux
+libxkbcommon0
+
+# === Fonts for Terminal ===
+fonts-dejavu-core
+fonts-noto-core
+fonts-terminus

@@ -1,0 +1,34 @@
+#!/bin/sh
+# Hook para configurar locale pt_BR.UTF-8 no sistema instalado
+set -e
+
+echo "I: Configurando locale pt_BR.UTF-8..."
+
+# Gerar locale pt_BR.UTF-8
+if [ -f /etc/locale.gen ]; then
+    sed -i 's/# pt_BR.UTF-8 UTF-8/pt_BR.UTF-8 UTF-8/' /etc/locale.gen
+    sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
+    locale-gen
+fi
+
+# Configurar locale padrão
+cat > /etc/default/locale << 'EOF'
+LANG=pt_BR.UTF-8
+LANGUAGE=pt_BR:pt:en
+LC_ALL=pt_BR.UTF-8
+EOF
+
+# Configurar teclado brasileiro
+cat > /etc/default/keyboard << 'EOF'
+XKBMODEL="pc105"
+XKBLAYOUT="br"
+XKBVARIANT="abnt2"
+XKBOPTIONS=""
+BACKSPACE="guess"
+EOF
+
+# Configurar timezone
+echo "America/Cuiaba" > /etc/timezone
+ln -sf /usr/share/zoneinfo/America/Cuiaba /etc/localtime
+
+echo "I: Locale pt_BR.UTF-8 configurado com sucesso."
