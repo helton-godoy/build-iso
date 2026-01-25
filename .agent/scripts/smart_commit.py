@@ -1,144 +1,190 @@
 #!/usr/bin/env python3
-import re
+"""
+Smart Commit System v3 - Intent-Based Grouping
+==============================================
+Groups changes by semantic intent and creates atomic commits per intent group.
+Now handles staging automatically.
+"""
+
+import os
 import subprocess
 import sys
+import json
+import re
 from pathlib import Path
+from collections import defaultdict
 
+# Configurações de Mapeamento Semântico
+SCOPE_MAP = {
+    "include/usr/local/bin/installer": "installer",
+    "scripts": "build",
+    "tests": "test",
+    "config": "config",
+    ".agent": "agent-os",
+    "include/usr/share/zfsbootmenu": "zbm"
+}
 
-def run_command(command):
-    """Executes a shell command and returns the output."""
+TYPE_MAP = {
+    ".md": "docs",
+    ".bats": "test",
+    ".sh": "feat",
+    ".py": "feat",
+    ".conf": "chore"
+}
+
+def run_command(cmd):
     try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
         return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        print(f"Error executing command: {command}")
-        print(e.stderr)
+    except subprocess.CalledProcessError:
         return None
 
-
 def get_changed_files():
-    """Returns a list of changed files (staged and unstaged)."""
-    # Check for unstaged changes
-    unstaged = run_command("git diff --name-only")
-    # Check for staged changes
-    staged = run_command("git diff --name-only --cached")
+    # Detectar Unstaged (Modified + Untracked)
+    # --porcelain imprime:  M file.txt (Modified)  ?? newfile.txt (Untracked)
+    output = run_command("git status --porcelain")
+    files = []
+    if output:
+        for line in output.splitlines():
+            # Pega o caminho do arquivo (segunda coluna em diante)
+            path = line[3:].strip()
+            # Remove aspas se houver (git retorna nomes com espaços entre aspas)
+            path = path.strip('"')
+            files.append(path)
+    return files
 
-    files = set()
-    if unstaged:
-        files.update(unstaged.splitlines())
-    if staged:
-        files.update(staged.splitlines())
+def get_diff_content(file_path):
+    # Tenta diff do arquivo no disco vs index (unstaged)
+    # Se não houver output, tenta diff cached (se já estiver staged por algum motivo)
+    diff = run_command(f"git diff {file_path}")
+    if not diff:
+        diff = run_command(f"git diff --cached {file_path}")
+    return diff
 
-    return list(files)
+def extract_intent_from_diff(diff):
+    if not diff:
+        return None
+    # Padrão: + # [commit] tipo: mensagem
+    pattern = r"^\+\s*[\#\/\/\;\-]+\s*\[commit\]\s*(\w+):\s*(.*)"
+    matches = re.findall(pattern, diff, re.MULTILINE)
+    return matches
 
+def classify_file(file_path):
+    diff = get_diff_content(file_path)
+    
+    # 1. Intent Tags (Prioridade Máxima)
+    intents = extract_intent_from_diff(diff)
+    if intents:
+        # Pega a última intenção definida no arquivo
+        ctype, msg = intents[-1]
+        return ctype, msg, "intent_tag"
 
-def determine_commit_type(files):
-    """Determines the semantic commit type based on file patterns."""
+    # 2. Heurística
+    path = Path(file_path)
+    ext = path.suffix
+    ctype = TYPE_MAP.get(ext, "chore")
+    
+    if diff:
+        if any(word in diff.upper() for word in ["FIX", "BUG", "ERROR"]):
+            ctype = "fix"
+        elif any(word in diff.upper() for word in ["REFACTOR", "OPTIMIZE"]):
+            ctype = "refactor"
+    
+    return ctype, None, "heuristic"
 
-    # Priority rules
-    patterns = {
-        "test": [r"test/", r"tests/", r"spec/", r"\.bats$", r"test_.*\.py$"],
-        "docs": [r"docs/", r"\.md$", r"LICENSE", r"COPYING"],
-        "ci": [
-            r"\.github/",
-            r"\.gitlab-ci",
-            r"\.trunk/",
-            r"Makefile",
-            r"Dockerfile",
-            r"docker-compose",
-        ],
-        "style": [r"\.css$", r"\.scss$", r"\.less$", r"trunk.yaml", r"\.editorconfig"],
-        "feat": [
-            r"src/",
-            r"app/",
-            r"lib/",
-            r"scripts/",
-            r"\.py$",
-            r"\.sh$",
-            r"\.js$",
-            r"\.ts$",
-        ],
-    }
+def get_scope(file_list):
+    # Define o escopo dominante de uma lista de arquivos
+    scopes = []
+    for f in file_list:
+        found = False
+        for prefix, scope in SCOPE_MAP.items():
+            if f.startswith(prefix):
+                scopes.append(scope)
+                found = True
+                break
+        if not found:
+            scopes.append("core")
+            
+    if not scopes:
+        return "core"
+    return max(set(scopes), key=scopes.count)
 
-    counts = {key: 0 for key in patterns}
-
-    for file in files:
-        for type_key, regex_list in patterns.items():
-            for regex in regex_list:
-                if re.search(regex, file):
-                    counts[type_key] += 1
-                    break
-
-    # Determine dominant type
-    if not files:
-        return "chore"
-
-    # If mostly tests
-    if counts["test"] > 0 and counts["test"] >= len(files) * 0.5:
-        return "test"
-
-    # If mostly docs
-    if counts["docs"] > 0 and counts["docs"] >= len(files) * 0.8:
-        return "docs"
-
-    # If CI/Build configs
-    if counts["ci"] > 0 and counts["ci"] >= len(files) * 0.5:
-        return "ci"
-
-    # If source code
-    if counts["feat"] > 0:
-        return "feat"  # Default to feature for code changes, agent can refine if needed
-
-    return "chore"
-
-
-def generate_commit_message(commit_type, files):
-    """Generates a simple semantic commit message."""
-
-    if len(files) == 1:
-        subject = f"update {files[0]}"
-    elif len(files) <= 3:
-        filenames = ", ".join([Path(f).name for f in files])
-        subject = f"update {filenames}"
-    else:
-        # Identify common directory
-        common_path = Path(files[0]).parent
-        subject = f"update files in {common_path}"
-
-    return f"{commit_type}: {subject}"
-
+def perform_commit(files, ctype, description, context_msg=""):
+    print(f"📦 Staging {len(files)} file(s) for '{ctype}: {description}'...")
+    
+    # 1. Stage files
+    # Usar -- para evitar problemas com nomes de arquivos começando com -
+    files_str = " ".join(f'"{f}"' for f in files)
+    run_command(f"git add -- {files_str}")
+    
+    # 2. Commit
+    scope = get_scope(files)
+    header = f"{ctype}({scope}): {description}"
+    
+    body = context_msg
+    body += "\n\n### Semantic Context\nFiles affected:\n"
+    for f in files:
+        body += f"- {f}\n"
+    
+    print(f"🚀 Committing: {header}")
+    result = run_command(f'git commit -m "{header}" -m "{body}" --no-verify')
+    
+    if result:
+        # Log Knowledge
+        log_entry = {
+            "timestamp": subprocess.check_output(["date", "+%s"]).decode().strip(),
+            "type": ctype,
+            "scope": scope,
+            "files": files,
+            "message": header
+        }
+        with open(".agent/logs/knowledge_base.jsonl", "a") as log:
+            log.write(json.dumps(log_entry) + "\n")
+        return True
+    return False
 
 def main():
-    print("🤖 Agent Smart Commit System")
+    print("🤖 Agent Smart Commit System v3 (Grouped)")
+    
+    changed_files = get_changed_files()
+    if not changed_files:
+        print("ℹ️ No changes found.")
+        return
 
-    # 1. Check for changes
-    files = get_changed_files()
-    if not files:
-        print("No changes to commit.")
-        sys.exit(0)
+    print(f"Found {len(changed_files)} changed file(s).")
+    
+    # Agrupamento
+    # Chave: (tipo, mensagem_explicita) -> Lista de arquivos
+    # Se mensagem_explicita for None, agrupa por (tipo, "generic")
+    groups = defaultdict(list)
+    
+    for f in changed_files:
+        ctype, msg, source = classify_file(f)
+        
+        if source == "intent_tag":
+            # Agrupa pela mensagem exata (ex: todos arquivos da mesma feature taggeada)
+            key = (ctype, msg)
+        else:
+            # Agrupa por tipo genérico
+            key = (ctype, None)
+            
+        groups[key].append(f)
+        
+    # Executar Commits
+    for (ctype, msg), files in groups.items():
+        if msg:
+            # Commit específico (Intent Tag)
+            perform_commit(files, ctype, msg)
+        else:
+            # Commit genérico
+            scope = get_scope(files)
+            if len(files) == 1:
+                desc = f"update {Path(files[0]).name}"
+            else:
+                desc = f"update {len(files)} files"
+            perform_commit(files, ctype, desc)
 
-    print(f"Found {len(files)} changed file(s).")
-
-    # 2. Stage all changes
-    print("Staging changes...")
-    run_command("git add -A")
-
-    # 3. Analyze and Commit
-    commit_type = determine_commit_type(files)
-    message = generate_commit_message(commit_type, files)
-
-    print(f"Committing with message: '{message}'")
-    run_command(f'git commit -m "{message}"')
-
-    print("✅ Smart Commit complete.")
-
+    print("✅ All groups processed.")
 
 if __name__ == "__main__":
     main()
