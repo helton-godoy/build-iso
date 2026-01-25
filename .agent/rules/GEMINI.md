@@ -19,9 +19,9 @@ trigger: always_on
 1.  **ROUTING:** Run `.agent/scripts/task_router.py "<user_query>"` to determine Persona/Skills.
 2.  **LOADING:** Read the files indicated by the Router.
 3.  **EXECUTION:** Perform the task (edit, fix, create).
-4.  **COMMIT:** **ALWAYS** run `.agent/scripts/smart_commit.py` at the very end of your turn.
-    - _Why?_ To auto-save progress with semantic messages without using context tokens.
-    - _Exception:_ If the task was purely informational (question/survey) and changed no files.
+4.  **AUTOMATION:** Work confidently knowing the **Sentinel Daemon** is watching.
+    - _Note:_ The Sentinel detects file changes and triggers an automatic Semantic Commit after 10 seconds of inactivity.
+    - _Verify:_ If you need to force a save immediately, you _can_ run `.agent/scripts/smart_commit.py`, but it's rarely needed.
 
 ### 1. Modular Skill Loading Protocol
 
