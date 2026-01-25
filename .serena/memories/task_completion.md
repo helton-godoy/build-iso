@@ -1,12 +1,11 @@
 - Data: 2026-01-25
-- Problema: Script de instalação encerrava abruptamente após seleção de disco.
-- Diagnóstico:
-  - `ui_choose_multi` imprimia texto de prompt no STDOUT.
-  - O script principal capturava esse texto junto com a seleção do usuário.
-  - Loop de processamento falhava ao tentar extrair dispositivo desse texto de prompt.
-  - `set -e` encerrava o script silenciosamente.
-- Solução:
-  - Redirecionado output cosmético de `ui_gum.sh` para STDERR (`>&2`).
-  - Adicionado `|| true` no pipeline de extração do dispositivo em `install-system` para evitar quebras por falha de grep.
-- Resultado: Correção robusta aplicada e validada por lint.
-- Nota: Alertas restantes do lint em `install-system` (variáveis não usadas SC2034) são esperados pois são variáveis globais consumidas por scripts componentes. Alerta SC1091 (source não encontrado) é falso positivo devido a caminhos dinâmicos.
+- Tarefa: Corrigir problemas relevantes reportados pelo trunk check antes da compilação.
+- Ações:
+  - Dockerfile: Adicionadas supressões de segurança do Checkov (CKV_DOCKER_2, CKV_DOCKER_3) justificando a necessidade de usuário root e ausência de healthcheck no container de build.
+  - build-debian-trixie-zbm.sh:
+    - removida variável 'MAGENTA' não utilizada.
+    - corrigido uso hardcoded de 'ISO_NAME' e 'ZBM_SOURCE_URL' integrando-as no script gerado através de substituição sed pós-geração.
+    - Resolvidos erros SC2034 (variável não utilizada).
+- Resultado:
+  - Trunk check limpo de erros Medium/High nos arquivos principais.
+  - Script pronto para compilação segura e consistente.

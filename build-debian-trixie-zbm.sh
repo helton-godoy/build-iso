@@ -29,6 +29,7 @@ readonly BUILD_DIR="${SCRIPT_DIR}/build"
 readonly OUTPUT_DIR="${SCRIPT_DIR}/output"
 readonly CONFIG_DIR="${SCRIPT_DIR}/config"
 readonly HOOKS_DIR="${CONFIG_DIR}/hooks"
+readonly CACHE_DIR="${SCRIPT_DIR}/cache"
 
 # Configurações da ISO
 readonly DEBIAN_VERSION="trixie"
@@ -45,6 +46,9 @@ readonly ZBM_SOURCE_URL="https://get.zfsbootmenu.org/source"
 # Configurações Docker
 readonly DOCKER_IMAGE="debian-trixie-zbm-builder"
 readonly DOCKER_TAG="latest"
+
+# Artefatos cacheáveis
+readonly KMSCON_DEB_NAME="kmscon-custom_9.3.0_amd64.deb"
 
 #==============================================================================
 # FUNÇÕES UTILITÁRIAS
@@ -119,6 +123,8 @@ create_directory_structure() {
 	mkdir -p "${CONFIG_DIR}/includes.chroot/usr/local/bin"
 	mkdir -p "${CONFIG_DIR}/includes.binary/boot/syslinux"
 	mkdir -p "${CONFIG_DIR}/includes.binary/EFI/ZBM"
+	mkdir -p "${CACHE_DIR}/debs"
+	mkdir -p "${CACHE_DIR}/packages.bootstrap"
 
 	# Copiar arquivos do diretório include/ para includes.chroot
 	if [[ -d "${SCRIPT_DIR}/include" ]]; then
@@ -131,9 +137,93 @@ create_directory_structure() {
 }
 
 generate_dockerfile() {
+	local use_cache=false
+
+	# Verificar se existe cache do kmscon
+	if [[ -f "${CACHE_DIR}/debs/${KMSCON_DEB_NAME}" ]]; then
+		print_message "info" "Cache encontrado: ${KMSCON_DEB_NAME} (pulando compilação)"
+		use_cache=true
+	else
+		print_message "info" "Cache não encontrado, kmscon será compilado"
+	fi
+
 	print_message "step" "Gerando Dockerfile com kmscon customizado e ZFSBootMenu..."
 
-	cat >"${SCRIPT_DIR}/Dockerfile" <<'EOF'
+	if [[ ${use_cache} == true ]]; then
+		# Dockerfile simplificado usando cache
+		cat >"${SCRIPT_DIR}/Dockerfile" <<'EOF'
+# =============================================================================
+# Dockerfile com CACHE - kmscon pré-compilado
+# =============================================================================
+FROM debian:trixie
+
+LABEL maintainer="Sistema de Build Automatizado"
+LABEL description="Ambiente de build para ISO Debian Trixie com ZFSBootMenu e kmscon cacheado"
+LABEL version="2.2.0-cached"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=pt_BR.UTF-8
+ENV LC_ALL=pt_BR.UTF-8
+
+# Atualizar e instalar dependências base
+RUN apt-get update && apt-get install -y \
+    live-build \
+    debootstrap \
+    xorriso \
+    isolinux \
+    syslinux \
+    syslinux-common \
+    syslinux-efi \
+    grub-pc-bin \
+    grub-efi-amd64-bin \
+    grub-efi-ia32-bin \
+    mtools \
+    dosfstools \
+    squashfs-tools \
+    zstd \
+    curl \
+    wget \
+    git \
+    rsync \
+    locales \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar dependências do ZFSBootMenu
+RUN apt-get update && apt-get install -y \
+    libsort-versions-perl \
+    libboolean-perl \
+    libyaml-pp-perl \
+    fzf \
+    mbuffer \
+    kexec-tools \
+    dracut-core \
+    efibootmgr \
+    systemd-boot-efi \
+    bsdextrautils \
+    make \
+    cpanminus \
+    perl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configurar localização
+RUN echo "pt_BR.UTF-8 UTF-8" > /etc/locale.gen && \
+    locale-gen pt_BR.UTF-8 && \
+    update-locale LANG=pt_BR.UTF-8
+
+WORKDIR /build
+
+VOLUME ["/build", "/output", "/cache"]
+
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["build"]
+EOF
+		print_message "success" "Dockerfile gerado (modo CACHE - build rápido)"
+	else
+		# Dockerfile completo com compilação
+		cat >"${SCRIPT_DIR}/Dockerfile" <<'EOF'
 # =============================================================================
 # Estágio 1: Compilação do KMSCON customizado
 # =============================================================================
@@ -273,7 +363,7 @@ RUN echo "pt_BR.UTF-8 UTF-8" > /etc/locale.gen && \
 
 WORKDIR /build
 
-VOLUME ["/build", "/output"]
+VOLUME ["/build", "/output", "/cache"]
 
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
@@ -281,8 +371,8 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["build"]
 EOF
-
-	print_message "success" "Dockerfile gerado com kmscon customizado (multi-stage build)"
+		print_message "success" "Dockerfile gerado com kmscon customizado (multi-stage build)"
+	fi
 }
 
 generate_docker_entrypoint() {
@@ -311,12 +401,25 @@ fi
 # Copiar pacote kmscon customizado para packages.chroot
 echo "==> Preparando pacote kmscon customizado..."
 mkdir -p /build/config/packages.chroot
-if [ -f "/opt/kmscon-custom_9.3.0_amd64.deb" ]; then
-    cp /opt/kmscon-custom_9.3.0_amd64.deb /build/config/packages.chroot/
-    echo "===> Pacote kmscon customizado copiado para packages.chroot"
+
+# Prioridade: 1) Cache montado, 2) /opt (compilado no Docker)
+if [ -f "/cache/debs/kmscon-custom_9.3.0_amd64.deb" ]; then
+    echo "===> Usando kmscon do CACHE"
+    cp /cache/debs/kmscon-custom_9.3.0_amd64.deb /build/config/packages.chroot/
     dpkg-deb -I /build/config/packages.chroot/kmscon-custom_9.3.0_amd64.deb
+elif [ -f "/opt/kmscon-custom_9.3.0_amd64.deb" ]; then
+    echo "===> Usando kmscon COMPILADO"
+    cp /opt/kmscon-custom_9.3.0_amd64.deb /build/config/packages.chroot/
+    dpkg-deb -I /build/config/packages.chroot/kmscon-custom_9.3.0_amd64.deb
+    
+    # Salvar no cache para futuros builds
+    if [ -d "/cache/debs" ]; then
+        echo "===> Salvando kmscon no CACHE para futuros builds"
+        cp /opt/kmscon-custom_9.3.0_amd64.deb /cache/debs/
+    fi
 else
-    echo "AVISO: Pacote kmscon customizado não encontrado em /opt/"
+    echo "AVISO: Pacote kmscon customizado não encontrado!"
+    echo "       Verifique se o cache ou a compilação funcionou."
 fi
 
 # Executar script de configuração
@@ -578,10 +681,13 @@ echo "==> Configurando FontConfig para Emojis..."
 # 1. Criar regra de FontConfig para forçar fallback de Emoji em Monospace
 # Isso é crucial para o Pango aceitar Noto Color Emoji no terminal
 mkdir -p /etc/fonts/conf.d
+
+# Regra de fallback para emoji em fontes monospace
 cat > /etc/fonts/conf.d/99-kmscon-emoji.conf << 'XML'
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
+  <!-- Fallback de Emoji para fontes monospace -->
   <match target="pattern">
     <test name="family"><string>monospace</string></test>
     <edit name="family" mode="append"><string>Noto Color Emoji</string></edit>
@@ -591,32 +697,74 @@ cat > /etc/fonts/conf.d/99-kmscon-emoji.conf << 'XML'
     <test name="family"><string>FiraCode Nerd Font Mono</string></test>
     <edit name="family" mode="append"><string>Noto Color Emoji</string></edit>
   </match>
+
+  <!-- CRÍTICO: Hinting para emojis coloridos (evita bug do Cairo/Pango) -->
+  <!-- Ref: https://www.reddit.com/r/archlinux/comments/j0z3a8/pango_renders_nothing_for_emojis_with/ -->
+  <match target="font">
+    <test name="family" compare="contains">
+      <string>Emoji</string>
+    </test>
+    <edit name="hinting" mode="assign">
+      <bool>true</bool>
+    </edit>
+    <edit name="hintstyle" mode="assign">
+      <const>hintslight</const>
+    </edit>
+  </match>
 </fontconfig>
 XML
 
 # Regenerar cache de fontes para aplicar a nova regra
 fc-cache -fv
 
-echo "==> Configurando kmscon..."
+echo "==> Configurando kmscon v9.3+ com recursos avançados..."
 
 mkdir -p /etc/kmscon
 cat > /etc/kmscon/kmscon.conf << 'KMSEOF'
-# kmscon - Console Avançado
-# Renderizador
-font-engine=pango
-font-size=16
+# =============================================================================
+# kmscon.conf - Console Avançado KMS/DRM
+# Configuração otimizada baseada nas melhores práticas do Fedora 44
+# Ref: https://fedoraproject.org/wiki/Changes/UseKmsconVTConsole
+# =============================================================================
 
-# Fontes: Define APENAS a primária monoespaçada. 
-# O fallback de emojis é tratado pelo arquivo XML criado acima.
+# -----------------------------------------------------------------------------
+# RENDERIZAÇÃO E FONTES
+# -----------------------------------------------------------------------------
+font-engine=pango           # Motor de renderização avançado (Unicode, CJK, Emoji)
 font-name=FiraCode Nerd Font Mono
-hwaccel=yes
+font-size=16
+font-dpi=96                 # DPI padrão (96=100%, 144=150%, 192=200% para HiDPI)
 
-# Layout Brasileiro
+# Aceleração de Hardware (OpenGL ESv2 via gltex)
+# Ref: https://dvdhrm.wordpress.com/2012/08/11/kmscon-linux-kmsdrm-based-virtual-console/
+hwaccel
+
+# -----------------------------------------------------------------------------
+# MOUSE E ENTRADA (kmscon 9.3+)
+# Ref: https://www.phoronix.com/forums/forum/phoronix/latest-phoronix-articles/1607936
+# -----------------------------------------------------------------------------
+mouse                       # Suporte nativo a mouse via libinput
+                            # - Clique esquerdo + arrastar: selecionar texto
+                            # - Clique central (roda): colar texto selecionado
+                            # - Compatível com vim, htop, midnight commander, etc.
+
+# -----------------------------------------------------------------------------
+# LAYOUT DE TECLADO BRASILEIRO
+# -----------------------------------------------------------------------------
 xkb-layout=br
 xkb-variant=abnt2
 xkb-options=
 
-# Palette (Dracula Theme)
+# -----------------------------------------------------------------------------
+# SESSÕES E TERMINAIS VIRTUAIS
+# -----------------------------------------------------------------------------
+session-control             # Habilita atalhos para múltiplas sessões
+session-max=50              # Limite de sessões concorrentes (padrão: 50)
+
+# -----------------------------------------------------------------------------
+# PALETA DE CORES (Dracula Theme)
+# https://draculatheme.com/
+# -----------------------------------------------------------------------------
 palette=black=#21222C
 palette=red=#FF5555
 palette=green=#50FA7B
@@ -634,14 +782,29 @@ palette=bright-magenta=#FF92DF
 palette=bright-cyan=#A4FFFF
 palette=bright-white=#FFFFFF
 
+# -----------------------------------------------------------------------------
+# TERMINAL E HISTÓRICO
+# -----------------------------------------------------------------------------
 term=xterm-256color
-scrollback=10000
+scrollback=10000            # Linhas de histórico
 
-# Input Grabbing
+# -----------------------------------------------------------------------------
+# ATALHOS DE TECLADO (Produtividade)
+# Sintaxe: <Modificador>Tecla onde Modificador = Shift, Ctrl, Alt, Logo
+# -----------------------------------------------------------------------------
+# Navegação no histórico
 grab-scroll-up=<Shift>Prior
 grab-scroll-down=<Shift>Next
+
+# Zoom de fonte dinâmico (útil para apresentações)
 grab-zoom-in=<Ctrl>plus
 grab-zoom-out=<Ctrl>minus
+
+# Gerenciamento de múltiplas sessões (requer session-control)
+grab-terminal-new=<Ctrl><Logo>Return
+grab-session-next=<Ctrl><Logo>Right
+grab-session-prev=<Ctrl><Logo>Left
+grab-session-close=<Ctrl><Logo>w
 KMSEOF
 
 # Habilitar kmscon em todos os TTYs (1-6)
@@ -657,7 +820,11 @@ ln -sf /usr/lib/systemd/system/kmsconvt@.service /etc/systemd/system/autovt@.ser
 echo "==> Protegendo kmscon customizado..."
 apt-mark hold kmscon 2>/dev/null || true
 
-echo "kmscon configurado com suporte a emojis!"
+echo "==> kmscon v9.3+ configurado com sucesso!"
+echo "    - Mouse: HABILITADO (libinput)"
+echo "    - Emojis coloridos: HABILITADO (hinting configurado)"
+echo "    - Múltiplas sessões: HABILITADO (Ctrl+Logo+Enter para nova)"
+echo "    - Tema: Dracula"
 KMSHOOK
 chmod +x config/hooks/normal/0020-configure-kmscon.hook.chroot
 
@@ -1189,12 +1356,16 @@ echo "==> Build concluído!"
 # Renomear ISO
 if [ -f *.iso ]; then
     ISO_FILE=$(ls *.iso | head -n 1)
-    NEW_NAME="debian-trixie-zbm-$(date +%Y%m%d).iso"
+    NEW_NAME="${ISO_NAME}-$(date +%Y%m%d).iso"
     mv "$ISO_FILE" "$NEW_NAME"
     sha256sum "$NEW_NAME" > "${NEW_NAME}.sha256"
     echo "==> ISO gerada: $NEW_NAME"
 fi
 LBCONFIG
+
+	# Injetar valores das variáveis no script gerado (substituir placeholders)
+	sed -i "s|\${ISO_NAME}|${ISO_NAME}|g" "${CONFIG_DIR}/configure-live-build.sh"
+	sed -i "s|\${ZBM_SOURCE_URL}|${ZBM_SOURCE_URL}|g" "${CONFIG_DIR}/configure-live-build.sh"
 
 	chmod +x "${CONFIG_DIR}/configure-live-build.sh"
 	print_message "success" "Script de configuração gerado"
@@ -1214,6 +1385,11 @@ build_docker_image() {
 run_iso_build() {
 	print_message "step" "Iniciando build da ISO com ZFSBootMenu (isso pode levar 30-60 minutos)..."
 
+	# Verificar se cache existe
+	if [[ -f "${CACHE_DIR}/debs/${KMSCON_DEB_NAME}" ]]; then
+		print_message "info" "Usando cache de artefatos compilados"
+	fi
+
 	docker run --rm --privileged \
 		-e DEBIAN_VERSION="${DEBIAN_VERSION}" \
 		-e ARCH="${ARCH}" \
@@ -1222,6 +1398,7 @@ run_iso_build() {
 		-e KEYBOARD="${KEYBOARD}" \
 		-v "${SCRIPT_DIR}:/build" \
 		-v "${OUTPUT_DIR}:/output" \
+		-v "${CACHE_DIR}:/cache" \
 		"${DOCKER_IMAGE}:${DOCKER_TAG}" build ||
 		error_exit "Falha ao executar build da ISO"
 

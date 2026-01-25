@@ -31,6 +31,25 @@ Sistema automatizado para gerar imagens ISO personalizadas do **Debian Trixie (t
 
 ```
 build-iso/
+├── Dockerfile              # Multi-stage para kmscon + build env (gerado)
+├── docker-entrypoint.sh    # Script de entrada do container (gerado)
+├── build-debian-trixie-zbm.sh  # Script principal de build
+├── clean-build-artifacts.sh    # Script de limpeza com suporte a cache
+├── cache/                  # Cache de artefatos compilados (v2.2.0+)
+│   ├── debs/              # Pacotes .deb (kmscon, etc)
+│   ├── packages.bootstrap/ # Cache APT
+│   └── README.md
+├── config/                 # Configurações do live-build (gerado)
+│   ├── configure-live-build.sh
+│   ├── hooks/             # Hooks de personalização
+│   └── includes.chroot/   # Arquivos para incluir no sistema
+├── include/               # Arquivos incluídos na ISO (versionados)
+│   └── usr/              # Estrutura do sistema de arquivos
+├── live-build-config/    # Diretório de trabalho do live-build
+├── build/                # Diretório temporário de build
+└── output/               # ISOs e checksums gerados
+```
+build-iso/
 ├── Dockerfile              # Multi-stage para kmscon + build env
 ├── docker-entrypoint.sh    # Script de entrada do container
 ├── debian_trixie_builder-v2.sh  # Script principal de build

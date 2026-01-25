@@ -1,0 +1,46 @@
+{
+  "version": "1.0.0",
+  "repository": "build-iso",
+  "description": "Debian Trixie ZBM ISO Builder",
+  "initialized": "2026-01-25T11:10:00-03:00",
+  "settings": {
+    "buildSystem": "live-build",
+    "targetDistribution": "debian-trixie",
+    "cacheEnabled": true,
+    "defaultBranch": "main",
+    "qualityGates": {
+      "dataIntegrity": true,
+      "buildVerification": true,
+      "artifactValidation": true
+    }
+  },
+  "components": {
+    "core": {
+      "scripts": ["build-debian-trixie-zbm.sh", "clean-build-artifacts.sh"],
+      "config": ["debian_readme.md", "quick_start_guide.md"],
+      "tests": ["tests/test_installer.bats"]
+    },
+    "installer": {
+      "path": "include/usr/local/bin/installer",
+      "components": [
+        "01-validate.sh",
+        "02-partition.sh",
+        "03-pool.sh",
+        "04-datasets.sh",
+        "05-extract.sh",
+        "06-chroot-configure.sh",
+        "07-bootloader.sh",
+        "08-cleanup.sh"
+      ]
+    },
+    "cache": {
+      "path": "cache",
+      "preservedArtifacts": ["debs/kmscon-custom_*.deb"]
+    }
+  },
+  "workflow": {
+    "phases": ["prepare", "build", "test", "package", "cleanup"],
+    "currentPhase": "prepare",
+    "lastCleanup": "2026-01-25T11:10:00-03:00"
+  }
+}

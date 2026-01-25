@@ -10,6 +10,12 @@ live-build-config/
 # Docker
 Dockerfile
 entrypoint.sh
+docker-entrypoint.sh
+
+# Cache de artefatos compilados (binários ignorados, estrutura preservada)
+cache/debs/*.deb
+cache/packages.bootstrap/
+!cache/README.md
 
 # Temporary
 *.tmp
