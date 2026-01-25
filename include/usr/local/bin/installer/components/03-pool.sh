@@ -4,6 +4,8 @@
 # Modularized from install-system
 # Uses: lib/logging.sh, lib/chroot.sh
 #
+# [commit] feat: suporte robusto a criptografia nativa e múltiplas topologias ZFS
+#
 
 set -euo pipefail
 
