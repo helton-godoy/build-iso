@@ -1,0 +1,135 @@
+{
+  "version": "1.0.0",
+  "generated": "2026-01-25T14:38:53.503Z",
+  "stack": {
+    "primaryLanguage": null,
+    "languages": [],
+    "frameworks": [],
+    "buildTools": [],
+    "testFrameworks": [],
+    "packageManager": null,
+    "isMonorepo": false,
+    "hasDocker": false,
+    "hasCI": true
+  },
+  "structure": {
+    "totalFiles": 38,
+    "topDirectories": [
+      {
+        "name": "build-debian-trixie-zbm.sh",
+        "fileCount": 1
+      },
+      {
+        "name": "cache",
+        "fileCount": 2
+      },
+      {
+        "name": "clean-build-artifacts.sh",
+        "fileCount": 1
+      },
+      {
+        "name": "code_analysis_report.md",
+        "fileCount": 1
+      },
+      {
+        "name": "current_checksums.txt",
+        "fileCount": 1
+      },
+      {
+        "name": "debian_readme.md",
+        "fileCount": 1
+      },
+      {
+        "name": "docker-entrypoint.sh",
+        "fileCount": 1
+      },
+      {
+        "name": "download-zfsbootmenu.sh",
+        "fileCount": 1
+      },
+      {
+        "name": "include",
+        "fileCount": 23
+      },
+      {
+        "name": "plans",
+        "fileCount": 1
+      },
+      {
+        "name": "quick_start_guide.md",
+        "fileCount": 1
+      },
+      {
+        "name": "scripts",
+        "fileCount": 1
+      },
+      {
+        "name": "serena.toml",
+        "fileCount": 1
+      },
+      {
+        "name": "symbol_analysis_report.md",
+        "fileCount": 1
+      },
+      {
+        "name": "tests",
+        "fileCount": 1
+      }
+    ],
+    "languageDistribution": [
+      {
+        "extension": ".sh",
+        "count": 18
+      },
+      {
+        "extension": ".md",
+        "count": 8
+      },
+      {
+        "extension": ".efi",
+        "count": 3
+      },
+      {
+        "extension": ".img",
+        "count": 2
+      },
+      {
+        "extension": ".toml",
+        "count": 1
+      },
+      {
+        "extension": ".txt",
+        "count": 1
+      },
+      {
+        "extension": ".bats",
+        "count": 1
+      },
+      {
+        "extension": ".deb",
+        "count": 1
+      }
+    ]
+  },
+  "architecture": {
+    "layers": [],
+    "patterns": [],
+    "entryPoints": []
+  },
+  "symbols": {
+    "classes": [],
+    "interfaces": [],
+    "functions": [],
+    "types": [],
+    "enums": []
+  },
+  "publicAPI": [],
+  "dependencies": {
+    "mostImported": []
+  },
+  "stats": {
+    "totalSymbols": 0,
+    "exportedSymbols": 0,
+    "analysisTimeMs": 22
+  }
+}
