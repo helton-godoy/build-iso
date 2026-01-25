@@ -22,7 +22,7 @@ chroot_zfs() {
 	local command=("$@")
 
 	# Validar target
-	if [[ ! -d "${target}" ]]; then
+	if [[ ! -d ${target} ]]; then
 		source "${LIB_DIR}/logging.sh"
 		log_error "Target não é um diretório válido: ${target}"
 		return 1
@@ -36,7 +36,7 @@ chroot_zfs() {
 
 	# Montar sistemas de arquivos virtuais
 	_mount_virtual_filesystems "${target}"
-	CHROOT_MOUNTS+=("$(ls -d ${target}/{dev,proc,sys,run} 2>/dev/null)")
+	CHROOT_MOUNTS+=("$(ls -d "${target}"/{dev,proc,sys,run} 2>/dev/null)")
 
 	source "${LIB_DIR}/logging.sh"
 	log_debug "Executando em chroot ${target}: ${command[*]}"
@@ -59,7 +59,7 @@ chroot_zfs() {
 		log_debug "Chroot command succeeded"
 	fi
 
-	return ${CHROOT_EXITCODE}
+	return "${CHROOT_EXITCODE}"
 }
 
 # Executar comando em chroot silencioso (sem output no terminal)
@@ -71,7 +71,7 @@ chroot_zfs_silent() {
 
 	# Montar sistemas de arquivos virtuais
 	_mount_virtual_filesystems "${target}"
-	CHROOT_MOUNTS+=("$(ls -d ${target}/{dev,proc,sys,run} 2>/dev/null)")
+	CHROOT_MOUNTS+=("$(ls -d "${target}"/{dev,proc,sys,run} 2>/dev/null)")
 
 	source "${LIB_DIR}/logging.sh"
 	log_debug "Executando silencioso em chroot ${target}: ${command[*]}"
@@ -87,7 +87,7 @@ chroot_zfs_silent() {
 
 	CHROOT_EXITCODE=$?
 
-	return ${CHROOT_EXITCODE}
+	return "${CHROOT_EXITCODE}"
 }
 
 # Executar múltiplos comandos em chroot (pára de executar wrapper múltiplos)
@@ -98,7 +98,7 @@ chroot_zfs_batch() {
 	local commands=("$@")
 
 	_mount_virtual_filesystems "${target}"
-	CHROOT_MOUNTS+=("$(ls -d ${target}/{dev,proc,sys,run} 2>/dev/null)")
+	CHROOT_MOUNTS+=("$(ls -d "${target}"/{dev,proc,sys,run} 2>/dev/null)")
 
 	source "${LIB_DIR}/logging.sh"
 	log_debug "Executando batch em chroot ${target}"
@@ -127,7 +127,7 @@ chroot_zfs_capture() {
 	local command=("$@")
 
 	_mount_virtual_filesystems "${target}"
-	CHROOT_MOUNTS+=("$(ls -d ${target}/{dev,proc,sys,run} 2>/dev/null)")
+	CHROOT_MOUNTS+=("$(ls -d "${target}"/{dev,proc,sys,run} 2>/dev/null)")
 
 	source "${LIB_DIR}/logging.sh"
 	log_debug "Capturando output de chroot ${target}: ${command[*]}"
@@ -146,7 +146,7 @@ chroot_zfs_capture() {
 
 	echo "${output}"
 
-	return ${CHROOT_EXITCODE}
+	return "${CHROOT_EXITCODE}"
 }
 
 # =============================================================================

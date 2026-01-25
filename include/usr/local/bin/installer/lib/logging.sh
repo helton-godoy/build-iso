@@ -3,6 +3,13 @@
 # lib/logging.sh - Biblioteca de logging avançado para DEBIAN_ZFS Installer
 # Baseado em estratégias di-live
 #
+# shellcheck disable=SC2034
+
+# Proteção contra múltipla inclusão
+if [[ -n ${LOGGING_SH_LOADED-} ]]; then
+	return 0
+fi
+readonly LOGGING_SH_LOADED=true
 
 # Nível de log configurável
 LOG_LEVEL="${LOG_LEVEL:-INFO}"
@@ -52,7 +59,7 @@ log_error() {
 # Log de debug (só se LOG_LEVEL=DEBUG)
 # Uso: log_debug "Mensagem de debug"
 log_debug() {
-	if [[ "${LOG_LEVEL}" != "DEBUG" ]]; then
+	if [[ ${LOG_LEVEL} != "DEBUG" ]]; then
 		return 0
 	fi
 
@@ -82,7 +89,7 @@ log_command() {
 		log_error "Command failed with exit code ${exitcode}: $*"
 		log_debug "  Last 10 lines from output:"
 		tail -n 10 "${log_tmp}" | while IFS= read -r line; do
-			log_debug "    OUTPUT: $line"
+			log_debug "    OUTPUT: ${line}"
 		done
 	else
 		log_debug "  Command succeeded"
@@ -90,7 +97,7 @@ log_command() {
 
 	rm -f "${log_tmp}"
 
-	return ${exitcode}
+	return "${exitcode}"
 }
 
 # Log de comando silencioso (sem output no terminal, apenas no log)
@@ -108,7 +115,7 @@ log_silent() {
 		log_error "Silent command failed with exit code ${exitcode}: $*"
 	fi
 
-	return ${exitcode}
+	return "${exitcode}"
 }
 
 # Log com indentação (para mostrar progresso)
@@ -171,14 +178,14 @@ log_summary() {
 
 # Verificar se arquivo de log existe e tem permissão de escrita
 log_check_file() {
-	if [[ ! -f "${LOG_FILE}" ]]; then
+	if [[ ! -f ${LOG_FILE} ]]; then
 		touch "${LOG_FILE}" 2>/dev/null || {
 			echo "FATAL: Não foi possível criar arquivo de log: ${LOG_FILE}" >&2
 			exit 1
 		}
 	fi
 
-	if [[ ! -w "${LOG_FILE}" ]]; then
+	if [[ ! -w ${LOG_FILE} ]]; then
 		echo "FATAL: Arquivo de log não tem permissão de escrita: ${LOG_FILE}" >&2
 		exit 1
 	fi
@@ -201,5 +208,11 @@ error_exit() {
 	exit 1
 }
 
-# Executar inicialização automaticamente ao carregar a biblioteca
-log_init
+# Prevent multiple initializations
+if [[ -z ${LOG_INITIALIZED-} ]]; then
+	LOG_INITIALIZED=true
+	# Auto-init only if NOT sourced by another script that handles init
+	if [[ ${BASH_SOURCE[0]} == "${0}" ]]; then
+		log_init
+	fi
+fi
