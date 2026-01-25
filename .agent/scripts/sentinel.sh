@@ -3,57 +3,78 @@
 # Configurações
 WATCH_DIR="$(pwd)"
 COMMIT_SCRIPT=".agent/scripts/smart_commit.py"
-DEBOUNCE_SECONDS=10
-IGNORE_PATTERN="(\.git|node_modules|\.agent/tmp|__pycache__|\.trunk|build/|output/)"
+# Aumentado para 25s para dar tempo do agente "pensar" entre arquivos
+DEBOUNCE_SECONDS=25
+IGNORE_PATTERN="(\.git|node_modules|\.agent/tmp|__pycache__|\.trunk|build/|output/|\.lock$)"
 
-echo "🤖 Agent Sentinel ativado."
+echo "🤖 Agent Sentinel v2 ativado."
 echo "👀 Monitorando: $WATCH_DIR"
 echo "⏳ Tempo de estabilização (debounce): ${DEBOUNCE_SECONDS}s"
 
 # Arquivo de timestamp para controle de debounce
-LAST_CHANGE_FILE="/tmp/agent_sentinel_last_change"
+LAST_CHANGE_FILE=".agent/tmp/sentinel_last_change"
+LOCK_FILE="/tmp/agent_sentinel_commit.lock"
+mkdir -p .agent/tmp
 touch "$LAST_CHANGE_FILE"
 
-# Função para realizar o commit
+# Função para verificar se é seguro comitar
+is_safe_to_commit() {
+	# 1. Verifica se há arquivos vazios (0 bytes) rastreados ou modificados
+	# Isso evita comitar arquivos que acabaram de ser criados mas ainda não têm conteúdo
+	EMPTY_FILES=$(find . -maxdepth 4 -type f -size 0c ! -path "./.git/*" ! -path "./.agent/tmp/*")
+
+	if [ ! -z "$EMPTY_FILES" ]; then
+		echo "⚠️  Commit adiado: Arquivos vazios detectados (processamento incompleto?):"
+		echo "$EMPTY_FILES" | head -n 3
+		return 1
+	fi
+
+	# 2. Verifica se o Git está bloqueado (index.lock existe)
+	if [ -f ".git/index.lock" ]; then
+		echo "⚠️  Commit adiado: Git está bloqueado (index.lock existe)."
+		return 1
+	fi
+
+	return 0
+}
+
 perform_commit() {
-	# Verifica se o script de commit existe
 	if [ -f "$COMMIT_SCRIPT" ]; then
-		echo "⚡ Estabilização detectada. Executando smart_commit..."
-		python3 "$COMMIT_SCRIPT"
+		if is_safe_to_commit; then
+			echo "⚡ Estabilização (${DEBOUNCE_SECONDS}s) concluída. Executando smart_commit..."
+			python3 "$COMMIT_SCRIPT"
+		else
+			echo "⏳ Segurança falhou. Aguardando próximo ciclo..."
+			# Atualiza o timestamp para tentar novamente em breve sem esperar evento de disco
+			date +%s >"$LAST_CHANGE_FILE"
+		fi
 	else
 		echo "❌ Erro: $COMMIT_SCRIPT não encontrado!"
 	fi
 }
 
 # Loop de Monitoramento
-# -m: monitor contínuo
-# -r: recursivo
-# -e: eventos de fechar escrita, mover, criar, deletar
+# close_write: Garante que o arquivo foi salvo e fechado (melhor que modify)
 inotifywait -m -r -e close_write -e moved_to -e create -e delete --exclude "$IGNORE_PATTERN" --format "%w%f" "$WATCH_DIR" | while read FILE; do
-	# Ignora o próprio arquivo de log ou arquivos temporários do sistema
-	if [[ $FILE == *".git"* ]]; then continue; fi
+	# Ignora logs do próprio sentinel
+	if [[ $FILE == *".agent/tmp"* ]]; then continue; fi
 
 	# Atualiza o timestamp da última mudança
-	CURRENT_TIME=$(date +%s)
-	echo "$CURRENT_TIME" >"$LAST_CHANGE_FILE"
+	date +%s >"$LAST_CHANGE_FILE"
 
-	# Inicia (em background) o verificador de debounce
+	# Inicia verificação em background
 	(
 		sleep $DEBOUNCE_SECONDS
 
-		# Lê o timestamp salvo
 		SAVED_TIME=$(cat "$LAST_CHANGE_FILE")
 		NOW=$(date +%s)
-
-		# Se a diferença entre AGORA e a ÚLTIMA MUDANÇA for maior ou igual ao debounce,
-		# significa que ninguém tocou nos arquivos nesse intervalo.
 		DIFF=$((NOW - SAVED_TIME))
 
+		# Se passou o tempo de debounce E ninguém tocou no timestamp recentemente
 		if [ "$DIFF" -ge "$DEBOUNCE_SECONDS" ]; then
-			# Garante que não estamos executando múltiplos commits simultâneos (race condition simples)
-			LOCK_FILE="/tmp/agent_sentinel_commit.lock"
+			# Tenta adquirir lock de execução (mutex simples)
 			if mkdir "$LOCK_FILE" 2>/dev/null; then
-				# Verifica se há algo para commitar (git status) para evitar commits vazios ou de logs
+				# Verifica se há mudanças reais para comitar
 				if git status --porcelain | grep -q .; then
 					perform_commit
 				fi
