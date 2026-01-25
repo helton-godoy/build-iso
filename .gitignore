@@ -1,47 +1,17 @@
-# Projetos e Segredos
-.gemini/
-.env
-.idea/
-.vscode/
-gha-creds-*.json
-
-# Docker cache e artefatos de build
-docker/cache/*
-docker/work/*
-docker/dist/*
-docker/logs/*
-
-# Virtualização
-qemu/work/vm-disk/*
-qemu/work/vm-uefi/*
-qemu/work/vm-virtiofs/*
-qemu/logs/*
-
-# Extensões
+# Build artifacts - gerados pelo script
+config/
+build/
+output/
+live-build-config/
 *.iso
-*.img
-*.qcow2
-*.vmdk
-*.vdi
-*.contents
-*.files
-*.packages
-*.modified_timestamps
-*.debian.tar.*
-*.orig.tar.*
-.DS_Store
-*.swp
-*~
+*.sha256
 *.log
 
-# Build Temporaries
-.Trash-1000
-.sisyphus
-.trunk
-include/tmp/
-EOF
+# Docker
+Dockerfile
+entrypoint.sh
 
-# Binários ZFSBootMenu (baixados via tools/download-zfsbootmenu.sh)
-include/usr/share/zfsbootmenu/*.EFI
-include/usr/share/zfsbootmenu/*.img
-include/usr/share/zfsbootmenu/vmlinuz-*
+# Temporary
+*.tmp
+*.bak
+*~
