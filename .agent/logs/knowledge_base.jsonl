@@ -1,0 +1,5 @@
+{"timestamp": "1769376085", "type": "feat", "scope": "core", "files": ["include/usr/local/bin/install-system"], "message": "feat(core): orquestrador principal do instalador com suporte a perfis e ui_gum"}
+{"timestamp": "1769376085", "type": "fix", "scope": "installer", "files": ["include/usr/local/bin/installer/components/01-validate.sh"], "message": "fix(installer): ajuste no path do MBR para suportar testes unit\u00e1rios"}
+{"timestamp": "1769376085", "type": "fix", "scope": "installer", "files": ["include/usr/local/bin/installer/components/02-partition.sh"], "message": "fix(installer): restaura fun\u00e7\u00e3o partition_disk perdida e adiciona l\u00f3gica de perfil"}
+{"timestamp": "1769376085", "type": "feat", "scope": "installer", "files": ["include/usr/local/bin/installer/components/03-pool.sh"], "message": "feat(installer): suporte robusto a criptografia nativa e m\u00faltiplas topologias ZFS"}
+{"timestamp": "1769376085", "type": "refactor", "scope": "installer", "files": ["include/usr/local/bin/installer/lib/validation.sh"], "message": "refactor(installer): modulariza\u00e7\u00e3o das valida\u00e7\u00f5es de sistema e hardware"}
