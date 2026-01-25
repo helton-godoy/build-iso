@@ -85,7 +85,7 @@ validate_disk() {
 	log_debug "Validando disco: ${disk}"
 
 	# Verificar se disco existe
-	if [[ ! -b "${disk}" ]]; then
+	if [[ ! -b ${disk} ]]; then
 		log_error "Disco não encontrado: ${disk}"
 		return 1
 	fi
@@ -234,7 +234,7 @@ validate_network() {
 
 	# Verificar conectividade básica
 	if ! ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then
-		if [[ "${required}" == "true" ]]; then
+		if [[ ${required} == "true" ]]; then
 			log_error "Conexão de rede não disponível mas é obrigatória"
 			return 1
 		else
@@ -256,18 +256,18 @@ validate_path() {
 
 	source "${LIB_DIR}/logging.sh"
 
-	if [[ "${type}" == "directory" ]]; then
-		if [[ ! -d "${path}" ]]; then
+	if [[ ${type} == "directory" ]]; then
+		if [[ ! -d ${path} ]]; then
 			log_error "Diretório não encontrado: ${path} (${description})"
 			return 1
 		fi
-	elif [[ "${type}" == "file" ]]; then
-		if [[ ! -f "${path}" ]]; then
+	elif [[ ${type} == "file" ]]; then
+		if [[ ! -f ${path} ]]; then
 			log_error "Arquivo não encontrado: ${path} (${description})"
 			return 1
 		fi
 	else
-		if [[ ! -e "${path}" ]]; then
+		if [[ ! -e ${path} ]]; then
 			log_error "Caminho não encontrado: ${path} (${description})"
 			return 1
 		fi
@@ -289,7 +289,7 @@ validate_hostname() {
 	source "${LIB_DIR}/logging.sh"
 
 	# Validação básica
-	if [[ -z "${hostname}" ]]; then
+	if [[ -z ${hostname} ]]; then
 		log_error "Hostname não pode ser vazio"
 		return 1
 	fi
@@ -301,7 +301,7 @@ validate_hostname() {
 	fi
 
 	# Caracteres válidos
-	if [[ ! "${hostname}" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]]; then
+	if [[ ! ${hostname} =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]]; then
 		log_error "Hostname contém caracteres inválidos"
 		return 1
 	fi
@@ -317,19 +317,19 @@ validate_username() {
 
 	source "${LIB_DIR}/logging.sh"
 
-	if [[ -z "${username}" ]]; then
+	if [[ -z ${username} ]]; then
 		log_error "Nome de usuário não pode ser vazio"
 		return 1
 	fi
 
 	# Não pode começar com número
-	if [[ "${username}" =~ ^[0-9] ]]; then
+	if [[ ${username} =~ ^[0-9] ]]; then
 		log_error "Nome de usuário não pode começar com número"
 		return 1
 	fi
 
 	# Apenas letras, números, hífens e undescores
-	if [[ ! "${username}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+	if [[ ! ${username} =~ ^[a-z_][a-z0-9_-]*$ ]]; then
 		log_error "Nome de usuário contém caracteres inválidos"
 		return 1
 	fi
@@ -348,13 +348,13 @@ validate_username() {
 # Uso: validate_password <senha> <senha_confirm> [min_len]
 validate_password() {
 	local password=$1
-	local password_confirm="${2:-}"
+	local password_confirm="${2-}"
 	local min_len="${3:-6}"
 
 	source "${LIB_DIR}/logging.sh"
 
 	# Verificar se senhas coincidem
-	if [[ -n "${password_confirm}" ]] && [[ "${password}" != "${password_confirm}" ]]; then
+	if [[ -n ${password_confirm} ]] && [[ ${password} != "${password_confirm}" ]]; then
 		log_error "Senhas não coincidem"
 		return 1
 	fi
@@ -379,18 +379,18 @@ validate_password() {
 # Uso: validate_passphrase <passphrase> <passphrase_confirm>
 validate_passphrase() {
 	local passphrase=$1
-	local passphrase_confirm="${2:-}"
+	local passphrase_confirm="${2-}"
 
 	source "${LIB_DIR}/logging.sh"
 
 	# Validação básica
-	if [[ -z "${passphrase}" ]]; then
+	if [[ -z ${passphrase} ]]; then
 		log_error "Passphrase não pode ser vazia"
 		return 1
 	fi
 
 	# Verificar se coincidem
-	if [[ -n "${passphrase_confirm}" ]] && [[ "${passphrase}" != "${passphrase_confirm}" ]]; then
+	if [[ -n ${passphrase_confirm} ]] && [[ ${passphrase} != "${passphrase_confirm}" ]]; then
 		log_error "Passphrases não coincidem"
 		return 1
 	fi
@@ -418,7 +418,7 @@ validate_profile() {
 
 	local valid_profiles=("Server" "Workstation" "Minimal")
 
-	if [[ ! " ${valid_profiles[*]} " =~ " ${profile} " ]]; then
+	if [[ " ${valid_profiles[*]} " != *" ${profile} "* ]]; then
 		log_error "Perfil inválido: ${profile}. Perfis válidos: ${valid_profiles[*]}"
 		return 1
 	fi
@@ -491,9 +491,11 @@ validate_zfs_prerequisites() {
 # INICIALIZAÇÃO
 # =============================================================================
 
-# Detectar diretório de bibliotecas
-LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/"
-export LIB_DIR
+# Detectar diretório de bibliotecas se não estiver definido
+if [[ -z ${LIB_DIR-} ]]; then
+	LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+	export LIB_DIR
+fi
 
 # Carregar logging se disponível
 if [[ -f "${LIB_DIR}/logging.sh" ]]; then
