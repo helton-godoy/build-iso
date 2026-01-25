@@ -4,6 +4,8 @@
 # Modularized from install-system
 # Uses: lib/logging.sh, lib/validation.sh
 #
+# [commit] fix: restaura função partition_disk perdida e adiciona lógica de perfil
+#
 
 set -euo pipefail
 
