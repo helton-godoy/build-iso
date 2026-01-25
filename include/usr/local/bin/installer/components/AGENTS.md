@@ -4,6 +4,7 @@
 **Pattern:** Sequential numbered scripts sourced by install-manager.sh
 
 ## STRUCTURE
+
 ```
 components/
 ├── 01-validate.sh      # Pre-flight checks
@@ -17,6 +18,7 @@ components/
 ```
 
 ## SCRIPT PATTERN
+
 ```bash
 #!/usr/bin/env bash
 # components/XX-name.sh - Description
@@ -39,7 +41,9 @@ function main_phase() {
 ```
 
 ## EXECUTION ORDER
+
 install-manager.sh sources components in numeric order:
+
 1. **01-validate** - Environment validation (root, memory, ZFS)
 2. **02-partition** - GPT partition tables
 3. **03-pool** - `zpool create` with ashift=12
@@ -50,21 +54,24 @@ install-manager.sh sources components in numeric order:
 8. **08-cleanup** - Unmount, pool export, temp cleanup
 
 ## VARIABLES EXPORTED BY install-manager.sh
+
 - `SELECTED_DISKS` - Array of disk paths
 - `POOL_NAME` - ZFS pool name (default: zroot)
 - `MOUNT_POINT` - Target mount path
 - `FIRMWARE` - uefi or bios
 
 ## PHASE-SPECIFIC CONVENTIONS
-| Phase | Key Functions | Notes |
-|-------|---------------|-------|
-| 01 | `run_installer_validations()` | Returns 1 on failure |
-| 02 | `partition_disk()` | Uses sgdisk, wipefs |
-| 03 | `create_zpool()` | ashift=12, compression=zstd |
-| 04 | `create_datasets()` | Follows dataset hierarchy |
-| 07 | `install_zfsbootmenu()` | Handles UEFI/BIOS differences |
+
+| Phase | Key Functions                 | Notes                         |
+| ----- | ----------------------------- | ----------------------------- |
+| 01    | `run_installer_validations()` | Returns 1 on failure          |
+| 02    | `partition_disk()`            | Uses sgdisk, wipefs           |
+| 03    | `create_zpool()`              | ashift=12, compression=zstd   |
+| 04    | `create_datasets()`           | Follows dataset hierarchy     |
+| 07    | `install_zfsbootmenu()`       | Handles UEFI/BIOS differences |
 
 ## ANTI-PATTERNS
+
 - ❌ Never hardcode disk paths (use `${SELECTED_DISKS[0]}`)
 - ❌ Never skip validation phase
 - ❌ Never use `/dev/sdX` directly (use `/dev/disk/by-id/*`)
