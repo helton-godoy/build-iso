@@ -3,6 +3,8 @@
 # lib/validation.sh - Biblioteca de validação para DEBIAN_ZFS Installer
 # Baseado em estratégias di-live
 #
+# [commit] refactor: modularização das validações de sistema e hardware
+#
 
 set -euo pipefail
 
