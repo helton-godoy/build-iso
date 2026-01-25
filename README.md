@@ -24,6 +24,7 @@ Sistema completo e automatizado para gerar imagens ISO do Debian Trixie com conf
 - ✅ **Otimizado**: Kernel e sistema otimizados para servidores de arquivos
 - ✅ **Verificação de Integridade**: Checksums SHA256 automáticos
 - ✅ **Boot Híbrido**: Suporte a BIOS e UEFI
+- ✅ **Instalador Automatizado**: Sistema completo de instalação incluído na ISO
 
 ## 🔧 Especificações Técnicas
 
@@ -154,21 +155,32 @@ newgrp docker
 
 ## 🚀 Instalação
 
-### 1. Clone o Repositório (ou crie os arquivos)
+### 1. Clone o Repositório
 
 ```bash
-mkdir debian-trixie-builder
-cd debian-trixie-builder
+git clone <url-do-repositorio> build-iso
+cd build-iso
 ```
 
-### 2. Copie o Script Principal
-
-Salve o conteúdo do script `build-debian-trixie-zbm.sh` no diretório criado.
-
-### 3. Torne o Script Executável
+Ou crie a estrutura manualmente:
 
 ```bash
-chmod +x build-debian-trixie-zbm.sh
+mkdir build-iso
+cd build-iso
+```
+
+### 2. Verifique os Scripts
+
+Os scripts principais estão localizados em `scripts/`:
+
+- `scripts/build-debian-trixie-zbm.sh` - Script principal de build
+- `scripts/clean-build-artifacts.sh` - Limpeza de artefatos
+- `scripts/download-zfsbootmenu.sh` - Download do ZFS Boot Menu
+
+### 3. Torne os Scripts Executáveis
+
+```bash
+chmod +x scripts/*.sh
 ```
 
 ## 💻 Uso
@@ -176,13 +188,13 @@ chmod +x build-debian-trixie-zbm.sh
 ### Build Padrão
 
 ```bash
-./build-debian-trixie-zbm.sh
+./scripts/build-debian-trixie-zbm.sh
 ```
 
 ou explicitamente:
 
 ```bash
-./build-debian-trixie-zbm.sh build
+./scripts/build-debian-trixie-zbm.sh build
 ```
 
 ### Rebuild Completo
@@ -190,66 +202,165 @@ ou explicitamente:
 Limpa tudo e reconstrói:
 
 ```bash
-./build-debian-trixie-zbm.sh help
+./scripts/build-debian-trixie-zbm.sh rebuild
+```
+
+### Outros Comandos
+
+```bash
+./scripts/build-debian-trixie-zbm.sh help        # Mostra ajuda
+./scripts/clean-build-artifacts.sh              # Limpa artefatos de build
+./scripts/download-zfsbootmenu.sh               # Baixa componentes ZFS Boot Menu
 ```
 
 ## 📁 Estrutura do Projeto
 
+A estrutura reorganizada do projeto segue uma organização modular e clara, separando documentação, scripts, testes e componentes incluídos na ISO. Abaixo está a representação hierárquica atual:
+
 ```
-debian-trixie-builder/
-├── build-debian-trixie-zbm.sh      # Script principal
-├── Dockerfile                   # Gerado automaticamente
-├── docker-entrypoint.sh        # Gerado automaticamente
-├── config/
-│   ├── configure-live-build.sh # Configuração do live-build
-│   ├── hooks/                  # Hooks de personalização
-│   └── includes.chroot/        # Arquivos a incluir no sistema
-├── build/                      # Diretório temporário de build
-└── output/                     # ISOs e checksums gerados
-    ├── debian-trixie-zbm-YYYYMMDD.iso
-    └── debian-trixie-zbm-YYYYMMDD.iso.sha256
+📦 build-iso/
+├── 📄 .gitignore                          # Configuração Git para ignorar arquivos não versionados
+├── 📄 project_structure.md               # Documentação da estrutura do projeto
+├── 📄 quick_start_guide.md               # Guia rápido para iniciar o projeto
+├── 📄 README.md                          # Documentação principal do projeto
+├── 📄 symbol_analysis_report.md          # Relatório de análise de símbolos do código
+├── 📁 .agent/                            # Configurações de agentes/automação
+├── 📁 cache/                             # Cache de arquivos temporários
+│   ├── 📄 README.md                      # Documentação do cache
+│   └── 📁 debs/                          # Cache de pacotes Debian
+├── 📁 include/                           # Arquivos incluídos na ISO final
+│   └── 📁 usr/                           # Estrutura de sistema Unix-like
+│       ├── 📁 local/                     # Arquivos locais do sistema
+│       │   └── 📁 bin/                   # Binários executáveis
+│       │       ├── 📄 gum                # Ferramenta de interface de usuário
+│       │       ├── 📄 install-system     # Script principal de instalação automatizada
+│       │       └── 📁 installer/         # Sistema de instalação completo
+│       │           ├── 📄 README.md      # Documentação do instalador
+│       │           ├── 📁 components/    # Componentes do processo de instalação
+│       │           │   ├── 📄 01-validate.sh      # Validação inicial do sistema
+│       │           │   ├── 📄 02-partition.sh     # Particionamento de discos
+│       │           │   ├── 📄 03-pool.sh          # Configuração de pool ZFS
+│       │           │   ├── 📄 04-datasets.sh      # Criação de datasets ZFS
+│       │           │   ├── 📄 05-extract.sh       # Extração de arquivos base
+│       │           │   ├── 📄 06-chroot-configure.sh  # Configuração em ambiente chroot
+│       │           │   ├── 📄 07-bootloader.sh    # Instalação do bootloader
+│       │           │   ├── 📄 08-cleanup.sh       # Limpeza pós-instalação
+│       │           │   └── 🛡️ AGENTS.md          # Documentação de agentes (protegido)
+│       │           └── 📁 lib/            # Bibliotecas auxiliares do instalador
+│       │               ├── 📄 chroot.sh   # Funções para operações chroot
+│       │               ├── 📄 error.sh    # Tratamento de erros
+│       │               ├── 📄 logging.sh  # Sistema de logging
+│       │               ├── 📄 ui_gum.sh   # Interface com ferramenta gum
+│       │               └── 📄 validation.sh  # Validações diversas
+│       └── 📁 share/                      # Arquivos compartilhados do sistema
+│           └── 📁 zfsbootmenu/            # Componentes do ZFS Boot Menu
+│               ├── 📄 initramfs-bootmenu-recovery.img  # Imagem initramfs para recovery
+│               ├── 📄 initramfs-bootmenu.img           # Imagem initramfs principal
+│               ├── 📄 VMLINUZ-BACKUP.EFI               # Kernel backup EFI
+│               ├── 📄 vmlinuz-bootmenu-recovery        # Kernel para recovery
+│               ├── 📄 VMLINUZ-RECOVERY.EFI             # Kernel recovery EFI
+│               └── 📄 VMLINUZ.EFI                      # Kernel principal EFI
+├── 📁 plans/                             # Planos e documentação de desenvolvimento
+│   └── 📄 code_analysis.md               # Análise de código do projeto
+├── 📁 scripts/                           # Scripts de automação e build
+│   ├── 📄 build-debian-trixie-zbm.sh     # Script principal de build da ISO
+│   ├── 📄 clean-build-artifacts.sh       # Limpeza de artefatos de build
+│   └── 📄 download-zfsbootmenu.sh        # Download do ZFS Boot Menu
+└── 📁 tests/                             # Testes automatizados
+    ├── 📄 test_installer.bats            # Testes do instalador (framework BATS)
+    └── 📄 test-iso.sh                    # Testes da ISO gerada
 ```
+
+### 📋 Legenda da Estrutura
+
+- **📁**: Pasta/diretório
+- **📄**: Arquivo regular
+- **🛡️**: Arquivo com proteção especial ou configuração crítica
+
+### 🔍 Componentes Principais
+
+- **Documentação**: Arquivos `.md` na raiz fornecem guias e referências completas
+- **Scripts de Build**: Localizados em `scripts/`, automatizam a criação da ISO
+- **Instalador Automatizado**: Sistema completo em `include/usr/local/bin/installer/` para instalação automatizada
+- **Componentes ZFS**: Suporte nativo ao ZFS com Boot Menu incluído
+- **Testes**: Framework de testes em `tests/` para validação contínua
+- **Cache**: Otimização de builds com cache de pacotes em `cache/debs/`
+
+## 🔧 Sistema de Instalação Automatizada
+
+A ISO inclui um instalador automatizado completo localizado em `/usr/local/bin/installer/` no sistema live. O instalador é composto por:
+
+### Componentes de Instalação
+
+1. **01-validate.sh**: Validação do ambiente e hardware
+2. **02-partition.sh**: Particionamento automático de discos
+3. **03-pool.sh**: Criação e configuração de pool ZFS
+4. **04-datasets.sh**: Configuração de datasets ZFS
+5. **05-extract.sh**: Extração do sistema base
+6. **06-chroot-configure.sh**: Configurações finais em ambiente chroot
+7. **07-bootloader.sh**: Instalação do bootloader
+8. **08-cleanup.sh**: Limpeza e finalização
+
+### Bibliotecas Auxiliares
+
+- **chroot.sh**: Funções para operações em chroot
+- **error.sh**: Tratamento centralizado de erros
+- **logging.sh**: Sistema de logging estruturado
+- **ui_gum.sh**: Interface de usuário com gum
+- **validation.sh**: Validações diversas
+
+### Como Usar o Instalador
+
+Após boot da ISO:
+
+```bash
+sudo install-system
+```
+
+O instalador guiará através do processo de instalação automatizada com interface interativa.
 
 ## 🎨 Personalização
 
+O projeto usa uma abordagem de configuração gerada dinamicamente. As personalizações são feitas modificando o script principal `scripts/build-debian-trixie-zbm.sh` e os arquivos em `include/`.
+
 ### Modificar Pacotes
 
-Edite `config/configure-live-build.sh` e modifique a seção:
+Edite o script `scripts/build-debian-trixie-zbm.sh` na função `generate_live_build_config` e adicione pacotes à lista:
 
 ```bash
-cat > config/package-lists/custom.list.chroot << 'PKGLIST'
 # Adicione seus pacotes aqui
-seu-pacote
-outro-pacote
-PKGLIST
+EXTRA_PACKAGES=(
+    "seu-pacote"
+    "outro-pacote"
+)
 ```
 
 ### Adicionar Hooks Personalizados
 
-Crie novos hooks em `config/hooks/normal/`:
+Crie novos hooks em `include/usr/local/bin/installer/components/` seguindo a numeração sequencial:
 
 ```bash
-cat > config/hooks/normal/0050-meu-hook.hook.chroot << 'EOF'
+cat > include/usr/local/bin/installer/components/09-meu-hook.sh << 'EOF'
 #!/bin/bash
 set -e
 
 # Suas personalizações aqui
 echo "Executando personalização customizada"
 EOF
-chmod +x config/hooks/normal/0050-meu-hook.hook.chroot
+chmod +x include/usr/local/bin/installer/components/09-meu-hook.sh
 ```
 
 ### Modificar Configurações de Boot
 
-No script `configure-live-build.sh`, modifique a linha:
+No script `scripts/build-debian-trixie-zbm.sh`, modifique os parâmetros de boot na função de configuração:
 
 ```bash
---bootappend-live "boot=live components quiet splash locales=pt_BR.UTF-8 timezone=America/Sao_Paulo keyboard-layouts=br seu_parametro=valor"
+BOOT_PARAMS="boot=live components quiet splash locales=pt_BR.UTF-8 timezone=America/Sao_Paulo keyboard-layouts=br seu_parametro=valor"
 ```
 
 ### Alterar Locale/Timezone
 
-Modifique as variáveis no início de `build-debian-trixie.sh`:
+Modifique as variáveis no início de `scripts/build-debian-trixie-zbm.sh`:
 
 ```bash
 readonly LOCALE="en_US.UTF-8"      # Exemplo para inglês
@@ -259,12 +370,16 @@ readonly KEYBOARD="us"
 
 ### Personalizar Usuário Padrão
 
-Edite o hook `0030-configure-system.hook.chroot`:
+Edite o componente `06-chroot-configure.sh` em `include/usr/local/bin/installer/components/`:
 
 ```bash
 useradd -m -s /bin/bash -G sudo meuusuario
 echo "meuusuario:minhasenha" | chpasswd
 ```
+
+### Adicionar Arquivos à ISO
+
+Coloque arquivos adicionais em `include/` seguindo a estrutura do sistema de arquivos Unix. Eles serão incluídos automaticamente na ISO.
 
 ## 🔍 Processo de Build Detalhado
 
@@ -346,6 +461,7 @@ newgrp docker
   ```
 
 - Ative cache de pacotes (já configurado por padrão)
+
 - Use SSD se possível
 
 ### ISO Não Boota
@@ -368,16 +484,17 @@ newgrp docker
    - A ISO é híbrida e suporta ambos
    - Em UEFI, pode ser necessário desabilitar Secure Boot
 
-### Erro Durante Hooks
+### Erro Durante Componentes do Instalador
 
-Se um hook falhar, examine o log:
+Se um componente do instalador falhar, examine os logs:
 
 ```bash
-# Log é salvo em build/live-build-config/build.log
-less build/live-build-config/build.log
+# Logs são salvos em /var/log/installer/ no sistema instalado
+# Durante o build, verifique a saída do Docker
+docker logs <container-name>
 ```
 
-Desabilite o hook problemático comentando-o ou removendo-o.
+Desabilite o componente problemático comentando-o ou removendo-o de `include/usr/local/bin/installer/components/`.
 
 ## ❓ FAQ
 
@@ -478,20 +595,20 @@ sudo umount /mnt
 
 ### Problemas Resolvidos
 
-#### 1. Falha no Hook de Instalação de Fontes (0015-install-nerd-fonts)
+#### 1. Falha no Componente de Instalação de Fontes
 
-**Problema**: O build falhava com o erro `fc-cache: command not found` durante a execução do hook de instalação de fontes.
+**Problema**: O build falhava com o erro `fc-cache: command not found` durante a execução do componente de instalação de fontes.
 
 **Solução Implementada**:
 
 - Adicionado o pacote `fontconfig` à lista de pacotes no script principal
-- Modificado o hook para verificar se `fc-cache` está disponível antes de executá-lo
+- Modificado o componente para verificar se `fc-cache` está disponível antes de executá-lo
 - Melhorado o tratamento de erros com mensagem de aviso quando o comando não está disponível
 
 **Arquivos Modificados**:
 
-- `build-debian-trixie-zbm.sh` (função `generate_live_build_config`)
-- Hook `0015-install-nerd-fonts.hook.chroot` (verificação de disponibilidade do comando)
+- `scripts/build-debian-trixie-zbm.sh` (função `generate_live_build_config`)
+- Componente `include/usr/local/bin/installer/components/XX-install-fonts.sh` (verificação de disponibilidade do comando)
 
 #### 2. Erro de Sintaxe no Script de Limpeza
 
@@ -515,30 +632,30 @@ sudo umount /mnt
 
 - O script principal agora gera automaticamente configurações corretas
 - Todas as correções são aplicadas automaticamente em cada execução
-- Não é mais necessário preservar manualmente o diretório `config/`
+- Estrutura modular com componentes em `include/` para fácil manutenção
 
 #### 2. Nomenclatura Mais Clara
 
 **Melhorias**:
 
-- Script principal renomeado de `debian_trixie_builder-v2.sh` para `build-debian-trixie-zbm.sh`
+- Script principal renomeado para`build-debian-trixie-zbm.sh`
 - Nome mais descritivo que reflete a função e o conteúdo (ZFSBootMenu)
 - Todos os arquivos de documentação atualizados para refletir o novo nome
 
 ### Como as Correções Funcionam
 
-1. **Build Reprodutível**: Toda vez que você executa `./build-debian-trixie-zbm.sh`, o script gera automaticamente:
+1. **Build Reprodutível**: Toda vez que você executa `./scripts/build-debian-trixie-zbm.sh`, o script gera automaticamente:
    - Configurações corretas com `fontconfig` incluído
-   - Hooks com tratamento de erros melhorado
+   - Componentes com tratamento de erros melhorado
    - Scripts de entrada Docker atualizados
 
 2. **Resiliência**: Mesmo após executar o script de limpeza, as correções persistirão porque:
    - O script principal regenera tudo automaticamente
    - As correções estão incorporadas no código gerador
-   - Não dependem de arquivos estáticos
+   - Estrutura modular em `include/` facilita manutenção
 
 3. **Manutenção Simplificada**: Para atualizar ou corrigir problemas:
-   - Modifique apenas o script principal
+   - Modifique apenas o script principal em `scripts/`
    - Execute o build novamente
    - Todas as configurações serão regeneradas automaticamente
 
@@ -568,8 +685,9 @@ Para problemas:
 
 1. Verifique a seção "Solução de Problemas"
 2. Consulte o FAQ
-3. Examine logs em `build/live-build-config/build.log`
-4. Verifique documentação oficial do Debian
+3. Examine logs do Docker: `docker logs <container-name>`
+4. Verifique logs do instalador em `/var/log/installer/` (no sistema instalado)
+5. Consulte documentação oficial do Debian
 
 ---
 

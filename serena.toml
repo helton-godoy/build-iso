@@ -1,7 +1,0 @@
-[project]
-name = "build-iso"
-description = "Debian Trixie ISO Builder"
-language = "bash"
-
-[tools]
-enabled = true

@@ -14,7 +14,9 @@ set -euo pipefail
 # Importar bibliotecas
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib"
 export LIB_DIR
+# shellcheck disable=SC1090
 source "${LIB_DIR}/logging.sh"
+# shellcheck disable=SC1090
 source "${LIB_DIR}/chroot.sh"
 
 # Variáveis globais (serão importadas do orquestrador)

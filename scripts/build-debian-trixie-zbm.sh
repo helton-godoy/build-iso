@@ -23,32 +23,49 @@ readonly BLUE='\033[0;34m'
 readonly NC='\033[0m'
 
 # Diretórios
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly PROJECT_DIR
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
-readonly BUILD_DIR="${SCRIPT_DIR}/build"
-readonly OUTPUT_DIR="${SCRIPT_DIR}/output"
-readonly CONFIG_DIR="${SCRIPT_DIR}/config"
+readonly BUILD_DIR="${PROJECT_DIR}/build"
+readonly OUTPUT_DIR="${PROJECT_DIR}/output"
+readonly CONFIG_DIR="${PROJECT_DIR}/config"
 readonly HOOKS_DIR="${CONFIG_DIR}/hooks"
-readonly CACHE_DIR="${SCRIPT_DIR}/cache"
+readonly CACHE_DIR="${PROJECT_DIR}/cache"
 
-# Configurações da ISO
-readonly DEBIAN_VERSION="trixie"
-readonly ISO_NAME="debian-trixie-zbm"
-readonly ARCH="amd64"
-readonly LOCALE="pt_BR.UTF-8"
-readonly TIMEZONE="America/Sao_Paulo"
-readonly KEYBOARD="br"
+# Configurações da ISO (Valores padrão - sobrescritos por config/build.conf)
+DEBIAN_VERSION="trixie"
+ISO_NAME="debian-trixie-zbm"
+ARCH="amd64"
+LOCALE="pt_BR.UTF-8"
+TIMEZONE="America/Sao_Paulo"
+KEYBOARD="br"
+MIRROR_CHROOT="http://ftp.br.debian.org/debian/"
+MIRROR_BINARY="http://ftp.br.debian.org/debian/"
 
 # Configurações ZFSBootMenu
-# readonly ZBM_VERSION="v3.1.0" # Unused currently, source tracks master/release
-readonly ZBM_SOURCE_URL="https://get.zfsbootmenu.org/source"
+ZBM_SOURCE_URL="https://get.zfsbootmenu.org/source"
 
 # Configurações Docker
-readonly DOCKER_IMAGE="debian-trixie-zbm-builder"
-readonly DOCKER_TAG="latest"
+DOCKER_IMAGE="debian-trixie-zbm-builder"
+DOCKER_TAG="latest"
 
-# Artefatos cacheáveis
-readonly KMSCON_DEB_NAME="kmscon-custom_9.3.0_amd64.deb"
+# Artefatos e URLs
+KMSCON_DEB_NAME="kmscon-custom_9.3.0_amd64.deb"
+NERD_FONT_URL="https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/FiraCode/Regular/FiraCodeNerdFontMono-Regular.ttf"
+
+# Carregar configurações externas se existirem
+if [[ -f "${CONFIG_DIR}/build.conf" ]]; then
+	# shellcheck source=/dev/null
+	source "${CONFIG_DIR}/build.conf"
+	# Não imprimimos mensagem aqui para não poluir output se rodar em subshell,
+	# mas garantimos que as variáveis foram carregadas.
+fi
+
+# Exportar variáveis para subshells/docker
+export DEBIAN_VERSION ISO_NAME ARCH LOCALE TIMEZONE KEYBOARD
+export MIRROR_CHROOT MIRROR_BINARY ZBM_SOURCE_URL
+export DOCKER_IMAGE DOCKER_TAG KMSCON_DEB_NAME NERD_FONT_URL
 
 #==============================================================================
 # FUNÇÕES UTILITÁRIAS
@@ -127,9 +144,9 @@ create_directory_structure() {
 	mkdir -p "${CACHE_DIR}/packages.bootstrap"
 
 	# Copiar arquivos do diretório include/ para includes.chroot
-	if [[ -d "${SCRIPT_DIR}/include" ]]; then
+	if [[ -d "${PROJECT_DIR}/include" ]]; then
 		print_message "info" "Copiando arquivos de include/ para includes.chroot..."
-		cp -rv "${SCRIPT_DIR}/include/"* "${CONFIG_DIR}/includes.chroot/" 2>/dev/null || true
+		cp -rv "${PROJECT_DIR}/include/"* "${CONFIG_DIR}/includes.chroot/" 2>/dev/null || true
 		print_message "success" "Arquivos de include/ copiados (instalador + gum)"
 	fi
 
@@ -223,7 +240,7 @@ EOF
 		print_message "success" "Dockerfile gerado (modo CACHE - build rápido)"
 	else
 		# Dockerfile completo com compilação
-		cat >"${SCRIPT_DIR}/Dockerfile" <<'EOF'
+		cat >"${PROJECT_DIR}/Dockerfile" <<'EOF'
 # =============================================================================
 # Estágio 1: Compilação do KMSCON customizado
 # =============================================================================
@@ -378,7 +395,7 @@ EOF
 generate_docker_entrypoint() {
 	print_message "step" "Gerando script de entrada do Docker..."
 
-	cat >"${SCRIPT_DIR}/docker-entrypoint.sh" <<'EOF'
+	cat >"${PROJECT_DIR}/docker-entrypoint.sh" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
@@ -450,7 +467,7 @@ else
 fi
 EOF
 
-	chmod +x "${SCRIPT_DIR}/docker-entrypoint.sh"
+	chmod +x "${PROJECT_DIR}/docker-entrypoint.sh"
 	print_message "success" "Script de entrada gerado"
 }
 
@@ -470,8 +487,8 @@ cd live-build-config
 lb config noauto \
     --mode debian \
     --distribution "${DEBIAN_VERSION}" \
-    --parent-mirror-chroot http://ftp.br.debian.org/debian/ \
-    --parent-mirror-binary http://ftp.br.debian.org/debian/ \
+    --parent-mirror-chroot "${MIRROR_CHROOT}" \
+    --parent-mirror-binary "${MIRROR_BINARY}" \
     --archive-areas "main contrib non-free non-free-firmware" \
     --parent-archive-areas 'main contrib non-free-firmware non-free' \
     --architectures "${ARCH}" \
@@ -613,21 +630,21 @@ cat > config/hooks/normal/0010-configure-locale.hook.chroot << 'LOCALHOOK'
 #!/bin/bash
 set -e
 
-echo "==> Configurando localização PT-BR..."
+echo "==> Configurando localização ${LOCALE}..."
 
 # Configurar locale
-echo "pt_BR.UTF-8 UTF-8" > /etc/locale.gen
-locale-gen pt_BR.UTF-8
-update-locale LANG=pt_BR.UTF-8 LC_ALL=pt_BR.UTF-8
+echo "${LOCALE} UTF-8" > /etc/locale.gen
+locale-gen ${LOCALE}
+update-locale LANG=${LOCALE} LC_ALL=${LOCALE}
 
 # Configurar timezone
-ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
-echo "America/Sao_Paulo" > /etc/timezone
+ln -sf /usr/share/zoneinfo/${TIMEZONE} /etc/localtime
+echo "${TIMEZONE}" > /etc/timezone
 
 # Configurar teclado
 cat > /etc/default/keyboard << 'KBDEOF'
 XKBMODEL="abnt2"
-XKBLAYOUT="br"
+XKBLAYOUT="${KEYBOARD}"
 XKBVARIANT="abnt2"
 XKBOPTIONS=""
 BACKSPACE="guess"
@@ -654,10 +671,10 @@ echo "==> Instalando FiraCode Nerd Font..."
 mkdir -p /usr/local/share/fonts/truetype/nerdfonts
 cd /usr/local/share/fonts/truetype/nerdfonts
 
-# Download FiraCode Nerd Font (v3.1.1)
+# Download FiraCode Nerd Font
 # Baixando apenas o Regular Mono para economizar espaço
 curl -fLo "FiraCodeNerdFontMono-Regular.ttf" \
-    "https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/FiraCode/Regular/FiraCodeNerdFontMono-Regular.ttf"
+    "${NERD_FONT_URL}"
 
 # Atualizar cache de fontes (verificar se fc-cache está disponível)
 if command -v fc-cache >/dev/null 2>&1; then
@@ -751,7 +768,7 @@ mouse                       # Suporte nativo a mouse via libinput
 # -----------------------------------------------------------------------------
 # LAYOUT DE TECLADO BRASILEIRO
 # -----------------------------------------------------------------------------
-xkb-layout=br
+xkb-layout=${KEYBOARD}
 xkb-variant=abnt2
 xkb-options=
 
@@ -848,7 +865,7 @@ systemctl enable ssh || true
 systemctl enable systemd-timesyncd || true
 
 # Hostname
-echo "debian-trixie-zbm" > /etc/hostname
+echo "${ISO_NAME}" > /etc/hostname
 
 # Otimizações de kernel
 cat >> /etc/sysctl.d/99-custom.conf << EOF
@@ -891,7 +908,7 @@ cat > /usr/local/bin/zfs-setup-helper << 'ZFSHELPER'
 cat << EOF
 
 ╔═══════════════════════════════════════════════════════════════╗
-║           Helper de Configuração ZFS - Debian Trixie          ║
+║           Helper de Configuração ZFS - Debian ${DEBIAN_VERSION}          ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 📦 CRIAR POOL ZFS:
@@ -1237,7 +1254,7 @@ cat > /etc/motd << 'MOTD'
 
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
-║        🚀 Debian Trixie Live - ZFSBootMenu Edition 🚀        ║
+║        🚀 Debian ${DEBIAN_VERSION} Live - ZFSBootMenu Edition 🚀        ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 
@@ -1245,7 +1262,7 @@ cat > /etc/motd << 'MOTD'
    • ZFS com suporte completo (incluindo criptografia)
    • ZFSBootMenu para gerenciamento avançado de boot
    • kmscon com suporte a truecolor e emojis
-   • Localização PT-BR (teclado ABNT2)
+   • Localização ${LOCALE} (teclado ABNT2)
    • Kernel otimizado para file servers
 
 📚 Comandos Úteis:
@@ -1364,8 +1381,24 @@ fi
 LBCONFIG
 
 	# Injetar valores das variáveis no script gerado (substituir placeholders)
+	# Nota: A maioria das variáveis já foi injetada diretamente no cat << 'LBCONFIG' (exceto onde usamos aspas simples)
+	# Mas para ZBM_SOURCE_URL e NERD_FONT_URL que estão dentro de aspas simples ou contextos complexos, reforçamos:
+
+	# Em hooks usando aspas simples (ex: << 'LOCALHOOK'), variáveis do bash host NÃO são expandidas.
+	# Portanto, precisamos usar sed para substituir placeholders ou mudar a estratégia de heredoc.
+	# Optei por mudar os heredocs críticos para "cat << EOF" (expandível) onde possível,
+	# mas para manter a consistência com o código original (que usava 'EOF'), vou usar sed para injeção.
+
+	# Injeção via SED para garantir que funcione dentro dos heredocs 'escapados'
 	sed -i "s|\${ISO_NAME}|${ISO_NAME}|g" "${CONFIG_DIR}/configure-live-build.sh"
 	sed -i "s|\${ZBM_SOURCE_URL}|${ZBM_SOURCE_URL}|g" "${CONFIG_DIR}/configure-live-build.sh"
+	sed -i "s|\${NERD_FONT_URL}|${NERD_FONT_URL}|g" "${CONFIG_DIR}/configure-live-build.sh"
+	sed -i "s|\${LOCALE}|${LOCALE}|g" "${CONFIG_DIR}/configure-live-build.sh"
+	sed -i "s|\${TIMEZONE}|${TIMEZONE}|g" "${CONFIG_DIR}/configure-live-build.sh"
+	sed -i "s|\${KEYBOARD}|${KEYBOARD}|g" "${CONFIG_DIR}/configure-live-build.sh"
+	sed -i "s|\${DEBIAN_VERSION}|${DEBIAN_VERSION}|g" "${CONFIG_DIR}/configure-live-build.sh"
+	sed -i "s|\${MIRROR_CHROOT}|${MIRROR_CHROOT}|g" "${CONFIG_DIR}/configure-live-build.sh"
+	sed -i "s|\${MIRROR_BINARY}|${MIRROR_BINARY}|g" "${CONFIG_DIR}/configure-live-build.sh"
 
 	chmod +x "${CONFIG_DIR}/configure-live-build.sh"
 	print_message "success" "Script de configuração gerado"
@@ -1396,7 +1429,12 @@ run_iso_build() {
 		-e LOCALE="${LOCALE}" \
 		-e TIMEZONE="${TIMEZONE}" \
 		-e KEYBOARD="${KEYBOARD}" \
-		-v "${SCRIPT_DIR}:/build" \
+		-e ISO_NAME="${ISO_NAME}" \
+		-e MIRROR_CHROOT="${MIRROR_CHROOT}" \
+		-e MIRROR_BINARY="${MIRROR_BINARY}" \
+		-e ZBM_SOURCE_URL="${ZBM_SOURCE_URL}" \
+		-e NERD_FONT_URL="${NERD_FONT_URL}" \
+		-v "${PROJECT_DIR}:/build" \
 		-v "${OUTPUT_DIR}:/output" \
 		-v "${CACHE_DIR}:/cache" \
 		"${DOCKER_IMAGE}:${DOCKER_TAG}" build ||
@@ -1463,7 +1501,7 @@ EXEMPLOS:
     $0 clean        # Apenas limpar
 
 SAÍDA:
-    A ISO gerada estará em: ${OUTPUT_DIR}/
+    A ISO gerada estará em: ${PROJECT_DIR}/output/
 
 EOF
 }
@@ -1481,9 +1519,9 @@ main() {
 		check_dependencies
 		create_directory_structure
 		# Baixar binários ZFSBootMenu
-		if [[ -x "${SCRIPT_DIR}/download-zfsbootmenu.sh" ]]; then
+		if [[ -x "${PROJECT_DIR}/scripts/download-zfsbootmenu.sh" ]]; then
 			print_message "step" "Baixando binários ZFSBootMenu..."
-			"${SCRIPT_DIR}/download-zfsbootmenu.sh" || print_message "warning" "Falha parcial no download do ZFSBootMenu"
+			"${PROJECT_DIR}/scripts/download-zfsbootmenu.sh" || print_message "warning" "Falha parcial no download do ZFSBootMenu"
 		fi
 		generate_dockerfile
 		generate_docker_entrypoint

@@ -79,7 +79,7 @@ bats tests/test_installer.bats
 Refactored build script:
 
 ```bash
-./debian_trixie_builder-v2.sh
+./build-debian-trixie-zbm.sh
 ```
 
 ## 📝 Logs

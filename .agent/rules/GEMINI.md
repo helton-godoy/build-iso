@@ -12,6 +12,17 @@ trigger: always_on
 
 > **MANDATORY:** You MUST read the appropriate agent file and its skills BEFORE performing any implementation. This is the highest priority rule.
 
+### 0. MANDATORY EXECUTION LOOP (THE "CLOSED LOOP")
+
+**Every task MUST follow this strict sequence:**
+
+1.  **ROUTING:** Run `.agent/scripts/task_router.py "<user_query>"` to determine Persona/Skills.
+2.  **LOADING:** Read the files indicated by the Router.
+3.  **EXECUTION:** Perform the task (edit, fix, create).
+4.  **COMMIT:** **ALWAYS** run `.agent/scripts/smart_commit.py` at the very end of your turn.
+    - _Why?_ To auto-save progress with semantic messages without using context tokens.
+    - _Exception:_ If the task was purely informational (question/survey) and changed no files.
+
 ### 1. Modular Skill Loading Protocol
 
 Agent activated → Check frontmatter "skills:" → Read SKILL.md (INDEX) → Read specific sections.

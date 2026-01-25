@@ -79,7 +79,7 @@ def count_files(root: Path) -> Dict[str, int]:
         "__pycache__",
     }
 
-    for _root_dir, dirs, files in os.walk(root):
+    for root_dir, dirs, files in os.walk(root):
         dirs[:] = [d for d in dirs if d not in exclude]
         stats["total"] += len(files)
 
@@ -118,7 +118,7 @@ def print_status(root: Path):
     print(f"\n📁 Project: {info.get('name', root.name)}")
     print(f"📂 Path: {root}")
     print(f"🏷️  Type: {', '.join(info.get('stack', ['Generic']))}")
-    print("📊 Status: Active")
+    print(f"📊 Status: Active")
 
     print("\n🔧 Tech Stack:")
     for tech in info.get("stack", []):

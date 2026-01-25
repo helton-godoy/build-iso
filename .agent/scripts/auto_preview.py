@@ -16,6 +16,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 AGENT_DIR = Path(".agent")
@@ -58,7 +59,7 @@ def start_server(port=3000):
             if is_running(pid):
                 print(f"⚠️  Preview already running (PID: {pid})")
                 return
-        except Exception:
+        except:
             pass  # Invalid PID file
 
     root = get_project_root()
@@ -81,7 +82,7 @@ def start_server(port=3000):
             stdout=log,
             stderr=log,
             env=env,
-            shell=os.name == "nt",  # Required for npm on Windows
+            shell=True,  # Required for npm on windows often, or consistent path handling
         )
 
     PID_FILE.write_text(str(process.pid))
@@ -126,12 +127,12 @@ def status_server():
                 running = True
                 # Heuristic for URL, strictly we should save it
                 url = "http://localhost:3000"
-        except Exception:
+        except:
             pass
 
     print("\n=== Preview Status ===")
     if running:
-        print("✅ Status: Running")
+        print(f"✅ Status: Running")
         print(f"🔢 PID: {pid}")
         print(f"🌐 URL: {url} (Likely)")
         print(f"📝 Logs: {LOG_FILE}")

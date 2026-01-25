@@ -19,13 +19,13 @@ readonly NC='\033[0m'
 
 # Configuração
 readonly BASE_URL="https://get.zfsbootmenu.org"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Diretórios de destino (relativos ao projeto)
-DEFAULT_DEST_DIR="${SCRIPT_DIR}/config/includes.binary/EFI/ZBM"
-DEFAULT_SYSLINUX_DIR="${SCRIPT_DIR}/config/includes.binary/boot/syslinux/zfsbootmenu"
+DEFAULT_DEST_DIR="${PROJECT_DIR}/config/includes.binary/EFI/ZBM"
+DEFAULT_SYSLINUX_DIR="${PROJECT_DIR}/config/includes.binary/boot/syslinux/zfsbootmenu"
 # Diretório para o instalador (será copiado via includes.chroot)
-DEFAULT_INSTALLER_ZBM_DIR="${SCRIPT_DIR}/include/usr/share/zfsbootmenu"
+DEFAULT_INSTALLER_ZBM_DIR="${PROJECT_DIR}/include/usr/share/zfsbootmenu"
 
 TEMP_DIR=""
 DEST_DIR="${DEFAULT_DEST_DIR}"
