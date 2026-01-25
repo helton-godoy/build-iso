@@ -1437,6 +1437,7 @@ run_iso_build() {
 		-e MIRROR_BINARY="${MIRROR_BINARY}" \
 		-e ZBM_SOURCE_URL="${ZBM_SOURCE_URL}" \
 		-e NERD_FONT_URL="${NERD_FONT_URL}" \
+		-e KMSCON_DEB_NAME="${KMSCON_DEB_NAME}" \
 		-v "${PROJECT_DIR}:/build" \
 		-v "${OUTPUT_DIR}:/output" \
 		-v "${CACHE_DIR}:/cache" \
