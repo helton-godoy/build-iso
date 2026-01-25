@@ -3,6 +3,8 @@
 # install-system - Instalador Debian ZFS (Orquestrador Principal)
 # Debian + ZFS-on-Root + ZFSBootMenu
 #
+# [commit] feat: orquestrador principal do instalador com suporte a perfis e ui_gum
+#
 # Uso: sudo install-system
 #
 
