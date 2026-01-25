@@ -1,0 +1,12 @@
+- Data: 2026-01-25
+- Problema: Script de instalação encerrava abruptamente após seleção de disco.
+- Diagnóstico:
+  - `ui_choose_multi` imprimia texto de prompt no STDOUT.
+  - O script principal capturava esse texto junto com a seleção do usuário.
+  - Loop de processamento falhava ao tentar extrair dispositivo desse texto de prompt.
+  - `set -e` encerrava o script silenciosamente.
+- Solução:
+  - Redirecionado output cosmético de `ui_gum.sh` para STDERR (`>&2`).
+  - Adicionado `|| true` no pipeline de extração do dispositivo em `install-system` para evitar quebras por falha de grep.
+- Resultado: Correção robusta aplicada e validada por lint.
+- Nota: Alertas restantes do lint em `install-system` (variáveis não usadas SC2034) são esperados pois são variáveis globais consumidas por scripts componentes. Alerta SC1091 (source não encontrado) é falso positivo devido a caminhos dinâmicos.
