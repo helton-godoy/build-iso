@@ -4,6 +4,8 @@
 # Modularized from install-system
 # Uses: lib/logging.sh, lib/validation.sh
 #
+# [commit] fix: ajuste no path do MBR para suportar testes unitários
+#
 
 set -euo pipefail
 
