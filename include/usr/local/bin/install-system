@@ -134,14 +134,20 @@ select_disks() {
 	while IFS= read -r sel; do
 		[[ -z ${sel} ]] && continue
 
-		# Extrair caminho do dispositivo de forma robusta
+		# Extrair caminho do dispositivo (pega a primeira palavra, removendo espaços extras)
 		local dev
-		dev=$(echo "${sel}" | grep -oE '/dev/[a-z0-9]+(/[a-z0-9/]+|n)[0-9]*' | head -n 1 || true)
+		dev=$(echo "${sel}" | awk '{print $1}')
 
 		if [[ -n ${dev} ]] && [[ -b ${dev} ]]; then
 			selected_disks+=("${dev}")
 		else
-			log_warn "Falha ao extrair dispositivo válido de: '${sel}'"
+			# Tentar regex como fallback para casos estranhos
+			dev=$(echo "${sel}" | grep -oE '/dev/[a-z0-9/]+' | head -n 1 || true)
+			if [[ -n ${dev} ]] && [[ -b ${dev} ]]; then
+				selected_disks+=("${dev}")
+			else
+				log_warn "Falha ao extrair dispositivo válido de: '${sel}'"
+			fi
 		fi
 	done <<<"${raw_selection}"
 
@@ -301,7 +307,33 @@ EOF
 	fi
 }
 
-# ... (execute_components logic remains the same) ...
+# Executar componentes da instalação
+execute_components() {
+	section_header "Installation Progress"
+
+	for component in "${COMPONENTS[@]}"; do
+		local script="${INSTALLER_DIR}/${component}"
+
+		if [[ ! -f "${script}" ]]; then
+			log_error "Componente não encontrado: ${script}"
+			return 1
+		fi
+
+		# Torna executável se não for
+		chmod +x "${script}"
+
+		log_info "Executando componente: $(basename "${component}")"
+
+		# Executa o componente
+		# As variáveis globais (SELECTED_DISKS, PROFILE, etc) já foram exportadas
+		if ! "${script}"; then
+			log_error "Componente $(basename "${component}") falhou."
+			return 1
+		fi
+	done
+
+	return 0
+}
 
 # =============================================================================
 # FUNÇÃO PRINCIPAL
