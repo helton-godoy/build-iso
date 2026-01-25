@@ -1,0 +1,29 @@
+#!/bin/bash
+# Mock do binário 'gum' para testes automatizados
+
+case "$1" in
+confirm)
+	# Retorna 0 (Sim/Confirmado) a menos que GUM_CONFIRM_EXIT seja definido
+	exit ${GUM_CONFIRM_EXIT:-0}
+	;;
+input)
+	# Retorna o valor de GUM_INPUT_VALUE ou um padrão
+	echo "${GUM_INPUT_VALUE:-mock_input}"
+	;;
+choose)
+	# Retorna o valor de GUM_CHOOSE_VALUE ou o primeiro argumento após as opções
+	# Simplificação: se GUM_CHOOSE_VALUE estiver definido, usa ele.
+	echo "${GUM_CHOOSE_VALUE:-$(echo "${@}" | grep -oE "[^ ]+$")}"
+	;;
+spin)
+	# Apenas executa o comando passado via --
+	shift
+	while [[ $1 != "--" && $# -gt 0 ]]; do shift; done
+	if [[ $1 == "--" ]]; then shift; fi
+	exec "$@"
+	;;
+*)
+	# Para outros comandos (style, format, etc), apenas silêncio e sucesso
+	exit 0
+	;;
+esac

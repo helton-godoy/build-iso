@@ -1,0 +1,26 @@
+#!/bin/bash
+# Logger genérico para comandos mockados
+# Registra a chamada em /tmp/mock_calls.log e retorna sucesso
+
+COMMAND_NAME=$(basename "$0")
+LOG_FILE="${MOCK_CALL_LOG:-/tmp/mock_calls.log}"
+
+echo "${COMMAND_NAME} ${*}" >>"${LOG_FILE}"
+
+# Comportamento específico baseado no comando
+case "${COMMAND_NAME}" in
+lsblk)
+	# Mock de saída do lsblk para o script 02-partition encontrar "discos"
+	if [[ $* == *"-n -o NAME,SIZE,MODEL"* ]]; then
+		echo "sda 100G Mock_Disk_1"
+		echo "sdb 200G Mock_Disk_2"
+	fi
+	;;
+zpool | zfs)
+	# Sucesso padrão para ZFS
+	exit 0
+	;;
+*)
+	exit 0
+	;;
+esac

@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Cores
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Caminhos
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+ROUTER="${REPO_ROOT}/.agent/scripts/task_router.py"
+COMMITTER="${REPO_ROOT}/.agent/scripts/smart_commit.py"
+
+# 1. Captura a instrução do usuário
+QUERY="$*"
+
+if [[ -z ${QUERY} ]]; then
+	echo 'Uso: g-task "Sua instrução para o agente"'
+	exit 1
+fi
+
+echo -e "${BLUE}===== 🧠 ANÁLISE DE CONTEXTO (Pré-Agente) =====${NC}"
+
+# 2. Executa o Router para preparar o terreno
+# Isso imprime as instruções que o você (usuário) vai copiar/colar ou que o agente vai ver se for pipeado
+python3 "${ROUTER}" "${QUERY}"
+
+echo -e "${BLUE}===============================================${NC}"
+echo -e "${GREEN}🚀 Iniciando interação com o Agente...${NC}"
+
+# 3. AQUI entraria a chamada do agente.
+# Como o Gemini CLI é interativo, você provavelmente quer rodar isso e depois entrar no chat.
+# OU, se você usa o modo one-shot (não-interativo), seria: gemini "$QUERY"
+# Vou assumir que você quer ver o output do router e depois entrar no shell ou mandar o comando.
+
+# Opção A: Apenas imprime o contexto e espera você rodar o comando do agente
+echo ""
+echo "💡 DICA: Copie o contexto acima se necessário, ou confie que o agente lerá o histórico recente."
+echo "Execute sua tarefa no Gemini CLI agora."
+echo ""
+echo "Pressione [ENTER] quando o agente tiver terminado a tarefa para realizar o Smart Commit."
+read -p ""
+
+# 4. Pós-Execução: Smart Commit
+echo -e "${BLUE}===== 💾 FINALIZANDO TAREFA (Smart Commit) =====${NC}"
+python3 "${COMMITTER}"

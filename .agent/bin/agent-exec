@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# ==============================================================================
+# AGENT EXECUTOR - O Kernel do Sistema Cognitivo
+# ==============================================================================
+# Este script atua como o orquestrador em nível de SO.
+# Ele prepara, roteia e finaliza tarefas, permitindo que o LLM foque apenas
+# na inteligência, não na burocracia.
+# ==============================================================================
+
+# Cores e Estilo
+BOLD='\033[1m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+# Caminhos Absolutos (Baseados na raiz do git)
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+SCRIPTS_DIR="${REPO_ROOT}/.agent/scripts"
+BIN_DIR="${REPO_ROOT}/.agent/bin"
+LOG_DIR="${REPO_ROOT}/.agent/tmp/logs"
+
+mkdir -p "${LOG_DIR}"
+
+# Função de Log
+log() {
+	echo -e "${BLUE}[AGENT-OS]${NC} $1"
+	echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >>"${LOG_DIR}/execution.log"
+}
+
+error() {
+	echo -e "${RED}[ERROR]${NC} $1"
+	exit 1
+}
+
+# 1. Captura a Intenção
+QUERY="$*"
+if [[ -z ${QUERY} ]]; then
+	echo -e "${BOLD}Uso:${NC} agent-exec \"<instrução da tarefa>\""
+	exit 1
+fi
+
+log "Iniciando tarefa: ${BOLD}\"${QUERY}\"${NC}"
+
+# 2. Pré-Processamento (Router & Otimização)
+# O Router agora pode retornar códigos de saída ou strings específicas para automação
+ROUTER_OUTPUT=$(python3 "${SCRIPTS_DIR}/task_router.py" "${QUERY}" 2>&1)
+INTENT=$(echo "${ROUTER_OUTPUT}" | grep "Detected Intent:" | cut -d: -f2 | xargs)
+
+log "Intenção Detectada: ${YELLOW}${INTENT}${NC}"
+
+# 3. Fast-Path (Automação sem LLM)
+# Se a tarefa for puramente mecânica, execute-a diretamente.
+if [[ ${INTENT} == "DEVOPS" ]] && [[ ${QUERY} == *"format"* ]]; then
+	log "⚡ Fast-Path detectado: Formatação de código."
+	trunk fmt --all
+	python3 "${SCRIPTS_DIR}/smart_commit.py"
+	exit 0
+fi
+
+if [[ ${INTENT} == "DEVOPS" ]] && [[ ${QUERY} == *"check"* || ${QUERY} == *"lint"* ]]; then
+	log "⚡ Fast-Path detectado: Verificação de Lint."
+	trunk check --all
+	exit 0
+fi
+
+# 4. Preparação de Contexto para o Agente
+# Cria um arquivo de contexto temporário que o Agente pode ler
+CONTEXT_FILE="${REPO_ROOT}/.agent/tmp/current_context.md"
+echo "# Contexto da Tarefa Atual" >"${CONTEXT_FILE}"
+echo "**Instrução:** ${QUERY}" >>"${CONTEXT_FILE}"
+echo "**Intenção:** ${INTENT}" >>"${CONTEXT_FILE}"
+echo "" >>"${CONTEXT_FILE}"
+echo "## Output do Router" >>"${CONTEXT_FILE}"
+echo "\
+$()$(
+	" >> "${CONTEXT_FILE}"
+echo "${ROUTER_OUTPUT}" >> "${CONTEXT_FILE}"
+echo "
+)$()" >>"${CONTEXT_FILE}"
+
+log "Contexto preparado em: ${CONTEXT_FILE}"
+
+# 5. Execução (Aqui é onde a mágica acontece)
+# Se estiver rodando dentro de um subshell ou chamado por outro agente,
+# apenas imprimimos o sinal de pronto.
+echo -e "${GREEN}✅ Ambiente Preparado. Execute a tarefa cognitiva agora.${NC}"
+echo -e "💡 DICA: Leia o arquivo .agent/tmp/current_context.md para alinhar sua persona."
+
+# Pausa para execução manual ou externa
+# Se passado o flag --wait, ele espera o usuário dar Enter.
+# Caso contrário, assume que é parte de um script maior.
+if [[ $1 == "--wait" ]]; then
+	read -p "Pressione [ENTER] após concluir a tarefa cognitiva..."
+fi
+
+# 6. Pós-Processamento (Smart Commit)
+log "Verificando alterações para commit..."
+python3 "${SCRIPTS_DIR}/smart_commit.py"
+
+log "Ciclo concluído com sucesso."

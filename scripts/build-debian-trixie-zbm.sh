@@ -395,22 +395,25 @@ EOF
 generate_docker_entrypoint() {
 	print_message "step" "Gerando script de entrada do Docker..."
 
-	cat >"${PROJECT_DIR}/docker-entrypoint.sh" <<'EOF'
+	cat >"${SCRIPT_DIR}/docker-entrypoint.sh" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
-echo "==> Iniciando build da ISO Debian Trixie com ZFSBootMenu"
+echo "==> Iniciando build da ISO Debian ${DEBIAN_VERSION} com ZFSBootMenu"
+echo "==> Configuração:"
+echo "    -> ISO Name: ${ISO_NAME}"
+echo "    -> Arch: ${ARCH}"
+echo "    -> Locale: ${LOCALE}"
+echo "    -> Mirror: ${MIRROR_CHROOT}"
 
 cd /build
 
-# Limpar builds anteriores
 # Limpar builds anteriores
 if [ -d "live-build-config" ]; then
     echo "==> Limpando configurações anteriores..."
     # Tentar limpar com força bruta, ignorando erros de montagem primeiro
     rm -rf live-build-config || {
         echo "[AVISO] Falha ao remover 'live-build-config' simples. Tentando limpeza mais profunda..."
-        # Se for um mount point preso, isso pode ajudar em alguns casos, mas no docker é mais sobre permissão ou arquivo aberto
         find live-build-config -mindepth 1 -delete || echo "[ERRO CRÍTICO] Não é possível limpar o diretório de trabalho."
     }
 fi
@@ -420,22 +423,22 @@ echo "==> Preparando pacote kmscon customizado..."
 mkdir -p /build/config/packages.chroot
 
 # Prioridade: 1) Cache montado, 2) /opt (compilado no Docker)
-if [ -f "/cache/debs/kmscon-custom_9.3.0_amd64.deb" ]; then
+if [ -f "/cache/debs/${KMSCON_DEB_NAME}" ]; then
     echo "===> Usando kmscon do CACHE"
-    cp /cache/debs/kmscon-custom_9.3.0_amd64.deb /build/config/packages.chroot/
-    dpkg-deb -I /build/config/packages.chroot/kmscon-custom_9.3.0_amd64.deb
-elif [ -f "/opt/kmscon-custom_9.3.0_amd64.deb" ]; then
+    cp "/cache/debs/${KMSCON_DEB_NAME}" /build/config/packages.chroot/
+    dpkg-deb -I "/build/config/packages.chroot/${KMSCON_DEB_NAME}"
+elif [ -f "/opt/${KMSCON_DEB_NAME}" ]; then
     echo "===> Usando kmscon COMPILADO"
-    cp /opt/kmscon-custom_9.3.0_amd64.deb /build/config/packages.chroot/
-    dpkg-deb -I /build/config/packages.chroot/kmscon-custom_9.3.0_amd64.deb
+    cp "/opt/${KMSCON_DEB_NAME}" /build/config/packages.chroot/
+    dpkg-deb -I "/build/config/packages.chroot/${KMSCON_DEB_NAME}"
     
     # Salvar no cache para futuros builds
     if [ -d "/cache/debs" ]; then
         echo "===> Salvando kmscon no CACHE para futuros builds"
-        cp /opt/kmscon-custom_9.3.0_amd64.deb /cache/debs/
+        cp "/opt/${KMSCON_DEB_NAME}" "/cache/debs/"
     fi
 else
-    echo "AVISO: Pacote kmscon customizado não encontrado!"
+    echo "AVISO: Pacote kmscon customizado (${KMSCON_DEB_NAME}) não encontrado!"
     echo "       Verifique se o cache ou a compilação funcionou."
 fi
 
@@ -467,7 +470,7 @@ else
 fi
 EOF
 
-	chmod +x "${PROJECT_DIR}/docker-entrypoint.sh"
+	chmod +x "${SCRIPT_DIR}/docker-entrypoint.sh"
 	print_message "success" "Script de entrada gerado"
 }
 

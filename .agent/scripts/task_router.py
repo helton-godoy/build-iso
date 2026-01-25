@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import sys
-from pathlib import Path
 
 # Mapa de Personas e Skills (Baseado no GEMINI.md e estrutura de diretórios)
 PERSONA_MAP = {

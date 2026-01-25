@@ -58,8 +58,9 @@ run_installer_validations() {
 	validate_commands "${commands[@]}" || return 1
 
 	# 7. Verificar syslinux gptmbr.bin
-	if [[ ! -f /usr/lib/syslinux/mbr/gptmbr.bin ]]; then
-		log_error "Arquivo MBR não encontrado: /usr/lib/syslinux/mbr/gptmbr.bin. Instale syslinux-common."
+	local mbr_path="${SYSLINUX_MBR:-/usr/lib/syslinux/mbr/gptmbr.bin}"
+	if [[ ! -f ${mbr_path} ]]; then
+		log_error "Arquivo MBR não encontrado: ${mbr_path}. Instale syslinux-common."
 		return 1
 	fi
 

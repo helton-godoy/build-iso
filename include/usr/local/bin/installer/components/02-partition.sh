@@ -116,7 +116,19 @@ partition_server_disk() {
 	log_success "SERVER disk ${disk} partitioned successfully"
 }
 
-# ... (partition_disk function unchanged) ...
+# Selecionar estratégia de particionamento baseada no perfil
+partition_disk() {
+	local disk=$1
+
+	case "${PROFILE}" in
+	Workstation)
+		partition_workstation_disk "${disk}"
+		;;
+	Server | Minimal | *)
+		partition_server_disk "${disk}"
+		;;
+	esac
+}
 
 # Preparar todos os discos selecionados
 prepare_disks() {

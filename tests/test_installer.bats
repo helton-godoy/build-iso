@@ -1,97 +1,96 @@
 #!/usr/bin/env bats
 
 # test_installer.bats
-# Tests for Debian ZFS Installer Logic
+# Testes de integração para os componentes do instalador
+
+load "test_helper.bash"
 
 setup() {
-    # Define project root relative to this test file
-    PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-    INSTALLER_ROOT="${PROJECT_ROOT}/include/usr/local/bin/installer"
-    LIB_DIR="${INSTALLER_ROOT}/lib"
-    COMPONENTS_DIR="${INSTALLER_ROOT}/components"
+    setup_test_env
     
-    # Export variables expected by scripts
-    export LIB_DIR
-    export COMPONENTS_DIR
-    export LOG_FILE="/tmp/test_installer.log"
-    export LOG_LEVEL="DEBUG"
+    # Mocks globais para evitar falhas de sistema
+    validate_root() { return 0; }
+    validate_memory() { return 0; }
+    validate_zfs_module() { return 0; }
+    validate_zfs_commands() { return 0; }
+    validate_commands() { return 0; }
+    validate_firmware() { echo "uefi"; return 0; }
+    ui_spin() { shift; "$@"; }
+    ui_alert() { return 0; }
+    ui_confirm() { return 0; }
     
-    # Mocking
-    mkdir -p "${LIB_DIR}/../gum"
-    touch "${LIB_DIR}/../gum/gum"
-    chmod +x "${LIB_DIR}/../gum/gum"
+    export -f validate_root validate_memory validate_zfs_module validate_zfs_commands 
+    export -f validate_commands validate_firmware ui_spin ui_alert ui_confirm
 }
 
 teardown() {
-    rm -f "${LOG_FILE}"
+    :
 }
 
-# --- Mocking Gum ---
-# We override the gum command to avoid UI interation
-gum() {
-    case "$1" in
-        confirm)
-            return 0 # Always say yes
-            ;;
-        input)
-            echo "mock_input"
-            ;;
-        choose)
-            echo "$3" # Return the first option or a default
-            ;;
-        *)
-            return 0
-            ;;
-    esac
-}
-export -f gum
-
-# --- Tests ---
-
-@test "Logging: library loads correctly" {
-    source "${LIB_DIR}/logging.sh"
-    run log_info "Test Message"
+@test "T01_Validation_Environment" {
+    source "${COMPONENTS_DIR}/01-validate.sh"
+    validate_root() { return 0; }
+    validate_memory() { return 0; }
+    validate_zfs_module() { return 0; }
+    validate_zfs_commands() { return 0; }
+    validate_commands() { return 0; }
+    validate_firmware() { echo "uefi"; return 0; }
+    export -f validate_root validate_memory validate_zfs_module validate_zfs_commands validate_commands validate_firmware
+    export SYSLINUX_MBR="/tmp/mock_gptmbr.bin"
+    touch "${SYSLINUX_MBR}"
+    run run_installer_validations
     [ "$status" -eq 0 ]
-    grep "Test Message" "${LOG_FILE}"
 }
 
-@test "Validation: Password match failure" {
-    # Source only validation library
-    source "${LIB_DIR}/validation.sh"
-    # We need to mock gum binary path used in scripts or override function
-    # validation.sh uses 'gum' directly if in path or absolute?
-    # Let's inspect logic. Usually complex.
-    # For now, simplistic test.
-    skip "Requires complex gum mocking"
-}
-
-@test "Error Handler: Rollback logic exists" {
-    source "${LIB_DIR}/logging.sh"
-    source "${LIB_DIR}/error.sh"
-    
-    # Mock zpool/zfs commands to prevent destruction of real system
-    zpool() { echo "mock_zpool $*"; return 0; }
-    zfs() { echo "mock_zfs $*"; return 0; }
-    mountpoint() { return 0; } # Pretend mounted
-    umount() { echo "mock_umount $*"; return 0; }
-    export -f zpool zfs mountpoint umount
-
-    # Simulate state
-    INSTALL_STATE="POOL_CREATED"
-    POOL_NAME="testpool"
-    MOUNT_POINT="/mnt/test"
-    
-    # Trigger rollback manually
-    run start_rollback "${INSTALL_STATE}"
-    
-    # Check if critical cleanup commands were "called" (via output)
+@test "T02_ZFS_Pool_Mirror" {
+    source "${COMPONENTS_DIR}/03-pool.sh"
+    SELECTED_DISKS=("/dev/sda" "/dev/sdb")
+    RAID_TOPOLOGY="Mirror"
+    POOL_NAME="zroot"
+    MOUNT_POINT="/mnt"
+    run create_pool
     [ "$status" -eq 0 ]
-    [[ "${output}" =~ "Destroying partial pool" ]]
+    assert_called "zpool create -f -o ashift=12.*zroot mirror /dev/sda2 /dev/sdb2"
 }
 
-@test "Dependencies: Check required folders" {
-    [ -d "${LIB_DIR}" ]
-    [ -d "${COMPONENTS_DIR}" ]
-    [ -f "${LIB_DIR}/error.sh" ]
-    [ -f "${LIB_DIR}/logging.sh" ]
+@test "T03_ZFS_Pool_RAIDZ1" {
+    source "${COMPONENTS_DIR}/03-pool.sh"
+    SELECTED_DISKS=("/dev/sda" "/dev/sdb" "/dev/sdc")
+    RAID_TOPOLOGY="RAIDZ1"
+    POOL_NAME="tank"
+    MOUNT_POINT="/mnt"
+    run create_pool
+    [ "$status" -eq 0 ]
+    assert_called "zpool create -f.*tank raidz1 /dev/sda2 /dev/sdb2 /dev/sdc2"
+}
+
+@test "T04_ZFS_Pool_Encryption" {
+    source "${COMPONENTS_DIR}/03-pool.sh"
+    SELECTED_DISKS=("/dev/sda")
+    RAID_TOPOLOGY="Single"
+    POOL_NAME="secure"
+    MOUNT_POINT="/mnt"
+    ENCRYPTION="on"
+    ENCRYPTION_PASSPHRASE="mysecretpassword"
+    run create_pool
+    [ "$status" -eq 0 ]
+    assert_called "-O encryption=aes-256-gcm -O keyformat=passphrase -O keylocation=prompt"
+}
+
+@test "T05_Partition_Server" {
+    source "${COMPONENTS_DIR}/02-partition.sh"
+    SELECTED_DISKS=("/dev/sda")
+    PROFILE="Server"
+    run partition_disk "/dev/sda"
+    [ "$status" -eq 0 ]
+    assert_called "sgdisk -n 1:2048:+256M"
+}
+
+@test "T06_Partition_Workstation" {
+    source "${COMPONENTS_DIR}/02-partition.sh"
+    SELECTED_DISKS=("/dev/sda")
+    PROFILE="Workstation"
+    run partition_disk "/dev/sda"
+    [ "$status" -eq 0 ]
+    assert_called "sgdisk -n 1:2048:+512M"
 }
