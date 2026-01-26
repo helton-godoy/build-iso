@@ -53,10 +53,10 @@ docker run --rm \
 
 EXIT_CODE=$?
 
-if [ $EXIT_CODE -eq 0 ]; then
+if [[ ${EXIT_CODE} -eq 0 ]]; then
 	echo -e "${GREEN}==> Todos os testes passaram!${NC}"
 else
-	echo -e "\033[0;31m==> Falha nos testes (Exit Code: $EXIT_CODE)${NC}"
+	echo -e "\033[0;31m==> Falha nos testes (Exit Code: ${EXIT_CODE})${NC}"
 fi
 
-exit $EXIT_CODE
+exit "${EXIT_CODE}"

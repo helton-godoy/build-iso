@@ -74,7 +74,7 @@ while true; do
 				OUTPUT=$(python3 "${COMMIT_SCRIPT}" 2>&1)
 				EXIT_CODE=$?
 
-				log "Resultado Commit ($EXIT_CODE):"
+				log "Resultado Commit (${EXIT_CODE}):"
 				echo "${OUTPUT}" >>"${LOG_FILE}"
 			else
 				log "ERRO: Script de commit não encontrado: ${COMMIT_SCRIPT}"

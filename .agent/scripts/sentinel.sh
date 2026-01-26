@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # Configurações
-WATCH_DIR="$(pwd)"
+# Navegar para o diretório raiz do projeto
+cd "$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")" || exit
+PROJECT_DIR="$(pwd)"
+WATCH_DIR="${PROJECT_DIR}"
 COMMIT_SCRIPT=".agent/scripts/smart_commit.py"
 # Aumentado para 25s para dar tempo do agente "pensar" entre arquivos
 DEBOUNCE_SECONDS=25
@@ -10,6 +13,10 @@ IGNORE_PATTERN="(\.git|node_modules|\.agent/tmp|__pycache__|\.trunk|build/|outpu
 echo "🤖 Agent Sentinel v2 ativado."
 echo "👀 Monitorando: ${WATCH_DIR}"
 echo "⏳ Tempo de estabilização (debounce): ${DEBOUNCE_SECONDS}s"
+
+# Verificar limite de inotify
+CURRENT_LIMIT=$(cat /proc/sys/fs/inotify/max_user_instances)
+echo "📊 Limite inotify: ${CURRENT_LIMIT} instâncias"
 
 # Arquivo de timestamp para controle de debounce
 LAST_CHANGE_FILE=".agent/tmp/sentinel_last_change"
@@ -55,7 +62,14 @@ perform_commit() {
 
 # Loop de Monitoramento
 # close_write: Garante que o arquivo foi salvo e fechado (melhor que modify)
-inotifywait -m -r -e close_write -e moved_to -e create -e delete --exclude "${IGNORE_PATTERN}" --format "%w%f" "${WATCH_DIR}" | while read FILE; do
+if ! inotifywait -m -r -e close_write -e moved_to -e create -e delete --exclude "${IGNORE_PATTERN}" --format "%w%f" "${WATCH_DIR}" 2>/tmp/sentinel_error.log; then
+	echo "❌ Erro ao inicializar inotify. Possíveis causas:"
+	echo "   - Muitos watchers em uso (limite: ${CURRENT_LIMIT})"
+	echo "   - Execute: sudo sysctl -w fs.inotify.max_user_instances=256"
+	echo "   - Ou reinicie processos que usam inotify"
+	cat /tmp/sentinel_error.log 2>/dev/null
+	exit 1
+fi | while read FILE; do
 	# Ignora logs do próprio sentinel
 	if [[ ${FILE} == *".agent/tmp"* ]]; then continue; fi
 
@@ -64,7 +78,7 @@ inotifywait -m -r -e close_write -e moved_to -e create -e delete --exclude "${IG
 
 	# Inicia verificação em background
 	(
-		sleep "$DEBOUNCE_SECONDS"
+		sleep "${DEBOUNCE_SECONDS}"
 
 		SAVED_TIME=$(cat "${LAST_CHANGE_FILE}")
 		NOW=$(date +%s)

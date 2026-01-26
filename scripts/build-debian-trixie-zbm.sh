@@ -240,7 +240,7 @@ EOF
 		print_message "success" "Dockerfile gerado (modo CACHE - build rápido)"
 	else
 		# Dockerfile completo com compilação
-		cat >"${PROJECT_DIR}/Dockerfile" <<'EOF'
+		cat >"${SCRIPT_DIR}/Dockerfile" <<'EOF'
 # =============================================================================
 # Estágio 1: Compilação do KMSCON customizado
 # =============================================================================
@@ -624,6 +624,9 @@ mbuffer
 kexec-tools
 dracut-core
 efibootmgr
+gdisk
+dosfstools
+parted
 systemd-boot-efi
 bsdextrautils
 make
@@ -675,11 +678,47 @@ wpasupplicant
 iw
 wireless-tools
 
+# === File Sharing (TrueNAS-like) ===
+samba
+samba-common-bin
+smbclient
+winbind
+libpam-winbind
+libnss-winbind
+nfs-kernel-server
+nfs-common
+nfs4-acl-tools
+acl
+attr
+
+# === Active Directory & Identity ===
+sssd
+sssd-tools
+realmd
+adcli
+packagekit
+krb5-user
+libpam-krb5
+
+# === Storage Management & Monitoring ===
+sanoid
+pv
+lzop
+mbuffer
+smartmontools
+
 # Bootloaders
+# ZFSBootMenu substitui GRUB. Syslinux apenas para Legacy BIOS.
 syslinux
 syslinux-common
-grub-pc-bin
-grub-efi-amd64-bin
+# grub-pc-bin      <-- REMOVIDO
+# grub-efi-amd64-bin <-- REMOVIDO
+
+# Secure Boot Support
+shim-signed
+mokutil
+sbsigntool
+
 PKGLIST
 
 echo "==> Criando hooks de personalização..."
@@ -915,7 +954,8 @@ echo "==> Configurando sistema base..."
 
 # Criar usuário
 useradd -m -s /bin/bash -G sudo,audio,video,cdrom,netdev,input debian || true
-echo "debian:live" | chpasswd
+# Forçar senha usando OpenSSL para contornar PAM (senha: live)
+usermod -p '$1$ZWG3pXdv$.kjniJggSkxfIXZHe6dSJ/' debian || echo "debian:live" | chpasswd
 
 # Sudo sem senha
 echo "debian ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/debian
@@ -924,6 +964,15 @@ chmod 0440 /etc/sudoers.d/debian
 # Habilitar serviços
 systemctl enable ssh || true
 systemctl enable systemd-timesyncd || true
+systemctl enable sssd || true
+systemctl enable smbd || true
+systemctl enable nmbd || true
+systemctl enable winbind || true
+systemctl enable nfs-server || true
+
+# Pre-enable kmscon alias if not exists to avoid enable errors
+mkdir -p /etc/systemd/system/autovt@.service.d
+ln -sf /lib/systemd/system/kmsconvt@.service /etc/systemd/system/autovt@.service || true
 
 # Hostname
 echo "${ISO_NAME}" > /etc/hostname

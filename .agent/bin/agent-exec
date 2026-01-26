@@ -76,8 +76,8 @@ echo "" >>"${CONTEXT_FILE}"
 echo "## Output do Router" >>"${CONTEXT_FILE}"
 echo "\
 $()$(
-	" >> "${CONTEXT_FILE}"
-echo "${ROUTER_OUTPUT}" >> "${CONTEXT_FILE}"
+	" >> ""${CONTEXT_FILE}""
+echo ""${ROUTER_OUTPUT}"" >> ""${CONTEXT_FILE}""
 echo "
 )$()" >>"${CONTEXT_FILE}"
 

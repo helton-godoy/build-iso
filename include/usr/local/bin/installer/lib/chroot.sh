@@ -244,9 +244,11 @@ trap cleanup EXIT
 # INICIALIZAÇÃO
 # =============================================================================
 
-# Detectar diretório de bibliotecas
-LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/"
-export LIB_DIR
+# Detectar diretório de bibliotecas se não estiver definido
+if [[ -z "${LIB_DIR:-}" ]]; then
+	LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/"
+	export LIB_DIR
+fi
 
 # Variável de log (se não estiver definida)
 LOG_FILE="${LOG_FILE:-/var/log/debian_zfs_installer.log}"

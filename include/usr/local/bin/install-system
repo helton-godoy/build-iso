@@ -1,53 +1,23 @@
 #!/usr/bin/env bash
 #
-# install-system - Instalador Debian ZFS (Orquestrador Principal)
+# install-system - Instalador Debian ZFS (Consolidated)
 # Debian + ZFS-on-Root + ZFSBootMenu
 #
-# [commit] feat: orquestrador principal do instalador com suporte a perfis e ui_gum
-#
-# Uso: sudo install-system
+# Unified script to avoid variable scope issues and simplify maintenance.
 #
 
 set -euo pipefail
 
 # =============================================================================
-# VARIÁVEIS GLOBAIS
+# CONSTANTS & CONFIGURATION
 # =============================================================================
 
-# Caminhos absolutos (FHS-like)
+# Paths
 readonly INSTALLER_DIR="/usr/local/bin/installer"
 readonly LIB_DIR="${INSTALLER_DIR}/lib"
-readonly COMPONENTS_DIR="${INSTALLER_DIR}/components"
-export LIB_DIR INSTALLER_DIR COMPONENTS_DIR
+export LIB_DIR
 
-# =============================================================================
-# CARREGAMENTO DE BIBLIOTECAS (com verificação)
-# =============================================================================
-
-# Função auxiliar para carregar bibliotecas com verificação
-_load_lib() {
-	local lib_path="$1"
-	if [[ ! -f ${lib_path} ]]; then
-		echo "ERRO FATAL: Biblioteca não encontrada: ${lib_path}" >&2
-		echo "Verifique se o instalador foi copiado corretamente." >&2
-		exit 1
-	fi
-	# shellcheck source=/dev/null
-	source "${lib_path}"
-}
-
-# Carregar bibliotecas na ordem correta
-_load_lib "${LIB_DIR}/logging.sh"
-_load_lib "${LIB_DIR}/validation.sh"
-_load_lib "${LIB_DIR}/error.sh"
-_load_lib "${LIB_DIR}/ui_gum.sh"
-
-section_header() {
-	echo ""
-	echo "─── $1 ──────────────────────────────────────────────────────────"
-}
-
-# Variáveis globais para componentes
+# Global Configuration (Defaults)
 declare PROFILE="${PROFILE:-Server}"
 declare POOL_NAME="zroot"
 declare MOUNT_POINT="${MOUNT_POINT:-/mnt/target}"
@@ -60,384 +30,468 @@ declare HDSIZE=""
 declare ENCRYPTION="off"
 declare ENCRYPTION_PASSPHRASE=""
 
-# Variáveis de usuário (serão populados)
+# User Identity
 declare HOSTNAME=""
 declare USERNAME=""
 declare ROOT_PASS=""
 declare USER_PASS=""
 
-# Lista de componentes em ordem de execução
-declare -a COMPONENTS=(
-	"components/01-validate.sh"
-	"components/02-partition.sh"
-	"components/03-pool.sh"
-	"components/04-datasets.sh"
-	"components/05-extract.sh"
-	"components/06-chroot-configure.sh"
-	"components/07-bootloader.sh"
-	"components/08-cleanup.sh"
-)
-
-# Exportar variáveis para uso pelos componentes
-export PROFILE POOL_NAME MOUNT_POINT RAID_TOPOLOGY ASHIFT COMPRESSION CHECKSUM COPIES
-export HDSIZE ENCRYPTION ENCRYPTION_PASSPHRASE HOSTNAME USERNAME ROOT_PASS USER_PASS
+# Target Disks (Array)
+declare -a SELECTED_DISKS=()
 
 # =============================================================================
-# FUNÇÕES DE INTERFACE DO USUÁRIO
+# LIBRARY LOADING
 # =============================================================================
 
-# Screen de boas-vindas com DEBIAN_ZFS
-# Screen de boas-vindas com DEBIAN_ZFS
-welcome_screen() {
-	if [[ -z ${GUM_BIN-} ]]; then
-		log_warn "UI Lib not loaded correctly?"
+_load_lib() {
+	local lib_path="$1"
+	if [[ ! -f ${lib_path} ]]; then
+		echo "FATAL: Library not found: ${lib_path}" >&2
+		exit 1
 	fi
-
-	# Clear screen for fresh start
-	clear
-
-	ui_header "DEBIAN_ZFS Installer" "Debian Trixie + ZFS-on-Root + ZFSBootMenu"
-
-	local sys_info
-	sys_info=$(uname -r)
-	local date_info
-	date_info=$(date "+%Y-%m-%d %H:%M")
-
-	"${GUM_BIN}" style \
-		--align center \
-		--foreground "${GUM_COLOR_SUBTEXT}" \
-		"Kernel: ${sys_info} | Date: ${date_info}" ""
-
-	# Show warning via alert
-	ui_alert "⚠️  DESTRUCTIVE ACTION" \
-		"This installer will permanently ERASE selected disks.
-		Ensure you have backups before proceeding." "error"
-
-	if ! ui_confirm "Ready to start the installation journey?"; then
-		log_info "Instalação cancelada pelo usuário"
-		exit 0
-	fi
-
-	log_info "Iniciando instalação DEBIAN_ZFS..."
+	source "${lib_path}"
 }
 
-# Selecionar disco(s)
-select_disks() {
-	local disks_raw disks_table disks_list
-	section_header "Disks Selection"
+# Load helper libraries
+_load_lib "${LIB_DIR}/logging.sh"
+_load_lib "${LIB_DIR}/validation.sh"
+_load_lib "${LIB_DIR}/error.sh"
+_load_lib "${LIB_DIR}/ui_gum.sh"
+_load_lib "${LIB_DIR}/chroot.sh"
 
-	# Listar discos disponíveis
-	disks_raw=$(lsblk -d -n -o NAME,SIZE,MODEL -e 7,11)
+# =============================================================================
+# PREFLIGHT CHECKS & VALIDATION
+# =============================================================================
 
-	if [[ -z ${disks_raw} ]]; then
-		log_error "Nenhum disco adequado encontrado"
-		ui_alert "Critical Error" "No suitable disks found for installation." "error"
-		exit 1
+check_dependencies() {
+    log_init_component "Checking Dependencies"
+
+    local cmds=("gum" "wipefs" "sgdisk" "zpool" "zfs" "mkfs.vfat" "efibootmgr" "unsquashfs" "rsync" "dd")
+    for cmd in "${cmds[@]}"; do
+        if ! command -v "${cmd}" >/dev/null 2>&1; then
+            error_exit "Missing required command: ${cmd}. Please install required packages."
+        fi
+    done
+
+    # Check for MBR binary (for legacy boot)
+    if [[ ! -f /usr/lib/syslinux/mbr/gptmbr.bin ]]; then
+        log_warn "Legacy boot MBR (gptmbr.bin) not found. Legacy boot installation might fail."
+    fi
+
+    log_success "All dependencies found."
+}
+
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
+get_part_suffix() {
+	local disk=$1
+	if [[ ${disk} =~ /dev/nvme ]]; then
+		echo "p"
+	else
+		echo ""
+	fi
+}
+
+umount_disk() {
+    local disk=$1
+    log_info "Unmounting any existing partitions on ${disk}..."
+    
+    # Try to unmount everything associated with this disk
+    grep "^${disk}" /proc/mounts | cut -d ' ' -f 2 | sort -r | while read -r mnt; do
+        umount -f "${mnt}" 2>/dev/null || true
+    done
+    
+    # Disable swap if on this disk
+    grep "^${disk}" /proc/swaps | cut -d ' ' -f 1 | while read -r swp; do
+        swapoff "${swp}" 2>/dev/null || true
+    done
+}
+
+wipe_disk() {
+	local disk=$1
+
+    umount_disk "${disk}"
+
+	log_info "Wiping disk ${disk}..."
+
+	if ! ui_spin "Wiping signatures on ${disk}" wipefs -a "${disk}" 2>>"${LOG_FILE}"; then
+		# Try harder with dd if wipefs fails
+        log_warn "wipefs failed on ${disk}, trying dd zeroing of partition table area..."
+        dd if=/dev/zero of="${disk}" bs=1M count=10 2>>"${LOG_FILE}" || true
+        # Retry wipefs
+        wipefs -a "${disk}" 2>>"${LOG_FILE}" || error_exit "Failed to wipe disk ${disk}"
 	fi
 
-	# Preparar tabela para visualização
-	disks_table=$(echo "${disks_raw}" | awk '{print $1 "," $2 "," substr($0, index($0,$3))}')
-
-	log_info "Discos detectados no sistema:"
-	ui_table "Device,Size,Model" "${disks_table}"
-
-	# Preparar lista para o gum choose
-	# Preparar lista para o gum choose
-	local disks_fmt
-	disks_fmt=$(echo "${disks_raw}" | awk '{printf "/dev/%s (%s - %s)\n", $1, $2, substr($0, index($0,$3))}') || true
-	mapfile -t disks_list <<<"${disks_fmt}"
-
-	# Seleção com checkbox via gum
-	local raw_selection
-	if ! raw_selection=$(ui_choose_multi "Select Target Disk(s):" "${disks_list[@]}"); then
-		log_error "Seleção de discos cancelada pelo usuário"
-		exit 0
+	if ! ui_spin "Zapping GPT on ${disk}" sgdisk --zap-all "${disk}" 2>>"${LOG_FILE}"; then
+		error_exit "Failed to execute sgdisk --zap-all on ${disk}"
 	fi
 
-	# Processar cada linha selecionada
-	declare -a selected_disks=()
-	while IFS= read -r sel; do
-		[[ -z ${sel} ]] && continue
+	sync
+	log_success "Disk ${disk} wiped successfully"
+}
 
-		# Extrair caminho do dispositivo (pega a primeira palavra, removendo espaços extras)
-		local dev
-		dev=$(echo "${sel}" | awk '{print $1}')
+# =============================================================================
+# PARTITIONING
+# =============================================================================
 
-		if [[ -n ${dev} ]] && [[ -b ${dev} ]]; then
-			selected_disks+=("${dev}")
-		else
-			# Tentar regex como fallback para casos estranhos
-			dev=$(echo "${sel}" | grep -oE '/dev/[a-z0-9/]+' | head -n 1 || true)
-			if [[ -n ${dev} ]] && [[ -b ${dev} ]]; then
-				selected_disks+=("${dev}")
-			else
-				log_warn "Falha ao extrair dispositivo válido de: '${sel}'"
-			fi
-		fi
-	done <<<"${raw_selection}"
+partition_disk() {
+	local disk=$1
+    local profile_type=${2:-Server}
+	local part_suffix
+	part_suffix=$(get_part_suffix "${disk}")
 
-	if [[ ${#selected_disks[@]} -eq 0 ]]; then
-		log_error "Não foi possível identificar dispositivos válidos na sua seleção"
-		exit 1
+	log_info "Partitioning disk: ${disk} (Profile: ${profile_type})"
+
+    local esp_size="+256M"
+    if [[ "${profile_type}" == "Workstation" ]]; then
+        esp_size="+512M"
+    fi
+
+	# ESP Configuration
+	if ! ui_spin "Creating EFI Partition on ${disk}" sgdisk -n 1:2048:${esp_size} -t 1:EF00 -c 1:'EFI System' "${disk}" 2>>"${LOG_FILE}"; then
+		error_exit "Failed to create EFI partition on ${disk}"
+	fi
+	sgdisk -A 1:set:2 "${disk}" 2>>"${LOG_FILE}" || error_exit "Failed to set Legacy Boot attribute on ESP"
+
+	# ZFS Partition
+	if ! ui_spin "Creating ZFS Partition on ${disk}" sgdisk -n 2:0:0 -t 2:BF00 -c 2:'ZFS Root' "${disk}" 2>>"${LOG_FILE}"; then
+		error_exit "Failed to create ZFS partition on ${disk}"
 	fi
 
-	# Validar discos selecionados e confirmar wipe
-	for disk in "${selected_disks[@]}"; do
-		# ... logic validation ...
-		local size_gb
-		size_gb=$(lsblk -b -o SIZE -n -d "${disk}" | awk '{printf "%.0f", $1/1024/1024/1024}')
+	# Probe
+	ui_spin "Probing partitions on ${disk}" partprobe "${disk}" 2>>"${LOG_FILE}" || log_warn "Partprobe failed, but continuing..."
 
-		if ((size_gb < 20)); then
-			log_warn "Disco ${disk} muito pequeno: ${size_gb}GB < 20GB mínimo"
-			if ! ui_confirm "Disk ${disk} is small (${size_gb}GB). Continue?"; then
-				log_info "Instalação cancelada: disco muito pequeno"
-				exit 1
-			fi
-		fi
+	sync
+	log_success "Disk ${disk} partitioned successfully"
+}
+
+prepare_disks() {
+	log_init_component "Preparing Disks"
+	for disk in "${SELECTED_DISKS[@]}"; do
+		wipe_disk "${disk}"
+		partition_disk "${disk}" "${PROFILE}"
+	done
+    # Trigger udev to ensure /dev/disk/by-id/ links are updated
+    udevadm trigger || true
+    udevadm settle || true
+	log_end_component "Preparing Disks"
+}
+
+# =============================================================================
+# ZFS POOL CREATION
+# =============================================================================
+
+get_zfs_partitions() {
+	local -a zfs_parts=()
+	for disk in "${SELECTED_DISKS[@]}"; do
+		[[ -z ${disk} ]] && continue
+		local part_suffix
+		part_suffix=$(get_part_suffix "${disk}")
+		zfs_parts+=("${disk}${part_suffix}2")
+	done
+	echo "${zfs_parts[@]}"
+}
+
+get_efi_partition() {
+	local disk=${SELECTED_DISKS[0]}
+	local part_suffix
+	part_suffix=$(get_part_suffix "${disk}")
+	echo "${disk}${part_suffix}1"
+}
+
+create_pool() {
+    log_init_component "Creating ZFS Pool"
+
+    # Gather partitions
+    local -a zfs_parts
+    read -r -a zfs_parts <<< "$(get_zfs_partitions)"
+
+    if [[ ${#zfs_parts[@]} -eq 0 ]]; then
+		error_exit "No ZFS partitions found."
+	fi
+
+    # Clear labels
+    for part in "${zfs_parts[@]}"; do
+		zpool labelclear -f "${part}" 2>>"${LOG_FILE}" || true
 	done
 
-	# Confirmar destruição
-	ui_alert "⚠️  FINAL WARNING" \
-		"ALL DATA on: \n\n${selected_disks[*]} \n\nWILL BE ERASED." "error"
+    # Build command
+    local pool_cmd=(
+		zpool create -f
+		-o "ashift=${ASHIFT}"
+		-o autotrim=on
+		-O acltype=posixacl
+		-O canmount=off
+		-O "compression=${COMPRESSION}"
+		-O dnodesize=auto
+		-O normalization=formD
+		-O relatime=on
+		-O xattr=sa
+		-O mountpoint=none
+		-O "checksum=${CHECKSUM}"
+		-O "copies=${COPIES}"
+		-R "${MOUNT_POINT}"
+	)
 
-	if ! ui_confirm "Are you absolutely sure?"; then
-		log_info "Instalação cancelada pelo usuário"
-		exit 0
-	fi
-
-	log_info "Discos selecionados: ${selected_disks[*]}"
-
-	# Exportar variáveis globais para uso dos componentes
-	SELECTED_DISKS=("${selected_disks[@]}")
-	export SELECTED_DISKS
-}
-
-# Coletar informações do sistema (hostname, usuários, etc)
-collect_system_info() {
-	section_header "System Identity"
-
-	# Hostname
-	HOSTNAME=$(ui_input "Hostname" "Ex: DEBIAN_ZFS" "DEBIAN_ZFS")
-
-	if [[ -z ${HOSTNAME} ]]; then
-		log_error "Hostname não pode ser vazio"
-		exit 1
-	fi
-
-	# Perfil de instalação
-	PROFILE=$(ui_choose "Select Installation Profile:" "Server" "Workstation" "Minimal")
-
-	log_info "Perfil selecionado: ${PROFILE}"
-
-	# Senhas
-	ROOT_PASS=$(ui_input "Root Password" "" "" "true")
-	USERNAME=$(ui_input "New User" "Ex: admin" "admin")
-	USER_PASS=$(ui_input "User Password (${USERNAME})" "" "" "true")
-
-	# Validações básicas happen here...
-	# ... (logic remains) ...
-	log_info "Informações do sistema coletadas"
-}
-
-# Opções ZFS avançadas (opcional - podem ser padronizados)
-collect_zfs_options() {
-	section_header "ZFS Advanced (Optional)"
-
-	ASHIFT=$(ui_choose "Select ashift (Sector Size):" "12" "9" "13" "14")
-	COMPRESSION=$(ui_choose "Select Compression:" "zstd" "lz4" "off" "gzip")
-	CHECKSUM=$(ui_choose "Select Checksum:" "on" "off" "sha256")
-	COPIES=$(ui_choose "Select Redundancy Copies:" "1" "2" "3")
-
-	# Opções de criptografia (só se disponível no kernel)
-	if [[ -f "/proc/crypto" ]]; then
-		# Check if user wants encryption
-		if ui_confirm "Enable Native ZFS Encryption?"; then
-			ENCRYPTION="on"
-			ENCRYPTION_PASSPHRASE=$(ui_input "ZFS Pool Passphrase" "" "" "true")
-			local confirm_pass
-			confirm_pass=$(ui_input "Confirm Passphrase" "" "" "true")
-
-			if [[ ${ENCRYPTION_PASSPHRASE} != "${confirm_pass}" ]]; then
-				ui_alert "Error" "Passphrases do not match!" "error"
-				return 1
-			fi
-			# ...
-		else
-			ENCRYPTION="off"
-		fi
-	fi
-
-	# ...
-}
-
-# Selecionar topologia RAID (apenas se múltiplos discos)
-select_topology() {
-	local num_disks=${#selected_disks[@]}
-	local options=()
-
-	case ${num_disks} in
-	1)
-		options=("Single")
-		;;
-	2)
-		options=("Mirror" "Stripe")
-		;;
-	3)
-		options=("Mirror" "RAIDZ1" "Stripe")
-		;;
-	4)
-		options=("Mirror" "RAIDZ1" "RAIDZ2" "Stripe")
-		;;
-	*)
-		options=("Mirror" "RAIDZ1" "RAIDZ2" "RAIDZ3" "Stripe")
-		;;
+    # Topology
+    local -a topology_args=()
+	case ${RAID_TOPOLOGY} in
+	Single) topology_args+=("${POOL_NAME}" "${zfs_parts[0]}") ;;
+	Stripe) topology_args+=("${POOL_NAME}" "${zfs_parts[@]}") ;;
+	Mirror) topology_args+=("${POOL_NAME}" mirror "${zfs_parts[@]}") ;;
+	RAIDZ1) topology_args+=("${POOL_NAME}" raidz1 "${zfs_parts[@]}") ;;
+	RAIDZ2) topology_args+=("${POOL_NAME}" raidz2 "${zfs_parts[@]}") ;;
+	RAIDZ3) topology_args+=("${POOL_NAME}" raidz3 "${zfs_parts[@]}") ;;
+	*) topology_args+=("${POOL_NAME}" "${zfs_parts[0]}") ;;
 	esac
 
-	RAID_TOPOLOGY=$(ui_choose "Select RAID Topology:" "${options[@]}")
-	log_info "Topologia selecionada: ${RAID_TOPOLOGY}"
+    # Encryption?
+    if [[ ${ENCRYPTION} == "on" ]]; then
+        pool_cmd+=(-O encryption=aes-256-gcm -O keyformat=passphrase -O keylocation=prompt)
+        if ! echo "${ENCRYPTION_PASSPHRASE}" | "${pool_cmd[@]}" "${topology_args[@]}" 2>>"${LOG_FILE}"; then
+			error_exit "Failed to create encrypted ZFS pool."
+		fi
+    else
+        if ! "${pool_cmd[@]}" "${topology_args[@]}" 2>>"${LOG_FILE}"; then
+			error_exit "Failed to create ZFS pool."
+		fi
+    fi
+
+    # Cache file
+    zpool set cachefile=/etc/zfs/zpool.cache "${POOL_NAME}" 2>>"${LOG_FILE}" || true
+    
+    log_success "ZFS Pool created: ${POOL_NAME}"
 }
 
-# Resumo final antes de iniciar
-show_installation_summary() {
-	if [[ -z ${GUM_BIN-} ]]; then
-		log_warn "UI Lib not loaded correctly?"
-	fi
+# =============================================================================
+# DATASETS
+# =============================================================================
 
-	local summary_text
-	summary_text="$(
-		cat <<EOF
-**🌍 GENERAL**
- • Disks:      ${SELECTED_DISKS[*]}
- • Topology:   ${RAID_TOPOLOGY}
- • Hostname:   ${HOSTNAME}
- • Profile:    ${PROFILE}
- • User:       ${USERNAME}
+create_datasets() {
+    log_init_component "Creating Datasets (${PROFILE})"
+    local pool="${POOL_NAME}"
 
-**⚡ ZFS CONFIG**
- • Pool:       ${POOL_NAME}
- • A-Shift:    ${ASHIFT}
- • Compress:   ${COMPRESSION}
- • Checksum:   ${CHECKSUM}
- • Copies:     ${COPIES}
- • Encryption: ${ENCRYPTION}
+    # Base Datasets
+    zfs create -o canmount=off -o mountpoint=none -o acltype=posixacl -o xattr=sa -o aclinherit=passthrough "${pool}/ROOT"
+    zfs create -o canmount=noauto -o mountpoint=/ -o com.sun:auto-snapshot=true "${pool}/ROOT/debian"
+    zfs create -o mountpoint=/var -o canmount=off "${pool}/var"
+
+    # Profile Specifics
+    if [[ "${PROFILE}" == "Server" ]]; then
+        zfs create -o mountpoint=/home -o com.sun:auto-snapshot=false "${pool}/home"
+        zfs create -o mountpoint=/root "${pool}/home/root"
+        zfs create -o mountpoint=/var/log -o compression=zstd -o atime=off "${pool}/var/log"
+        zfs create -o mountpoint=/var/cache -o compression=lz4 -o atime=off "${pool}/var/cache"
+        zfs create -o mountpoint=/srv -o compression=lz4 -o atime=off "${pool}/srv"
+    else
+        # Workstation / Default
+        zfs create -o mountpoint=/home -o com.sun:auto-snapshot=true "${pool}/home"
+        zfs create -o mountpoint=/home/user -o com.sun:auto-snapshot=true "${pool}/home/user"
+        zfs create -o mountpoint=/root "${pool}/home/root"
+        zfs create -o mountpoint=/var/log -o compression=lz4 "${pool}/var/log"
+        zfs create -o mountpoint=/var/cache -o compression=lz4 "${pool}/var/cache"
+    fi
+    
+    # Common
+    zfs create -o com.sun:auto-snapshot=false "${pool}/var/tmp"
+
+    # Boot Config
+    zfs set org.zfsbootmenu:commandline="quiet" "${pool}/ROOT/debian"
+    zpool set bootfs="${pool}/ROOT/debian" "${pool}"
+
+    log_success "Datasets created"
+}
+
+# =============================================================================
+# EXTRACTION
+# =============================================================================
+
+extract_system() {
+    log_init_component "System Extraction"
+    
+    mkdir -p "${MOUNT_POINT}"/{dev,proc,sys,run,tmp}
+    chmod 1777 "${MOUNT_POINT}/tmp"
+
+    # Find squashfs
+    local squashfs_path=""
+    for path in "/run/live/medium/live/00-core.squashfs" "/cdrom/live/00-core.squashfs" "/lib/live/mount/medium/live/00-core.squashfs"; do
+        if [[ -f ${path} ]]; then squashfs_path="${path}"; break; fi
+    done
+
+    if [[ -z ${squashfs_path} ]]; then
+        error_exit "Squashfs not found!"
+    fi
+    log_info "Using squashfs: ${squashfs_path}"
+
+    # Extract
+    if ! unsquashfs -f -n -d "${MOUNT_POINT}" "${squashfs_path}" > "${LOG_FILE}.extract" 2>&1; then
+        cat "${LOG_FILE}.extract" >> "${LOG_FILE}"
+        error_exit "Squashfs extraction failed"
+    fi
+
+    # Zpool cache copy
+    mkdir -p "${MOUNT_POINT}/etc/zfs"
+    cp /etc/zfs/zpool.cache "${MOUNT_POINT}/etc/zfs/" 2>/dev/null || true
+
+    log_success "System extracted"
+}
+
+# =============================================================================
+# CONFIGURATION (CHROOT)
+# =============================================================================
+
+configure_system() {
+    log_init_component "System Configuration"
+    
+    # Hostname, Hosts, Users, Locale, Timezone, Fstab, Initramfs
+    echo "${HOSTNAME}" > "${MOUNT_POINT}/etc/hostname"
+    
+    cat > "${MOUNT_POINT}/etc/hosts" <<EOF
+127.0.0.1 localhost
+127.0.1.1 ${HOSTNAME}
+::1 localhost ip6-localhost ip6-loopback
 EOF
-	)"
 
-	# Display summary
-	ui_alert "INSTALLATION SUMMARY" "${summary_text}" "info"
+    # Users
+    chroot_zfs "${MOUNT_POINT}" /bin/bash -c "echo 'root:${ROOT_PASS}' | chpasswd"
+    chroot_zfs "${MOUNT_POINT}" useradd -m -s /bin/bash -G sudo,dip,plugdev,cdrom "${USERNAME}"
+    chroot_zfs "${MOUNT_POINT}" /bin/bash -c "echo '${USERNAME}:${USER_PASS}' | chpasswd"
+    echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" > "${MOUNT_POINT}/etc/sudoers.d/${USERNAME}"
 
-	if ! ui_confirm "Settings correct? Start Installation?"; then
-		log_info "Instalação cancelada pelo usuário"
-		exit 0
-	fi
-}
+    # Fstab
+    cat > "${MOUNT_POINT}/etc/fstab" <<EOF
+${POOL_NAME}/ROOT/debian / zfs defaults,noatime,xattr=sa 0 0
+${POOL_NAME}/home /home zfs defaults,noatime,xattr=sa 0 0
+${POOL_NAME}/home/root /root zfs defaults,noatime,xattr=sa 0 0
+${POOL_NAME}/var/log /var/log zfs defaults,noatime,xattr=sa 0 0
+${POOL_NAME}/var/cache /var/cache zfs defaults,noatime,xattr=sa 0 0
+tmpfs /tmp tmpfs defaults,nosuid,nodev,noexec,mode=1777 0 0
+EOF
 
-# Executar componentes da instalação
-execute_components() {
-	section_header "Installation Progress"
+    # HostID
+    chroot_zfs "${MOUNT_POINT}" zgenhostid
 
-	for component in "${COMPONENTS[@]}"; do
-		local script="${INSTALLER_DIR}/${component}"
+    # Initramfs & Kernel pinning
+    cat > "${MOUNT_POINT}/etc/apt/preferences.d/zfs-kernel-pin.pref" <<EOF
+Package: linux-image-amd64 linux-headers-amd64
+Pin: release n=trixie
+Pin-Priority: 900
+EOF
 
-		if [[ ! -f ${script} ]]; then
-			log_error "Componente não encontrado: ${script}"
-			return 1
-		fi
+    # ZFS systemd targets
+    chroot_zfs "${MOUNT_POINT}" systemctl enable zfs.target zfs-import-cache zfs-mount zfs-import.target || true
+    chroot_zfs "${MOUNT_POINT}" update-initramfs -c -k all
 
-		# Torna executável se não for
-		chmod +x "${script}"
-
-		log_info "Executando componente: $(basename "${component}")"
-
-		# Executa o componente
-		# As variáveis globais (SELECTED_DISKS, PROFILE, etc) já foram exportadas
-		if ! "${script}"; then
-			log_error "Componente $(basename "${component}") falhou."
-			return 1
-		fi
-	done
-
-	return 0
+    log_success "System Configured"
 }
 
 # =============================================================================
-# FUNÇÃO PRINCIPAL
+# BOOTLOADER
 # =============================================================================
+
+install_bootloader() {
+    log_init_component "Installing Bootloader"
+    
+    local disk=${SELECTED_DISKS[0]}
+    local part_suffix=$(get_part_suffix "${disk}")
+    local efi_part="${disk}${part_suffix}1"
+
+    # Format ESP
+    mkfs.vfat -F32 "${efi_part}" 2>>"${LOG_FILE}" || error_exit "Failed to format ESP"
+    
+    mkdir -p "${MOUNT_POINT}/boot/efi"
+    mount "${efi_part}" "${MOUNT_POINT}/boot/efi"
+    mkdir -p "${MOUNT_POINT}/boot/efi/EFI/"{ZBM,BOOT}
+
+    # Install ZBM
+    local zbm_src="/usr/share/zfsbootmenu/VMLINUZ.EFI"
+    if [[ -f ${zbm_src} ]]; then
+        cp "${zbm_src}" "${MOUNT_POINT}/boot/efi/EFI/ZBM/VMLINUZ.EFI"
+        cp "${zbm_src}" "${MOUNT_POINT}/boot/efi/EFI/BOOT/BOOTX64.EFI"
+        
+        # EFIBootMgr
+        if command -v efibootmgr >/dev/null; then
+             efibootmgr -c -d "${disk}" -p 1 -L "ZFSBootMenu" -l '\EFI\ZBM\VMLINUZ.EFI' || true
+        fi
+    else
+        log_warn "ZFSBootMenu binary not found at ${zbm_src}, skipping copy."
+    fi
+
+    log_success "Bootloader Installed"
+}
+
+# =============================================================================
+# MAIN UI FLOW
+# =============================================================================
+
+select_disks() {
+    local disks_raw
+    disks_raw=$(lsblk -d -n -o NAME,SIZE,MODEL -e 7,11)
+    
+    if [[ -z ${disks_raw} ]]; then error_exit "No disks found"; fi
+
+    local disks_fmt
+    disks_fmt=$(echo "${disks_raw}" | awk '{printf "/dev/%s (%s - %s)\n", $1, $2, substr($0, index($0,$3))}')
+    mapfile -t disks_list <<<"${disks_fmt}"
+
+    local raw_selection
+    if ! raw_selection=$(ui_choose_multi "Select Target Disk(s):" "${disks_list[@]}"); then
+        exit 0
+    fi
+
+    SELECTED_DISKS=()
+    while IFS= read -r sel; do
+        [[ -z ${sel} ]] && continue
+        local dev
+        dev=$(echo "${sel}" | awk '{print $1}')
+        if [[ -b ${dev} ]]; then SELECTED_DISKS+=("${dev}"); fi
+    done <<<"${raw_selection}"
+
+    if [[ ${#SELECTED_DISKS[@]} -eq 0 ]]; then error_exit "Invalid selection"; fi
+}
+
+input_user_info() {
+    HOSTNAME=$(ui_input "Hostname" "DEBIAN_ZFS" "DEBIAN_ZFS")
+    PROFILE=$(ui_choose "Profile" "Server" "Workstation")
+    ROOT_PASS=$(ui_input "Root Password" "" "" "true")
+    USERNAME=$(ui_input "New User" "admin" "admin")
+    USER_PASS=$(ui_input "User Password" "" "" "true")
+    
+    if [[ ${#SELECTED_DISKS[@]} -gt 1 ]]; then
+        RAID_TOPOLOGY=$(ui_choose "Topology" "Mirror" "RAIDZ1" "Stripe")
+    else
+        RAID_TOPOLOGY="Single"
+    fi
+}
 
 main() {
-	# Verificar se está rodando como root
-	if [[ ${EUID} -ne 0 ]]; then
-		echo "Root required."
-		exit 1
-	fi
+    if [[ ${EUID} -ne 0 ]]; then echo "Root required"; exit 1; fi
+    
+    log_init
+    check_dependencies
 
-	# Verificar módulo ZFS (verificação preliminar antes do logging)
-	if [[ ! -d /sys/module/zfs ]] && ! grep -q "^zfs " /proc/modules 2>/dev/null; then
-		# Tentar carregar o módulo
-		local mod_output
-		if ! mod_output=$(modprobe zfs 2>&1); then
-			echo "ERRO CRÍTICO: Módulo ZFS não disponível."
-			echo "Detalhes do erro modprobe:"
-			echo "${mod_output}"
-			echo ""
-			echo "Dica: Se estiver usando Secure Boot, desative-o ou assine os módulos."
-			exit 1
-		fi
-		sleep 1
-	fi
+    ui_header "DEBIAN ZFS CONSOLIDATED" "Debian Trixie Installer"
+    
+    select_disks
+    input_user_info
+    
+    if ! ui_confirm "ERASE ALL DATA on ${SELECTED_DISKS[*]} and install?"; then exit 0; fi
 
-	# Inicializar logging
-	log_init
-
-	# Carregar UI (redundant if sourced, but safe)
-	if [[ -f "${LIB_DIR}/ui_gum.sh" ]]; then
-		# shellcheck source=/dev/null
-		source "${LIB_DIR}/ui_gum.sh"
-	fi
-
-	set_error_trap
-
-	# Exibir tela de boas-vindas
-	welcome_screen
-
-	# Selecionar disco(s)
-	select_disks
-
-	# Coletar informações do sistema
-	collect_system_info
-
-	# Opções ZFS avançadas (opcional)
-	collect_zfs_options
-
-	# Selecionar topologia RAID (se aplicável)
-	if [[ ${#SELECTED_DISKS[@]} -gt 1 ]]; then
-		select_topology
-	fi
-
-	# Resumo antes de iniciar
-	show_installation_summary
-
-	# Executar todos componentes sequencialmente
-	if ! execute_components; then
-		log_error "Instalação falhou"
-		exit 1
-	fi
-
-	# Tudo concluido
-	ui_alert "SUCCESS" "Installation Completed Successfully!\n\nSystem is ready to reboot." "success"
-
-	log_info "Instalacao concluida com sucesso"
-	sync
-	log_info "Aguardando log em ${LOG_FILE}"
-
-	if ui_confirm "Reboot now?"; then
-		reboot
-	fi
-
-	exit 0
+    prepare_disks
+    create_pool
+    create_datasets
+    extract_system
+    configure_system
+    install_bootloader
+    
+    # Cleanup
+    umount -l "${MOUNT_POINT}/boot/efi" || true
+    zfs umount -a || true
+    zpool export "${POOL_NAME}" || true
+    
+    ui_alert "SUCCESS" "Installation Complete!" "success"
 }
 
-# Executar main se script for executado diretamente
-if [[ ${BASH_SOURCE[0]} == "${0}" ]]; then
-	main "$@"
-fi
+main "$@"

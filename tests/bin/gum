@@ -4,7 +4,7 @@
 case "$1" in
 confirm)
 	# Retorna 0 (Sim/Confirmado) a menos que GUM_CONFIRM_EXIT seja definido
-	exit ${GUM_CONFIRM_EXIT:-0}
+	exit "${GUM_CONFIRM_EXIT:-0}"
 	;;
 input)
 	# Retorna o valor de GUM_INPUT_VALUE ou um padrão
