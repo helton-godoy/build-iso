@@ -36,7 +36,7 @@ readonly GUM_ICON_ERROR="❌"
 readonly GUM_ICON_WARN="⚠️"
 
 # Gum Binary
-GUM_BIN="${LIB_DIR}/../gum/gum"
+GUM_BIN="${LIB_DIR}/../gum"
 if [[ ! -x ${GUM_BIN} ]]; then
 	# Fallback to system gum if local not found
 	if command -v gum &>/dev/null; then

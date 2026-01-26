@@ -166,20 +166,39 @@ validate_zfs_module() {
 	source "${LIB_DIR}/logging.sh"
 	log_debug "Validando módulo ZFS..."
 
-	# Verificar via /sys/module
-	if [[ ! -d /sys/module/zfs ]]; then
-		log_error "Módulo ZFS não carregado (/sys/module/zfs não existe)"
-		return 1
+	# Primeiro, verificar via /sys/module (mais confiável)
+	if [[ -d /sys/module/zfs ]]; then
+		log_debug "Módulo ZFS carregado: OK (via /sys/module)"
+		return 0
 	fi
 
-	# Verificar via /proc/modules
-	if ! grep -qw "^zfs$" /proc/modules; then
-		log_error "Módulo ZFS não encontrado em /proc/modules"
-		return 1
+	# Verificar via /proc/modules com regex correto
+	# Formato: nome tamanho refs deps estado endereço
+	# Ex: zfs 4939776 10 - Live 0x...
+	if grep -q "^zfs " /proc/modules 2>/dev/null; then
+		log_debug "Módulo ZFS carregado: OK (via /proc/modules)"
+		return 0
 	fi
 
-	log_debug "Módulo ZFS carregado: OK"
-	return 0
+	# Módulo não está carregado, tentar carregar
+	log_warn "Módulo ZFS não está carregado. Tentando carregar..."
+
+	local mod_output
+	if mod_output=$(modprobe zfs 2>&1); then
+		# Verificar novamente após carregar
+		sleep 1
+		if [[ -d /sys/module/zfs ]] || grep -q "^zfs " /proc/modules 2>/dev/null; then
+			log_info "Módulo ZFS carregado com sucesso via modprobe"
+			return 0
+		fi
+	else
+		log_error "Falha ao executar 'modprobe zfs':"
+		log_error "${mod_output}"
+	fi
+
+	log_error "Módulo ZFS não pode ser carregado. Verifique se o kernel suporta ZFS."
+	log_error "Dica: Secure Boot pode estar bloqueando módulos não assinados (DKMS)."
+	return 1
 }
 
 # Validar comandos ZFS (zpool, zfs)

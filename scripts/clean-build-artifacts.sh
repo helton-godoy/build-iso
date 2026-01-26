@@ -49,10 +49,13 @@ CACHE_DIRS=(
 # Lista de artefatos a remover
 ARTIFACTS_TO_REMOVE=(
 	"build/"
+	".build/"
+	"chroot/"
 	"output/"
 	"config/"
 	"live-build-config/"
 	"Dockerfile"
+	"build.log"
 )
 
 print_message() {

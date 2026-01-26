@@ -20,10 +20,27 @@ readonly LIB_DIR="${INSTALLER_DIR}/lib"
 readonly COMPONENTS_DIR="${INSTALLER_DIR}/components"
 export LIB_DIR INSTALLER_DIR COMPONENTS_DIR
 
-source "${LIB_DIR}/logging.sh"
-source "${LIB_DIR}/validation.sh"
-source "${LIB_DIR}/error.sh"
-source "${LIB_DIR}/ui_gum.sh"
+# =============================================================================
+# CARREGAMENTO DE BIBLIOTECAS (com verificação)
+# =============================================================================
+
+# Função auxiliar para carregar bibliotecas com verificação
+_load_lib() {
+	local lib_path="$1"
+	if [[ ! -f ${lib_path} ]]; then
+		echo "ERRO FATAL: Biblioteca não encontrada: ${lib_path}" >&2
+		echo "Verifique se o instalador foi copiado corretamente." >&2
+		exit 1
+	fi
+	# shellcheck source=/dev/null
+	source "${lib_path}"
+}
+
+# Carregar bibliotecas na ordem correta
+_load_lib "${LIB_DIR}/logging.sh"
+_load_lib "${LIB_DIR}/validation.sh"
+_load_lib "${LIB_DIR}/error.sh"
+_load_lib "${LIB_DIR}/ui_gum.sh"
 
 section_header() {
 	echo ""
@@ -61,6 +78,10 @@ declare -a COMPONENTS=(
 	"components/08-cleanup.sh"
 )
 
+# Exportar variáveis para uso pelos componentes
+export PROFILE POOL_NAME MOUNT_POINT RAID_TOPOLOGY ASHIFT COMPRESSION CHECKSUM COPIES
+export HDSIZE ENCRYPTION ENCRYPTION_PASSPHRASE HOSTNAME USERNAME ROOT_PASS USER_PASS
+
 # =============================================================================
 # FUNÇÕES DE INTERFACE DO USUÁRIO
 # =============================================================================
@@ -89,7 +110,8 @@ welcome_screen() {
 
 	# Show warning via alert
 	ui_alert "⚠️  DESTRUCTIVE ACTION" \
-		"This installer will permanently ERASE selected disks.\nEnsure you have backups before proceeding." "error"
+		"This installer will permanently ERASE selected disks.
+		Ensure you have backups before proceeding." "error"
 
 	if ! ui_confirm "Ready to start the installation journey?"; then
 		log_info "Instalação cancelada pelo usuário"
@@ -120,7 +142,10 @@ select_disks() {
 	ui_table "Device,Size,Model" "${disks_table}"
 
 	# Preparar lista para o gum choose
-	mapfile -t disks_list < <(echo "${disks_raw}" | awk '{printf "/dev/%s (%s - %s)\n", $1, $2, substr($0, index($0,$3))}')
+	# Preparar lista para o gum choose
+	local disks_fmt
+	disks_fmt=$(echo "${disks_raw}" | awk '{printf "/dev/%s (%s - %s)\n", $1, $2, substr($0, index($0,$3))}') || true
+	mapfile -t disks_list <<<"${disks_fmt}"
 
 	# Seleção com checkbox via gum
 	local raw_selection
@@ -314,7 +339,7 @@ execute_components() {
 	for component in "${COMPONENTS[@]}"; do
 		local script="${INSTALLER_DIR}/${component}"
 
-		if [[ ! -f "${script}" ]]; then
+		if [[ ! -f ${script} ]]; then
 			log_error "Componente não encontrado: ${script}"
 			return 1
 		fi
@@ -346,10 +371,19 @@ main() {
 		exit 1
 	fi
 
-	# Verificar módulo ZFS
-	if [[ ! -d /sys/module/zfs ]] && ! grep -qw "^zfs " /proc/modules; then
-		echo "ZFS Invalid."
-		exit 1
+	# Verificar módulo ZFS (verificação preliminar antes do logging)
+	if [[ ! -d /sys/module/zfs ]] && ! grep -q "^zfs " /proc/modules 2>/dev/null; then
+		# Tentar carregar o módulo
+		local mod_output
+		if ! mod_output=$(modprobe zfs 2>&1); then
+			echo "ERRO CRÍTICO: Módulo ZFS não disponível."
+			echo "Detalhes do erro modprobe:"
+			echo "${mod_output}"
+			echo ""
+			echo "Dica: Se estiver usando Secure Boot, desative-o ou assine os módulos."
+			exit 1
+		fi
+		sleep 1
 	fi
 
 	# Inicializar logging
@@ -357,6 +391,7 @@ main() {
 
 	# Carregar UI (redundant if sourced, but safe)
 	if [[ -f "${LIB_DIR}/ui_gum.sh" ]]; then
+		# shellcheck source=/dev/null
 		source "${LIB_DIR}/ui_gum.sh"
 	fi
 
@@ -393,7 +428,7 @@ main() {
 
 	log_info "Instalacao concluida com sucesso"
 	sync
-	log_info 'Aguardando log em ${LOG_FILE}'
+	log_info "Aguardando log em ${LOG_FILE}"
 
 	if ui_confirm "Reboot now?"; then
 		reboot

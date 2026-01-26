@@ -1,23 +1,64 @@
-# Build artifacts - gerados pelo script
-config/
-build/
+# Artefatos de Build (ISO e Checksums)
 output/
-live-build-config/
 *.iso
 *.sha256
-*.log
+*.img
 
-# Docker
-Dockerfile
-entrypoint.sh
-docker-entrypoint.sh
+# Diretórios de Trabalho do Live-Build (Gerados automaticamente)
+.build/
+binary/
+chroot/
+local/
+source/
 
-# Cache de artefatos compilados (binários ignorados, estrutura preservada)
-cache/debs/*.deb
+# Diretórios específicos dentro de live-build-config se usado como root
+live-build-config/.build/
+live-build-config/binary/
+live-build-config/chroot/
+live-build-config/local/
+live-build-config/source/
+
+# Arquivos gerados pelo live-build
+live-build-config/*.log
+live-build-config/*.lock
+
+# Cache de Pacotes e Bootstrap
+cache/debs/
 cache/packages.bootstrap/
-!cache/README.md
+cache/stages_timestamps/
+cache/bootstrap/
 
-# Temporary
-*.tmp
-*.bak
+# Arquivos de Teste e Virtualização
+*.qcow2
+*.vmdk
+*.vdi
+*.fd
+tests/*.qcow2
+tests/*.fd
+test-disk.qcow2
+
+# Arquivos de Sistema e IDE
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+.idea/
+*.swp
 *~
+*.tmp
+
+# Logs e Temporários do Agente
+.agent/tmp/
+
+# Arquivos de Log (exceto logs de configuração)
+*.log
+!config/**/*.log
+
+# Screenshots temporários (opcional, baseado nos arquivos vistos)
+Capturar_*.png
+
+# Arquivos de teste temporários
+test_autocommit_trigger.txt
+
+.qwen/
+gha-creds-*.json

@@ -25,7 +25,7 @@ readonly NC='\033[0m'
 # Diretórios
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly PROJECT_DIR
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly BUILD_DIR="${PROJECT_DIR}/build"
 readonly OUTPUT_DIR="${PROJECT_DIR}/output"
@@ -536,6 +536,64 @@ echo "==> Adicionando pacotes essenciais + ZFSBootMenu..."
 
 # Lista de pacotes
 cat > config/package-lists/custom.list.chroot << 'PKGLIST'
+
+# === Extração do Sistema ===
+squashfs-tools
+
+# === Particionamento ===
+gdisk
+parted
+dosfstools
+
+# === Live System Base ===
+live-boot
+live-config
+live-config-systemd
+systemd-sysv
+
+# === ZFS Support ===
+zfs-dkms
+zfsutils-linux
+zfs-initramfs
+zfs-zed
+
+# === Kernel & Modules ===
+linux-image-amd64
+linux-headers-amd64
+dkms
+firmware-linux
+firmware-linux-nonfree
+firmware-misc-nonfree
+firmware-realtek
+firmware-iwlwifi
+firmware-atheros
+firmware-libertas
+
+# === Essential Tools ===
+console-setup
+locales
+ca-certificates
+parted
+gdisk
+dosfstools
+efibootmgr
+busybox
+initramfs-tools
+keyboard-configuration
+tzdata
+curl
+wget
+apt-utils
+bash-completion
+sudo
+
+# === Terminal Avançado ===
+ncurses-base
+ncurses-bin
+kbd
+console-setup
+console-data
+
 # Kernel e módulos
 linux-image-amd64
 linux-headers-amd64
@@ -911,7 +969,7 @@ cat > /usr/local/bin/zfs-setup-helper << 'ZFSHELPER'
 cat << EOF
 
 ╔═══════════════════════════════════════════════════════════════╗
-║           Helper de Configuração ZFS - Debian ${DEBIAN_VERSION}          ║
+║    Helper de Configuração ZFS - Debian ${DEBIAN_VERSION}      ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 📦 CRIAR POOL ZFS:
@@ -1257,7 +1315,7 @@ cat > /etc/motd << 'MOTD'
 
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
-║        🚀 Debian ${DEBIAN_VERSION} Live - ZFSBootMenu Edition 🚀        ║
+║     Debian ${DEBIAN_VERSION} Live - ZFSBootMenu Edition       ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 
@@ -1292,7 +1350,7 @@ cat > /usr/local/bin/system-info << 'SYSINFO'
 
 echo "
 ╔═══════════════════════════════════════════════════════════════╗
-║                  Informações do Sistema                       ║
+║                   Informações do Sistema                      ║
 ╚═══════════════════════════════════════════════════════════════╝
 "
 
@@ -1335,22 +1393,81 @@ set -e
 
 echo "==> Configurando instalador Debian ZFS..."
 
-# Configurar permissões do instalador
-if [[ -f /usr/local/bin/install-system ]]; then
-    chmod +x /usr/local/bin/install-system
-    echo "install-system encontrado e configurado"
+# Remover arquivos residuais de builds anteriores em locais incorretos
+# Isso evita conflitos com versões antigas que possam estar em /usr/local/lib/
+if [[ -f "/usr/local/lib/install-system" ]]; then
+    echo "==> Removendo arquivo residual em /usr/local/lib/install-system..."
+    rm -f "/usr/local/lib/install-system"
 fi
 
-if [[ -d /usr/local/bin/installer ]]; then
-    chmod +x /usr/local/bin/installer/lib/*.sh 2>/dev/null || true
-    chmod +x /usr/local/bin/installer/components/*.sh 2>/dev/null || true
-    echo "Componentes do instalador configurados"
+# Definir diretórios do instalador
+INSTALLER_BIN="/usr/local/bin/install-system"
+INSTALLER_DIR="/usr/local/bin/installer"
+GUM_BIN="/usr/local/bin/gum"
+
+# Configurar permissões do instalador principal
+if [[ -f "${INSTALLER_BIN}" ]]; then
+    chmod +x "${INSTALLER_BIN}"
+    echo "install-system encontrado e configurado"
+    
+    # Validar sintaxe do script bash
+    echo "==> Validando sintaxe do install-system..."
+    if bash -n "${INSTALLER_BIN}"; then
+        echo "    ✓ Sintaxe OK"
+    else
+        echo "    ✗ ERRO: Sintaxe inválida no install-system!"
+        exit 1
+    fi
+else
+    echo "AVISO: install-system não encontrado em ${INSTALLER_BIN}"
+fi
+
+# Configurar bibliotecas do instalador
+if [[ -d "${INSTALLER_DIR}/lib" ]]; then
+    echo "==> Configurando bibliotecas do instalador..."
+    for lib_file in "${INSTALLER_DIR}"/lib/*.sh; do
+        if [[ -f "${lib_file}" ]]; then
+            chmod +x "${lib_file}"
+            # Validar sintaxe de cada biblioteca
+            if bash -n "${lib_file}"; then
+                echo "    ✓ $(basename "${lib_file}")"
+            else
+                echo "    ✗ ERRO: Sintaxe inválida em $(basename "${lib_file}")"
+                exit 1
+            fi
+        fi
+    done
+fi
+
+# Configurar componentes do instalador
+if [[ -d "${INSTALLER_DIR}/components" ]]; then
+    echo "==> Configurando componentes do instalador..."
+    for comp_file in "${INSTALLER_DIR}"/components/*.sh; do
+        if [[ -f "${comp_file}" ]]; then
+            chmod +x "${comp_file}"
+            # Validar sintaxe de cada componente
+            if bash -n "${comp_file}"; then
+                echo "    ✓ $(basename "${comp_file}")"
+            else
+                echo "    ✗ ERRO: Sintaxe inválida em $(basename "${comp_file}")"
+                exit 1
+            fi
+        fi
+    done
 fi
 
 # Configurar gum
-if [[ -f /usr/local/bin/gum ]]; then
-    chmod +x /usr/local/bin/gum
+if [[ -f "${GUM_BIN}" ]]; then
+    chmod +x "${GUM_BIN}"
     echo "gum encontrado e configurado"
+    # Verificar se gum é executável válido
+    if "${GUM_BIN}" --version >/dev/null 2>&1; then
+        echo "    ✓ gum funcional: $(${GUM_BIN} --version 2>/dev/null | head -1)"
+    else
+        echo "    ⚠ gum pode não funcionar corretamente"
+    fi
+else
+    echo "AVISO: gum não encontrado em ${GUM_BIN}"
 fi
 
 # Criar diretório para ZFSBootMenu binários
@@ -1364,7 +1481,7 @@ cat >> /etc/motd << 'MOTDADD'
 
 MOTDADD
 
-echo "==> Instalador Debian ZFS configurado!"
+echo "==> Instalador Debian ZFS configurado com sucesso!"
 INSTALLHOOK
 chmod +x config/hooks/normal/0070-install-debian-installer.hook.chroot
 
@@ -1454,11 +1571,18 @@ show_iso_info() {
 	if ls "${OUTPUT_DIR}"/*.iso >/dev/null 2>&1; then
 		for iso in "${OUTPUT_DIR}"/*.iso; do
 			echo ""
-			print_message "info" "Arquivo: $(basename "${iso}")"
-			print_message "info" "Tamanho: $(du -h "${iso}" | cut -f1)"
+			local basename_iso
+			basename_iso="$(basename "${iso}")"
+			print_message "info" "Arquivo: ${basename_iso}"
+
+			local size_iso
+			size_iso="$(du -h "${iso}" | cut -f1)" || size_iso="N/A"
+			print_message "info" "Tamanho: ${size_iso}"
 
 			if [[ -f "${iso}.sha256" ]]; then
-				print_message "info" "SHA256: $(cat "${iso}.sha256")"
+				local sha256_content
+				sha256_content="$(cat "${iso}.sha256")" || sha256_content="Erro ao ler"
+				print_message "info" "SHA256: ${sha256_content}"
 			fi
 		done
 		echo ""
@@ -1469,11 +1593,16 @@ show_iso_info() {
 }
 
 # Função para limpar arquivos temporários
+# Função para limpar arquivos temporários e artefatos de build
 cleanup() {
-	print_message "step" "Limpando arquivos temporários..."
+	print_message "step" "Executando limpeza de artefatos..."
 
-	if [[ -d ${BUILD_DIR} ]]; then
-		rm -rf "${BUILD_DIR}"
+	if [[ -x "${SCRIPT_DIR}/clean-build-artifacts.sh" ]]; then
+		"${SCRIPT_DIR}/clean-build-artifacts.sh" --force
+	else
+		# Fallback se o script de limpeza dedicado não for encontrado
+		print_message "warning" "Script clean-build-artifacts.sh não encontrado. Executando limpeza manual..."
+		rm -rf "${BUILD_DIR}" "live-build-config" "output" "config" ".build" "chroot" "build.log"
 	fi
 
 	print_message "success" "Limpeza concluída"
