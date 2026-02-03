@@ -1,0 +1,29 @@
+# Pacotes necessários para o Servidor NAS
+
+# Compila e instala os módulos do kernel necessários para o ZFS funcionar no Linux.
+zfs-dkms
+
+# Contém os comandos principais (zfs, zpool) para criar e gerenciar pools e datasets.
+zfsutils-linux
+
+#Bibliotecas compartilhadas que os utilitários usam para interagir com o kernel.
+libzfs6linux
+
+# O "Event Daemon"; monitora o estado dos discos e envia notificações (como alertas de falha).
+zfs-zed
+
+# Permite que o Linux dê boot diretamente de uma partição ZFS (carregam o suporte ao ZFS no início do boot).
+zfs-initramfs
+
+# Biblioteca para lidar com informações de boot (labels) do ZFS.
+libzfsbootenv1linux
+
+# Módulo PAM para carregar chaves de criptografia de datasets ZFS automaticamente no login do usuário.
+libpam-zfs
+
+#Suite oficial para testar a integridade e performance do sistema de arquivos.
+zfs-test
+
+# Biblioteca para quem desenvolve programas em Go que precisam manipular o ZFS.
+golang-go-zfs-dev
+

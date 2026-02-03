@@ -1,0 +1,47 @@
+#!/bin/sh
+set -e
+
+# Fix para "Failed to load COM32 file menu.c32" e "failed to load libutil.c32"
+# Este hook garante que os módulos .c32 sejam copiados da versão instalada no sistema (chroot)
+# para a pasta isolinux da imagem final, evitando incompatibilidade de versões.
+
+echo "fix-syslinux-hook: Iniciando reparo dos módulos do Syslinux..."
+
+# Definir origem e destino
+# Priorizar o diretório chroot para garantir compatibilidade de versão
+POSSIBLE_PATHS="chroot/usr/lib/syslinux/modules/bios chroot/usr/lib/syslinux /usr/lib/syslinux/modules/bios /usr/lib/syslinux /usr/share/syslinux"
+SOURCE_DIR=""
+
+for path in $POSSIBLE_PATHS; do
+	if [ -d "$path" ] && [ -f "$path/menu.c32" ]; then
+		SOURCE_DIR="$path"
+		break
+	fi
+done
+
+DEST_DIR="binary/isolinux"
+
+if [ -z "$SOURCE_DIR" ]; then
+	echo "ERROR: fix-syslinux-hook: Não foi possível encontrar os módulos do Syslinux em nenhum caminho padrão."
+	exit 1
+fi
+
+echo "fix-syslinux-hook: Fonte detectada: $SOURCE_DIR"
+
+if [ ! -d "$DEST_DIR" ]; then
+	echo "WARNING: fix-syslinux-hook: Diretório de destino $DEST_DIR não existe. Criando..."
+	mkdir -p "$DEST_DIR"
+fi
+
+# Lista de módulos essenciais para o menu funcionar (dependências em cadeia)
+MODULES="menu.c32 vesamenu.c32 libutil.c32 libcom32.c32 libgpl.c32 chain.c32 hdt.c32 ldlinux.c32"
+
+for mod in $MODULES; do
+	if [ -f "$SOURCE_DIR/$mod" ]; then
+		cp -v "$SOURCE_DIR/$mod" "$DEST_DIR/"
+	else
+		echo "WARNING: fix-syslinux-hook: Módulo '$mod' não encontrado em $SOURCE_DIR."
+	fi
+done
+
+echo "fix-syslinux-hook: Cópia e correção concluídas."

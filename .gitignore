@@ -1,17 +1,10 @@
 # Nova Arquitetura de Artefatos (Isolada)
-/build/
-/logs/
-/output/
-/zbm-binaries/
-/cache/
+/logs/*
+/output/*
+/live-build-workspace/*
 
 # Live-Build Local Artifacts (Antigos/Residuais)
-/chroot/
-/binary/
-/.build/
-/local/
-/chroot.packages.*
-/config
+/.trunk/
 
 # Arquivos de Build e ISOs residuais
 *.iso

@@ -1,6 +1,7 @@
 # Plano de Correções Pós-Review - 2026-01-06
 
 ## Problemas Identificados
+
 - Erro de sintaxe no `rsync` do instalador (impede instalação).
 - `hostid` não sincronizado (pode impedir boot do ZFS).
 - `chown` agressivo no script de build (risco a arquivos locais).
@@ -13,7 +14,6 @@
   - [x] Adicionar `\` nas linhas do rsync.
   - [x] Adicionar `zgenhostid` para sincronizar hostid.
   - [x] Adicionar configuração de `/etc/hostname` e `/etc/hosts`.
-  
 - [x] **Task 2: Refinar `0100-compile-zfs-dkms.hook.chroot`**
   - [x] Melhorar detecção da variável `KERNEL_VERSION`.
 

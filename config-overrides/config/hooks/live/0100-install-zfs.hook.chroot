@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+echo "instalar-zfs-hook: Configurando repositórios e instalando ZFS..."
+
+# 1. Garante que os repositórios contrib e non-free existam no chroot
+apt-get update
+
+# 2. Instala os headers do kernel e as ferramentas ZFS
+# O pacote zfs-dkms compilará o módulo para o kernel da Trixie
+apt-get install -y linux-headers-amd64
+apt-get install -y zfsutils-linux zfs-dkms
+
+# 3. Habilita os serviços básicos do ZFS para o ambiente live
+systemctl enable zfs-import-cache
+systemctl enable zfs-mount
+systemctl enable zfs-share
+systemctl enable zfs-zed
+
+echo "instalar-zfs-hook: ZFS instalado com sucesso."

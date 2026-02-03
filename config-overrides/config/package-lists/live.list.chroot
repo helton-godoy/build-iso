@@ -1,4 +1,16 @@
 live-boot
 live-config
 live-config-systemd
-systemd-sysv
+syslinux
+syslinux-common
+isolinux
+squashfs-tools
+gdisk
+dosfstools
+efibootmgr
+build-essential
+linux-image-amd64
+linux-headers-amd64
+initramfs-tools
+initramfs-tools-core
+dkms
