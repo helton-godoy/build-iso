@@ -1,0 +1,12 @@
+#cloud-config
+user: admin
+password: aurora_password_change_me
+chpasswd: { expire: False }
+ssh_pwauth: True
+sudo: ALL=(ALL) NOPASSWD:ALL
+groups: [sudo, docker]
+shell: /bin/bash
+
+# Garante que o QGA inicie
+runcmd:
+  - [ systemctl, enable, --now, qemu-guest-agent ]

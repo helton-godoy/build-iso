@@ -6,8 +6,8 @@
 set -euo pipefail
 
 # Diretório onde a ISO é gerada pelo pipeline Docker
-DIST_DIR="${DIST_DIR:-docker/artifacts/dist}"
-VM_WORK_DIR="work/vm"
+DIST_DIR="${DIST_DIR:-output}"
+VM_WORK_DIR="scripts/vm"
 MEM="2G"
 CPUS="2"
 

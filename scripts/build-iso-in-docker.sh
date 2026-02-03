@@ -3,16 +3,22 @@ set -euo pipefail
 
 # Configuration
 IMAGE_NAME="debian-iso-builder"
-DOCKER_DIR="docker/"
+DOCKER_DIR="scripts/docker/"
 WORK_DIR="/work"
 
-# Artifacts and Processing directories (now inside docker/artifacts/)
-# We use relative paths from the project root for the host.
-ARTIFACTS_DIR="docker/artifacts"
-LOG_DIR="$ARTIFACTS_DIR/logs"
-DIST_DIR="$ARTIFACTS_DIR/dist"
-BUILD_DIR="$ARTIFACTS_DIR/build"
-CACHE_DIR="$ARTIFACTS_DIR/cache"
+# Artifacts and Processing directories
+LOG_DIR="logs"
+DIST_DIR="output"
+BUILD_DIR="build"
+CACHE_DIR="cache"
+
+# Clean up legacy symlinks if they exist on host
+for link in config binary cache local .build chroot; do
+    if [ -L "$link" ]; then
+        echo "Removing legacy symlink: $link"
+        rm -f "$link"
+    fi
+done
 
 # Ensure directories exist on host
 mkdir -p "$LOG_DIR" "$DIST_DIR" "$CACHE_DIR" "$BUILD_DIR"
@@ -27,9 +33,10 @@ docker build --progress=plain -t "$IMAGE_NAME" "$DOCKER_DIR" 2>&1 | tee "$LOG_DI
 
 # Inject ZFSBootMenu binaries if they exist
 ZBM_SOURCE="zbm-binaries"
-ZBM_DEST="config/includes.chroot/usr/share/zfsbootmenu"
+# Inject directly into the isolated build config
+ZBM_DEST="$BUILD_DIR/config/include.chroot/usr/share/zfsbootmenu"
 if [[ -d "$ZBM_SOURCE" ]]; then
-    echo "Injecting ZFSBootMenu binaries..."
+    echo "Injecting ZFSBootMenu binaries into build/config..."
     mkdir -p "$ZBM_DEST"
     LATEST_ZBM_DIR=$(find "$ZBM_SOURCE" -maxdepth 1 -type d -name "zfsbootmenu-release-*" | sort -V | tail -n 1)
     if [[ -n "$LATEST_ZBM_DIR" ]]; then
@@ -48,49 +55,39 @@ fi
 
 echo "Running in Docker: ${CMD[*]}"
 
-# IMPORTANT: We map the whole project root to /work.
-# We also map the artifacts directories to their expected locations in the container
-# root if we wanted to keep them outside, but live-build is very sensitive to 
-# cross-device links. To keep it simple and functional, we let live-build work
-# in the project root inside the container, and we link/move the results.
-#
-# Strategy:
-# 1. Map the project root.
-# 2. Map the artifacts subdirs specifically if we want them to persist correctly
-#    on the same filesystem to allow hardlinks.
-#
-# Actually, the most robust way is to let live-build create chroot/ and binary/ 
-# in the current directory, and we move them to docker/artifacts if needed.
-# But since we want them hidden, we can link them.
-
+# We map the whole project root to /work and set BUILD_DIR as the working directory.
+# Both build/ and cache/ are on the same volume to allow hardlinks.
 docker run --rm --privileged \
     -v "$(pwd):$WORK_DIR" \
-    -e BUILD_DIR="$BUILD_DIR" \
-    -e CACHE_DIR="$CACHE_DIR" \
+    -w "$WORK_DIR/$BUILD_DIR" \
     "$IMAGE_NAME" \
-    bash -c ' 
-        # Setup links for live-build to use our artifacts directory
-        # This keeps the root clean while allowing hardlinks if the FS supports it.
-        # Note: If docker/artifacts is on the same FS as the root, hardlinks work.
-        mkdir -p "$BUILD_DIR"/.build "$BUILD_DIR"/chroot "$BUILD_DIR"/binary "$BUILD_DIR"/local "$CACHE_DIR"
+    bash -c "
+        # Link cache directory if needed (same volume as /work/build)
+        if [ ! -d 'cache' ] && [ ! -L 'cache' ]; then
+            ln -snf \"$WORK_DIR/$CACHE_DIR\" cache
+        fi
         
-        ln -snf "$BUILD_DIR"/.build .build
-        ln -snf "$BUILD_DIR"/chroot chroot
-        ln -snf "$BUILD_DIR"/binary binary
-        ln -snf "$BUILD_DIR"/local local
-        ln -snf "$CACHE_DIR" cache
+        echo \"--- DEBUG: Filesystem check --- \"
+        df -h . \"$WORK_DIR/$CACHE_DIR\"
+        
+        # Ensure config stage is run if it is a fresh build or auto/config exists
+        if [ -d 'auto' ] && [ ! -d '.build' ]; then
+            echo \"Running lb config (auto)...\"
+            lb config
+        fi
         
         # Execute the requested command
-        "$@"
-    ' -- "${CMD[@]}" 2>&1 | tee "$LOG_DIR/lb-build.log"
+        echo \"Executing: \$@\"
+        \"\$@\"
+    " bash "${CMD[@]}" 2>&1 | tee "$LOG_DIR/lb-build.log"
 
 EXIT_CODE=${PIPESTATUS[0]}
 
-# Move generated ISO to dist/ if build was successful
+# The ISO is generated inside build/
 if [[ $EXIT_CODE -eq 0 ]]; then
-    if ls *.iso 1>/dev/null 2>&1; then
+    if ls "$BUILD_DIR"/*.iso 1>/dev/null 2>&1; then
          echo "Moving generated ISO to $DIST_DIR/..."
-         mv *.iso "$DIST_DIR/"
+         mv "$BUILD_DIR"/*.iso "$DIST_DIR/"
     fi
 else
     echo "Build command failed with exit code $EXIT_CODE"

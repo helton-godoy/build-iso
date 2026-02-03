@@ -1,15 +1,19 @@
-# Live-Build Artifacts (Tradicionais na raiz)
+# Nova Arquitetura de Artefatos (Isolada)
+/build/
+/logs/
+/output/
+/zbm-binaries/
+/cache/
+
+# Live-Build Local Artifacts (Antigos/Residuais)
 /chroot/
 /binary/
 /.build/
 /local/
 /chroot.packages.*
+/config
 
-# Nova Arquitetura de Artefatos (Encapsulada no Docker)
-/docker/artifacts/
-/zbm-binaries/
-
-# Arquivos de Build e ISOs na raiz (Legacy/Cleanup)
+# Arquivos de Build e ISOs residuais
 *.iso
 *.img
 *.contents
