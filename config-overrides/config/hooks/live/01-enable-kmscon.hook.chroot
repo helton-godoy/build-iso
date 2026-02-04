@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -e
+
+# Habilita o alias para autovt (terminal virtual dinâmico)
+# O serviço kmsconvt@ é instanciado automaticamente pelo systemd-logind via autovt@
+ln -sf /lib/systemd/system/kmsconvt@.service /etc/systemd/system/autovt@.service
+
+# Remove getty@tty1 para garantir que o KMSCON assuma se for para tty1
+rm -f /etc/systemd/system/getty.target.wants/getty@tty1.service 2>/dev/null || true
+systemctl mask getty@tty1.service
+
+# Não executamos 'systemctl enable kmscon' pois ele é template (kmsconvt@)
+# O link para autovt@.service é o mecanismo de ativação padrão

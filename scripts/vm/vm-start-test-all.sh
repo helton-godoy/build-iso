@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_DIR="logs/test-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$LOG_DIR"
+
+echo "🧪 Iniciando Bateria de Testes Simultâneos (BIOS & UEFI)..."
+echo "📂 Logs desta sessão: $LOG_DIR"
+
+# Função para rodar a VM e capturar o log inicial de boot
+run_test() {
+	local MODE=$1
+	echo "⚙️  Preparando instância $MODE..."
+
+	# Inicia a VM (o script já faz a limpeza interna)
+	"$SCRIPT_DIR/vm-start-test-boot-iso.sh" "$MODE" >"$LOG_DIR/start-$MODE.log" 2>&1
+
+	# Captura os primeiros 30 segundos de boot via socket para o Agente
+	echo "📡 Capturando log de boot inicial ($MODE)..."
+	timeout 30s "$SCRIPT_DIR/vm-connent-agent-llm.sh" "$MODE" >"$LOG_DIR/boot-$MODE.log" 2>&1 || true
+
+	echo "✅ Instância $MODE pronta."
+}
+
+# Dispara as duas VMs em paralelo
+run_test "uefi" &
+run_test "bios" &
+
+# Aguarda os processos terminarem
+wait
+
+echo "----------------------------------------------------------"
+echo "🚀 Ambas as VMs estão rodando!"
+echo "🤖 Agente, você pode analisar os logs iniciais em:"
+echo "   - $LOG_DIR/boot-uefi.log"
+echo "   - $LOG_DIR/boot-bios.log"
+echo "----------------------------------------------------------"
+echo "Use 'make vm-connect-uefi' ou 'make vm-connect-bios' para interagir."
