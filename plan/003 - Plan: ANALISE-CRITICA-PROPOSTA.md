@@ -34,9 +34,7 @@ A proposta apresentada em `PROPOSTA-DEBIAN-ZFS.md` demonstra **alta qualidade t�
 ### 2.2 Documentação Existente
 
 - ✅ `Architectural Blueprint...md` fornece fundamentação teórica sólida com 24 referências
-- ✅ `ZFSBOOTMENU_BINARIES.md` documenta endpoints de download precisamente
-- ✅ `AGENTS.md` estabelece convenções de código claras
-- ✅ Script `download-zfsbootmenu.sh` já implementa verificação de assinaturas
+- ✅ `download-zfsbootmenu.sh` implementa verificação e documentação embutida
 
 ### 2.3 Planejamento
 
@@ -119,8 +117,7 @@ A proposta menciona "cobertura mínima de 80%" mas:
 | `PROPOSTA-DEBIAN-ZFS.md`       | Arquitetura completa, diagramas excelentes | Falta operacional e compliance                 |
 | `AGENTS.md`                    | Convenções claras, anti-padrões úteis      | Muito resumido, falta política de contribuição |
 | `Architectural Blueprint...md` | Fundamentação teórica excelente            | Em inglês (diverge das regras do projeto)      |
-| `ZFSBOOTMENU_BINARIES.md`      | Detalhes de download precisos              | Falta automação de atualização de versões      |
-| `download-zfsbootmenu.sh`      | Bem estruturado, verifica assinaturas      | Versão kernel hardcoded (linux6.12)            |
+| `download-zfsbootmenu.sh`      | Documentação de download no script      | URLs atualizadas no código-fonte|
 
 ---
 

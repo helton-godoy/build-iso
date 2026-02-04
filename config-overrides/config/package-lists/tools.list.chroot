@@ -54,3 +54,7 @@ wget
 zip
 zlib1g
 zstd
+libtsm4/trixie-backports
+kmscon
+fonts-noto-mono
+fonts-hack

@@ -1,49 +1,157 @@
-# Variáveis
-PROJECT_NAME = build-iso
-SCRIPTS_DIR = scripts
-DOCKER_DIR = scripts/docker
-BUILD_DIR = build
-LOGS_DIR = logs
-OUTPUT_DIR = output
+# =============================================================================
+# BUILD-ISO: Automação de implantação Debian com ZFS-on-root e ZFSBootMenu
+# =============================================================================
+# Organiza todos os comandos de build, deploy e testes da imagem live-build
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Variáveis de Configuração
+# -----------------------------------------------------------------------------
+PROJECT_NAME  = build-iso
+SCRIPTS_DIR   = scripts
+DOCKER_DIR     = scripts/docker
+VM_DIR         = scripts/vm
+VM_DISKS_DIR   = scripts/vm/disks
+BUILD_DIR      = build
+LOGS_DIR       = logs
+OUTPUT_DIR     = output
 CONFIG_OVERRIDES = config-overrides
 
 # Nome da imagem Docker
 DOCKER_IMAGE_NAME = zbm-iso-builder
 
-.PHONY: all build clean test-iso setup-vm download-deps prepare help download-zbm setup-docker build-iso
+# VM Configuration
+VM_NAME_UEFI  = nas-test-uefi
+VM_NAME_BIOS  = nas-test-bios
+VM_SOCKET_UEFI = /tmp/$(VM_NAME_UEFI).sock
+VM_SOCKET_BIOS = /tmp/$(VM_NAME_BIOS).sock
+
+# -----------------------------------------------------------------------------
+# Targets Phony (sempre executados)
+# -----------------------------------------------------------------------------
+.PHONY: all help build download-zbm setup-docker build-iso clean
+.PHONY: setup-vm vm-list vm-destroy vm-destroy-all
+.PHONY: test-vm-uefi test-vm-bios test-vm-all vm-connect-uefi vm-connect-bios
+
+# -----------------------------------------------------------------------------
+# Targets Principais
+# -----------------------------------------------------------------------------
 
 all: build-iso
+	@echo "✅ Build completo! Use 'make test-vm-all' para testar a ISO."
 
 help:
-	@echo "Comandos disponíveis:"
+	@echo "════════════════════════════════════════════════════════════════════"
+	@echo "  $(PROJECT_NAME) - Build, Deploy & Test Automation"
+	@echo "════════════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "📦 BUILD & DEPLOY:"
 	@echo "  make download-zbm  - Baixa binários do ZFSBootMenu"
 	@echo "  make setup-docker  - Constrói a imagem Docker do builder"
-	@echo "  make build-iso     - Inicia o build da ISO (depende de download-zbm e setup-docker)"
-	@echo "  make clean         - Remove artefatos de build"
+	@echo "  make build-iso     - Inicia o build da ISO"
+	@echo ""
+	@echo "🖥️  VM SETUP:"
+	@echo "  make setup-vm         - Instala dependências de virtualização"
+	@echo ""
+	@echo "🧪 VM TESTES:"
+	@echo "  make test-vm-uefi     - Inicia VM em modo UEFI"
+	@echo "  make test-vm-bios     - Inicia VM em modo BIOS"
+	@echo "  make test-vm-all      - Inicia VMs UEFI + BIOS simultaneamente"
+	@echo ""
+	@echo "🔌 VM CONEXÃO:"
+	@echo "  make vm-connect-uefi  - Conecta ao console serial UEFI"
+	@echo "  make vm-connect-bios  - Conecta ao console serial BIOS"
+	@echo ""
+	@echo "🧹 LIMPEZA:"
+	@echo "  make clean            - Remove artefatos de build e VMs"
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════════"
 
-# Cria diretórios de trabalho se não existirem
+# -----------------------------------------------------------------------------
+# Build Targets
+# -----------------------------------------------------------------------------
+
 prepare:
 	@mkdir -p $(LOGS_DIR) $(OUTPUT_DIR)
 
-# Executa o download dos binários ZFSBootMenu
 download-zbm: prepare
-	@echo "Baixando dependências do ZFSBootMenu..."
+	@echo "📥 Baixando dependências do ZFSBootMenu..."
 	@chmod +x $(SCRIPTS_DIR)/download-zfsbootmenu.sh
-	bash $(SCRIPTS_DIR)/download-zfsbootmenu.sh
+	@bash $(SCRIPTS_DIR)/download-zfsbootmenu.sh
 
-# Constrói a imagem Docker do Builder
 setup-docker:
-	@echo "Construindo imagem Docker: $(DOCKER_IMAGE_NAME)..."
-	docker build -t $(DOCKER_IMAGE_NAME) -f $(DOCKER_DIR)/Dockerfile $(DOCKER_DIR)
+	@echo "🐳 Construindo imagem Docker: $(DOCKER_IMAGE_NAME)..."
+	@docker build -t $(DOCKER_IMAGE_NAME) -f $(DOCKER_DIR)/Dockerfile $(DOCKER_DIR)
 
-# Roda o processo de build dentro do container
 build-iso: download-zbm setup-docker
-	@echo "Iniciando build da ISO..."
-	docker run --rm --privileged \
-		-v "$(shell pwd):/build" \
+	@echo "🔨 Iniciando build da ISO..."
+	@docker run --rm --privileged \
+		-v "$(CURDIR):/build" \
 		$(DOCKER_IMAGE_NAME)
 
+# -----------------------------------------------------------------------------
+# VM Setup Targets
+# -----------------------------------------------------------------------------
+
+setup-vm:
+	@echo "🔧 Instalando dependências de virtualização..."
+	@chmod +x $(VM_DIR)/vm-setup.sh
+	@bash $(VM_DIR)/vm-setup.sh
+
+
+vm-list:
+	@echo "📋 VMs em execução:"
+	@virsh --connect qemu:///system list --all
+
+vm-destroy:
+	@echo "🛑 Destruindo VMs..."
+	@for vm in $$(virsh --connect qemu:///system list --all --name 2>/dev/null | grep -E '^nas-test-(uefi|bios)$$'); do \
+		virsh --connect qemu:///system destroy "$vm" >/dev/null 2>&1 || true; \
+		virsh --connect qemu:///system undefine "$vm" --nvram --remove-all-storage >/dev/null 2>&1 || true; \
+		done
+	@echo "✅ VMs destruídas."
+
+vm-destroy-all: vm-destroy
+
+# -----------------------------------------------------------------------------
+# VM Test Targets
+# -----------------------------------------------------------------------------
+
+test-vm-uefi:
+	@echo "🚀 Iniciando VM de teste (UEFI)..."
+	@chmod +x $(VM_DIR)/vm-start-test-boot-iso.sh
+	@bash $(VM_DIR)/vm-start-test-boot-iso.sh uefi
+
+test-vm-bios:
+	@echo "🚀 Iniciando VM de teste (BIOS)..."
+	@chmod +x $(VM_DIR)/vm-start-test-boot-iso.sh
+	@bash $(VM_DIR)/vm-start-test-boot-iso.sh bios
+
+test-vm-all:
+	@echo "🧪 Iniciando bateria de testes (UEFI + BIOS)..."
+	@chmod +x $(VM_DIR)/vm-start-test-all.sh
+	@bash $(VM_DIR)/vm-start-test-all.sh
+
+# -----------------------------------------------------------------------------
+# VM Connection Targets
+# -----------------------------------------------------------------------------
+
+vm-connect-uefi:
+	@echo "🔌 Conectando ao console serial (UEFI)..."
+	@chmod +x $(VM_DIR)/vm-connent-agent-llm.sh
+	@bash $(VM_DIR)/vm-connent-agent-llm.sh uefi
+
+vm-connect-bios:
+	@echo "🔌 Conectando ao console serial (BIOS)..."
+	@chmod +x $(VM_DIR)/vm-connent-agent-llm.sh
+	@bash $(VM_DIR)/vm-connent-agent-llm.sh bios
+
+# -----------------------------------------------------------------------------
+# Cleanup Targets
+# -----------------------------------------------------------------------------
+
 clean:
-	@echo "Limpando artefatos de build..."
-	sudo rm -rf $(LOGS_DIR) $(OUTPUT_DIR) live-build-workspace
-	# Limpar workspace do live-build se criado localmente (embora agora seja interno ao container, o volume mapeado pode ter sobras)
+	@echo "🧹 Limpando artefatos de build..."
+	@sudo rm -rf $(LOGS_DIR) $(OUTPUT_DIR) live-build-workspace
+	@$(MAKE) vm-destroy
+	@echo "✅ Limpeza completa!"

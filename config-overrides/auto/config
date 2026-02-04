@@ -19,7 +19,7 @@ lb config noauto \
     --parent-archive-areas 'main contrib non-free-firmware non-free' \
     --architectures "${ARCH}" \
     --linux-flavours "${ARCH}" \
-    --bootappend-live "boot=live components quiet splash hostname=${ISO_NAME} locales=${LOCALE} timezone=${TIMEZONE} keyboard-layouts=${KEYBOARD} live-config.autologin" \
+    --bootappend-live "boot=live components hostname=${ISO_NAME} locales=${LOCALE} timezone=${TIMEZONE} keyboard-layouts=${KEYBOARD} live-config.autologin console=tty0 console=ttyS0,115200n8" \
     --memtest none \
     --debian-installer none \
     --debian-installer-gui false \
