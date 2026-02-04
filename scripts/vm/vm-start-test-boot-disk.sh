@@ -5,8 +5,8 @@ set -euo pipefail
 DISK_PATH="${1:-scripts/vm/disks/test-disk.qcow2}"
 
 if [ ! -f "$DISK_PATH" ]; then
-    echo "Erro: Disco não encontrado em $DISK_PATH"
-    exit 1
+	echo "Erro: Disco não encontrado em $DISK_PATH"
+	exit 1
 fi
 
 echo "Iniciando VM a partir do disco: $DISK_PATH"
