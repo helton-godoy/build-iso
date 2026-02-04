@@ -183,3 +183,36 @@ sequenceDiagram
 2.  **Velocidade de Instalação:** O usuário final não compila nada. A instalação é limitada apenas pela velocidade de escrita no disco.
 3.  **Instalação Offline:** Não requer internet no cliente para baixar headers ou compiladores.
 4.  **Tamanho Reduzido:** A ISO não carrega gigabytes de ferramentas de desenvolvimento (`gcc`, `make`, headers não utilizados), apenas o resultado do build.
+
+---
+
+## 7. Interface de Comandos (Makefile)
+
+O projeto oferece uma interface unificada via [`Makefile`](../Makefile) que abstrai todos os scripts de build, deploy e testes:
+
+### Comandos Principais
+
+```bash
+# Build da ISO
+make download-zbm    # Baixa binários do ZFSBootMenu
+make setup-docker    # Constrói imagem Docker do builder
+make build-iso       # Inicia build da ISO
+
+# Testes em VMs
+make setup-vm         # Instala dependências de virtualização
+make vm-create-disks  # Cria 4 discos virtuais
+make test-vm-uefi     # Testa ISO em VM UEFI
+make test-vm-bios     # Testa ISO em VM BIOS
+make test-vm-all      # Testa ambas as VMs simultaneamente
+
+# Conexão e Debug
+make vm-connect-uefi  # Conecta ao console serial UEFI
+make vm-connect-bios  # Conecta ao console serial BIOS
+
+# Gerenciamento
+make vm-list          # Lista VMs em execução
+make vm-destroy       # Destrói VMs ativas
+make clean            # Limpa artefatos e VMs
+```
+
+Execute `make help` para ver todos os comandos disponíveis com descrições detalhadas.

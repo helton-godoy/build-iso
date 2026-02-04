@@ -10,7 +10,7 @@ YOU MUST ALWAYS COMMUNICATE IN BRAZILIAN PORTUGUESE, REGARDLESS OF THE INPUT LAN
 3. **Creatively expand** the scope when relevant
 4. **Anticipate problems** before execution
 5. **Only then** execute the improved version of the task
-<IMPORTANT/>
+</IMPORTANT>
 
 ## Visão Geral do Projeto
 
@@ -25,21 +25,37 @@ Este projeto tem como objetivo automatizar a criação de uma imagem ISO do Debi
 
 ## Status do Projeto
 
-**Fase Atual:** Planejamento e Implementação Inicial.
+**Fase Atual:** Build ISO em Desenvolvimento.
 
-- A arquitetura está definida no Blueprint.
-- Scripts de infraestrutura (download de binários) estão sendo criados.
-- O pipeline de build da ISO (Docker + live-build) ainda será implementado.
+- ✅ Arquitetura definida no Blueprint
+- ✅ Scripts de download ZBM implementados
+- ✅ Configuração live-build configurada
+- ✅ Suite de testes implementada
+- 🔄 Pipeline de build ISO em implementação
 
 ## Estrutura de Diretórios e Arquivos Chave
 
-- **`AGENTS.md`**: Diretrizes para agentes de IA, convenções de código e status detalhado. **Leitura Obrigatória.**
-- **`Architectural Blueprint...md`**: Documento completo da arquitetura, justificativas técnicas e design do sistema.
-- **`ZFSBOOTMENU_BINARIES.md`**: Informações sobre os binários do ZFSBootMenu necessários.
+- **`docs/PROJECT_STRUCTURE.md`**: Estrutura detalhada do projeto. **Leitura Obrigatória.**
+- **`AGENTS.md`**: Diretrizes para agentes de IA, convenções de código e status detalhado.
+- **`docs/Architectural Blueprint...md`**: Documento completo da arquitetura (inglês).
 - **`scripts/`**: Contém os scripts de automação.
-  - `download-zfsbootmenu.sh`: Script para baixar os componentes release e recovery do ZFSBootMenu.
-- **`plans/`**: Documentos de planejamento e análise crítica da proposta.
-- **`.sisyphus/`**: Diretório de configuração interna (ignorável para contexto geral).
+  - `download-zfsbootmenu.sh`: Script para baixar os componentes do ZFSBootMenu.
+  - `docker/`: Dockerfile e entrypoint para build ISO.
+  - `vm/`: Scripts de teste em VMs QEMU/KVM.
+- **`plan/`**: Documentos de planejamento e análise crítica da proposta.
+- **`config-overrides/`**: Configuração do live-build.
+- **`conductor/`**: Metadados e trilhas de desenvolvimento.
+
+### Estrutura Reorganizada (2026-02-04)
+
+| Antigo | Atual | Observação |
+|--------|-------|------------|
+| `config/` | `config-overrides/` | Renomeado |
+| `docker/` | `scripts/docker/` | Reorganizado |
+| `plans/` | `plan/` | Sem 's' |
+| `build-iso-in-docker.sh` | `make build-iso` | Via Makefile |
+| `test-iso.sh` | `make test-vm-all` | Via Makefile |
+| `ZFSBOOTMENU_BINARIES.md` | Documentação embutida | Removido (arquivo não existe)
 
 ## Uso e Comandos
 
@@ -52,13 +68,25 @@ Atualmente, apenas o script de download de binários está implementado:
 ./scripts/download-zfsbootmenu.sh --output-dir ./zbm-binaries
 ```
 
-### Comandos Planejados (TODO)
+### Comandos via Makefile
 
-Os seguintes fluxos estão planejados e documentados em `AGENTS.md`, mas ainda não possuem scripts correspondentes:
+Os fluxos de build e teste estão implementados via Makefile:
 
-- **Build da ISO:** `build-iso-in-docker.sh` (Usará Docker e `live-build`)
-- **Testes (KVM):** `test-iso.sh` (Testes automatizados em UEFI e BIOS)
-- **Instalação:** `install.sh` (Script que rodará dentro da ISO)
+```bash
+# Build da ISO
+make download-zbm    # Baixa binários do ZFSBootMenu
+make setup-docker    # Constrói imagem Docker
+make build-iso       # Inicia build da ISO
+
+# Testes
+make setup-vm         # Instala dependências KVM
+make vm-create-disks  # Cria discos virtuais
+make test-vm-all      # Testa UEFI + BIOS simultaneamente
+
+# Conexão
+make vm-connect-uefi  # Conecta ao console serial UEFI
+make vm-connect-bios  # Conecta ao console serial BIOS
+```
 
 ## Convenções de Desenvolvimento
 

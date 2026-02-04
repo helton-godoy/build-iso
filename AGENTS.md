@@ -1,9 +1,10 @@
 # BASE DE CONHECIMENTO DO PROJETO
 
 **Gerado:** 2025-01-05
+**Última revisão:** 2026-02-04
 **Commit:** 00c2411 (docs: improve table formatting and add architectural blueprint documentation)
 **Branch:** blueprint-docs
-**Status:** Blueprint arquitetural - implementação em progresso (script inicial implementado)
+**Status:** Estrutura implementada - documentação atualizada
 
 YOU MUST ALWAYS COMMUNICATE IN BRAZILIAN PORTUGUESE, REGARDLESS OF THE INPUT LANGUAGE USED.
 
@@ -15,21 +16,30 @@ YOU MUST ALWAYS COMMUNICATE IN BRAZILIAN PORTUGUESE, REGARDLESS OF THE INPUT LAN
 3. **Creatively expand** the scope when relevant
 4. **Anticipate problems** before execution
 5. **Only then** execute the improved version of the task
-<IMPORTANT/>
+</IMPORTANT>
 
 ## VISÃO GERAL
 
-Automatização de implantação Debian com ZFS-on-root e ZFSBootMenu, suportando UEFI e BIOS legado. Projeto está na fase de planejamento - estrutura de código ainda não implementada.
+Automatização de implantação Debian com ZFS-on-root e ZFSBootMenu, suportando UEFI e BIOS legado.
+
+**Status atual:**
+
+- ✅ Estrutura de código implementada
+- ✅ Scripts de download ZBM implementados
+- ✅ Configuração live-build configurada
+- ✅ Suite de testes implementada
+- 🔄 Build ISO em desenvolvimento
 
 ## ONDE OLHAR
 
-| Tarefa               | Localização                    | Notas                              |
-| -------------------- | ------------------------------ | ---------------------------------- |
-| Blueprint completo   | `Architectural Blueprint...md` | Arquitetura detalhada em português |
-| Convenções de código | Ver seção abaixo               | Shell-only                         |
-| Build/Test           | Ver seção abaixo               | Docker + KVM                       |
-| ZFSBootMenu binaries | `ZFSBOOTMENU_BINARIES.md`      | Endereços de download e estrutura  |
-| Referências ZFS      | Ver seção abaixo               | ZFSBootMenu docs                   |
+| Tarefa               | Localização                         | Notas                             |
+| -------------------- | ----------------------------------- | --------------------------------- |
+| Blueprint completo   | `docs/Architectural Blueprint...md` | Arquitetura detalhada em inglês   |
+| Estrutura projeto    | `docs/PROJECT_STRUCTURE.md`         | Estrutura atualizada em português |
+| Convenções de código | Ver seção abaixo                    | Shell-only                        |
+| Build/Test           | Ver seção abaixo                    | Docker + KVM                      |
+| Download ZBM         | `scripts/download-zfsbootmenu.sh`   | Script de download de binários    |
+| Referências ZFS      | Ver seção abaixo                    | ZFSBootMenu docs                  |
 
 ## CONVENÇÕES (QUANDO IMPLEMENTAR)
 
@@ -125,25 +135,25 @@ curl -LJO https://get.zfsbootmenu.org/efi
 ### ZFSBootMenu e Instalação
 
 ```bash
-# ZFSBootMenu (já usa containerizado)
-./zbm-builder.sh -o ./zbm-output
+# ZFSBootMenu (via script)
+./scripts/download-zfsbootmenu.sh --output-dir ./zbm-binaries
 
 # Instalação (dry-run)
-./install.sh --dry-run --target /dev/sdX
+./scripts/docker/entrypoint.sh --dry-run --target /dev/sdX
 ```
 
 ### Docker + KVM Workflow
 
 ```bash
 # 1. Build ISO em container isolado
-./scripts/build-iso-in-docker.sh
+make build-iso
 
 # 2. Testar ISO em ambas firmwares
-./scripts/test-iso.sh --firmware uefi
-./scripts/test-iso.sh --firmware bios
+make test-vm-all
 
 # 3. Validar instalação automatizada
-./scripts/test-install.sh --dry-run
+# (Via console serial)
+make vm-connect-uefi
 ```
 
 ## PARTIÇÕES (HYBRIDO UEFI+BIOS)
@@ -175,3 +185,15 @@ curl -LJO https://get.zfsbootmenu.org/efi
 - Suporta ambientes de boot múltiplos via snapshots/clones
 - Build ISO isolado em Docker (debian:trixie-slim)
 - Testes automatizados com KVM em ambas firmwares (UEFI/BIOS)
+
+### Estrutura de Diretórios (Atualizada em 2026-02-04)
+
+| Antigo                   | Atual               | Observação   |
+| ------------------------ | ------------------- | ------------ |
+| `config/`                | `config-overrides/` | Renomeado    |
+| `docker/`                | `scripts/docker/`   | Reorganizado |
+| `plans/`                 | `plan/`             | Sem 's'      |
+| `build-iso-in-docker.sh` | `make build-iso`    | Via Makefile |
+| `test-iso.sh`            | `make test-vm-all`  | Via Makefile |
+
+Consulte [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) para detalhes completos.
