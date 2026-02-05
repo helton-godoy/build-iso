@@ -1,0 +1,465 @@
+#!/usr/bin/env bash
+#
+# install-zfs-debian - Instalador ZFS Debian (VERSÃO DEBUG)
+#
+# Versão com logs detalhados para diagnóstico
+#
+
+# NÃO usar set -e para permitir tratamento de erros manual
+set -uo pipefail
+
+# ============================================================================
+# CONFIGURAÇÕES GLOBAIS
+# ============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="${SCRIPT_DIR}/../lib/installer"
+POOL_NAME="zroot"
+MOUNT_POINT="/mnt"
+LOG_FILE="/var/log/installer.log"
+
+# Variáveis do wizard
+HOSTNAME=""
+USERNAME=""
+USER_PASS=""
+ROOT_PASS=""
+SELECTED_DISK=""
+FIRMWARE_MODE=""
+
+# ============================================================================
+# FUNÇÕES DE UTILIDADE
+# ============================================================================
+
+log() {
+  local msg="$1"
+  local timestamp
+  timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+  echo "[$timestamp] $msg" | tee -a "$LOG_FILE"
+}
+
+error_exit() {
+  local msg="$1"
+  log "ERROR: $msg"
+  
+  if command -v gum &>/dev/null; then
+    gum style --foreground "#ef4444" "✗ ERRO: $msg"
+    gum style --foreground "#f59e0b" "Verifique o log em: $LOG_FILE"
+  else
+    echo "ERRO: $msg" >&2
+    echo "Verifique o log em: $LOG_FILE" >&2
+  fi
+  
+  cleanup
+  read -p "Pressione Enter para sair..."
+  exit 1
+}
+
+cleanup() {
+  log "Iniciando limpeza..."
+  sync
+  
+  # Desmonta ESP se montado
+  if mountpoint -q "${MOUNT_POINT}/boot/efi" 2>/dev/null; then
+    umount "${MOUNT_POINT}/boot/efi" 2>/dev/null || true
+  fi
+  
+  # Desmonta sistemas virtuais
+  for dir in dev proc sys run; do
+    if mountpoint -q "${MOUNT_POINT}/${dir}" 2>/dev/null; then
+      umount -l "${MOUNT_POINT}/${dir}" 2>/dev/null || true
+    fi
+  done
+  
+  # Desmonta ZFS
+  if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+    umount -R "$MOUNT_POINT" 2>/dev/null || true
+  fi
+  
+  # Exporta pool se existir
+  if zpool list "$POOL_NAME" &>/dev/null; then
+    zpool export "$POOL_NAME" 2>/dev/null || true
+  fi
+  
+  log "Limpeza concluída"
+}
+
+# ============================================================================
+# CARREGAMENTO DE MÓDULOS
+# ============================================================================
+
+load_modules() {
+  log "=== CARREGANDO MÓDULOS ==="
+  
+  # Carrega Design System
+  local ds_path="${SCRIPT_DIR}/../lib/fileserver-ds.sh"
+  log "Tentando carregar Design System de: $ds_path"
+  
+  if [[ -f "$ds_path" ]]; then
+    source "$ds_path"
+    log "✓ Design System carregado"
+  else
+    error_exit "Design System não encontrado em: $ds_path"
+  fi
+  
+  # Carrega módulos do instalador
+  local modules=(
+    "firmware-detection.sh"
+    "disk-detection.sh"
+    "partitioning.sh"
+    "zfs-setup.sh"
+    "system-config.sh"
+    "zbm-install.sh"
+  )
+  
+  for module in "${modules[@]}"; do
+    local module_path="${LIB_DIR}/${module}"
+    log "Tentando carregar módulo: $module"
+    
+    if [[ -f "$module_path" ]]; then
+      source "$module_path"
+      log "✓ Módulo carregado: $module"
+    else
+      error_exit "Módulo não encontrado: $module em $module_path"
+    fi
+  done
+  
+  log "=== TODOS OS MÓDULOS CARREGADOS ==="
+  
+  # Exporta funções críticas para serem usadas via bash -c no ds_spinner
+  export -f partition_wipe_disk partition_create_gpt zfs_create_pool zfs_create_datasets \
+            zbm_install zbm_configure_efi system_update_initramfs zfs_export_pool \
+            partition_format_esp system_mount_vfs system_set_hostname system_generate_hostid \
+            system_create_user system_set_root_password system_configure_fstab \
+            system_umount_vfs zbm_unmount_esp zbm_setup_fallback zbm_configure_zfs_properties
+}
+
+# ============================================================================
+# FLUXO DO WIZARD
+# ============================================================================
+
+step_welcome() {
+  log "STEP: Welcome"
+  
+  firmware_detect || error_exit "Falha ao detectar firmware"
+  FIRMWARE_MODE=$(firmware_get_mode)
+  log "Modo de boot detectado: $FIRMWARE_MODE"
+  
+  ds_welcome_screen "$FIRMWARE_MODE"
+  
+  log "Aguardando confirmação do usuário..."
+  if ! ds_confirm "Deseja iniciar a instalação?"; then
+    log "Instalação cancelada pelo usuário na tela de boas-vindas"
+    exit 0
+  fi
+  
+  log "Usuário confirmou início da instalação"
+}
+
+step_select_disk() {
+  log "STEP: Select Disk"
+  ds_disk_select_screen
+  
+  log "Verificando discos disponíveis..."
+  if ! disk_has_available; then
+    error_exit "Nenhum disco disponível encontrado"
+  fi
+  
+  local disk_list
+  disk_list=$(disk_list_available) || error_exit "Falha ao listar discos"
+  log "Discos encontrados:"
+  log "$disk_list"
+  
+  local selected
+  selected=$(echo "$disk_list" | gum choose --header "Selecione o disco de destino:") || error_exit "Falha na seleção de disco"
+  
+  # Extrai apenas o caminho do dispositivo
+  SELECTED_DISK=$(echo "$selected" | awk '{print $1}')
+  
+  if [[ -z "$SELECTED_DISK" ]]; then
+    error_exit "Nenhum disco selecionado"
+  fi
+  
+  log "Disco selecionado: $SELECTED_DISK"
+  ds_card "$(ds_text_bold "Disco selecionado:")
+$(disk_get_info "$SELECTED_DISK")" "info"
+}
+
+step_configure() {
+  log "STEP: Configure"
+  ds_config_screen
+  
+  # Hostname
+  HOSTNAME=$(ds_input "Hostname do sistema" "fileserver")
+  while [[ ! "$HOSTNAME" =~ ^[a-zA-Z0-9-]+$ ]]; do
+    ds_error "Hostname inválido. Use apenas letras, números e hífens."
+    HOSTNAME=$(ds_input "Hostname do sistema" "fileserver")
+  done
+  log "Hostname configurado: $HOSTNAME"
+  
+  # Usuário
+  USERNAME=$(ds_input "Nome do usuário" "admin")
+  while [[ -z "$USERNAME" ]] || [[ ! "$USERNAME" =~ ^[a-z_][a-z0-9_-]*$ ]]; do
+    ds_error "Nome de usuário inválido"
+    USERNAME=$(ds_input "Nome do usuário" "admin")
+  done
+  log "Usuário configurado: $USERNAME"
+  
+  # Senhas
+  ds_section "Segurança"
+  
+  USER_PASS=$(ds_password "Senha para $USERNAME")
+  while [[ -z "$USER_PASS" ]]; do
+    ds_error "Senha não pode ser vazia"
+    USER_PASS=$(ds_password "Senha para $USERNAME")
+  done
+  log "Senha do usuário configurada"
+  
+  ROOT_PASS=$(ds_password "Senha para root")
+  while [[ -z "$ROOT_PASS" ]]; do
+    ds_error "Senha não pode ser vazia"
+    ROOT_PASS=$(ds_password "Senha para root")
+  done
+  log "Senha do root configurada"
+  
+  log "Configuração concluída: hostname=$HOSTNAME, user=$USERNAME"
+}
+
+step_confirm() {
+  log "STEP: Confirm"
+  ds_confirm_screen "$SELECTED_DISK" "$HOSTNAME" "$USERNAME"
+  
+  log "Aguardando confirmação final..."
+  if ! ds_confirm "CONFIRMA A INSTALAÇÃO? TODOS OS DADOS SERÃO APAGADOS!"; then
+    log "Instalação cancelada na tela de confirmação"
+    exit 0
+  fi
+  
+  log "✓ Instalação confirmada pelo usuário"
+}
+
+step_install() {
+  log "STEP: Install - INICIANDO INSTALAÇÃO"
+  local total_steps=6
+  local current_step=0
+  
+  # 1. Particionamento
+  ((current_step++ || true))
+  log "[$current_step/$total_steps] Particionamento..."
+  ds_install_progress_screen "$current_step" "$total_steps" "Particionando disco..."
+  
+  log "Limpando disco $SELECTED_DISK..."
+  ds_spinner "Limpando disco..." bash -c "partition_wipe_disk $SELECTED_DISK" || error_exit "Falha ao limpar disco"
+  log "✓ Disco limpo"
+  
+  log "Criando partições GPT..."
+  ds_spinner "Criando partições GPT..." bash -c "partition_create_gpt $SELECTED_DISK" || error_exit "Falha ao criar partições"
+  log "✓ Partições criadas"
+  
+  local part_esp part_zfs
+  part_esp=$(partition_get_esp "$SELECTED_DISK")
+  part_zfs=$(partition_get_zfs "$SELECTED_DISK")
+  log "Partições: ESP=$part_esp, ZFS=$part_zfs"
+  
+  log "Formatando ESP..."
+  ds_spinner "Formatando ESP..." bash -c "partition_format_esp $part_esp" || error_exit "Falha ao formatar ESP"
+  log "✓ ESP formatado"
+  
+  log "Particionamento concluído: ESP=$part_esp, ZFS=$part_zfs"
+  
+  # 2. Configuração ZFS
+  ((current_step++ || true))
+  log "[$current_step/$total_steps] Configuração ZFS..."
+  ds_install_progress_screen "$current_step" "$total_steps" "Configurando ZFS..."
+  
+  log "Criando pool ZFS..."
+  ds_spinner "Criando pool ZFS..." bash -c "zfs_create_pool $part_zfs" || error_exit "Falha ao criar pool ZFS"
+  log "✓ Pool ZFS criado"
+  
+  log "Criando datasets..."
+  ds_spinner "Criando datasets..." bash -c "zfs_create_datasets" || error_exit "Falha ao criar datasets"
+  log "✓ Datasets criados"
+  
+  log "Pool ZFS criado com sucesso"
+  
+  # 3. Cópia do sistema
+  ((current_step++ || true))
+  log "[$current_step/$total_steps] Cópia do sistema..."
+  ds_install_progress_screen "$current_step" "$total_steps" "Copiando arquivos do sistema..."
+  
+  log "Iniciando rsync..."
+  ds_spinner "Sincronizando arquivos (isso pode demorar)..." bash -c "
+    rsync -aAXH --info=progress2 \
+      --exclude={/dev/*,/proc/*,/sys/*,/tmp/*,/run/*,/mnt/*,/media/*,/lost+found,/var/log/*} \
+      / ${MOUNT_POINT}/
+  " || error_exit "Falha na cópia do sistema"
+  log "✓ Cópia concluída"
+  
+  # Cria diretórios necessários
+  mkdir -p "${MOUNT_POINT}"/{dev,proc,sys,tmp,run,mnt,media}
+  chmod 1777 "${MOUNT_POINT}/tmp"
+  log "✓ Diretórios criados"
+  
+  log "Cópia do sistema concluída"
+  
+  # 4. Configuração do sistema
+  ((current_step++ || true))
+  log "[$current_step/$total_steps] Configuração do sistema..."
+  ds_install_progress_screen "$current_step" "$total_steps" "Configurando sistema..."
+  
+  log "Montando sistemas virtuais..."
+  system_mount_vfs "$MOUNT_POINT" || error_exit "Falha ao montar sistemas virtuais"
+  log "✓ Sistemas virtuais montados"
+  
+  log "Configurando hostname..."
+  system_set_hostname "$HOSTNAME" "$MOUNT_POINT" || error_exit "Falha ao configurar hostname"
+  log "✓ Hostname configurado"
+  
+  log "Configurando timezone..."
+  system_set_timezone "UTC" "$MOUNT_POINT" || log "AVISO: Falha ao configurar timezone"
+  log "✓ Timezone configurado"
+  
+  log "Configurando locales..."
+  system_set_locales "$MOUNT_POINT" || log "AVISO: Falha ao configurar locales"
+  log "✓ Locales configurados"
+  
+  log "Configurando rede..."
+  system_configure_network "$MOUNT_POINT" || log "AVISO: Falha ao configurar rede"
+  log "✓ Rede configurada"
+  
+  log "Gerando hostid..."
+  system_generate_hostid "$MOUNT_POINT" || error_exit "Falha ao gerar hostid"
+  log "✓ Hostid gerado"
+  
+  log "Criando usuário..."
+  system_create_user "$USERNAME" "$USER_PASS" "$MOUNT_POINT" || error_exit "Falha ao criar usuário"
+  log "✓ Usuário criado"
+  
+  log "Configurando senha do root..."
+  system_set_root_password "$ROOT_PASS" "$MOUNT_POINT" || error_exit "Falha ao configurar senha do root"
+  log "✓ Senha do root configurada"
+  
+  log "Configurando fstab..."
+  system_configure_fstab "$POOL_NAME" "$MOUNT_POINT" || error_exit "Falha ao configurar fstab"
+  log "✓ fstab configurado"
+  
+  log "Configuração do sistema concluída"
+  
+  # 5. Instalação do bootloader
+  ((current_step++ || true))
+  log "[$current_step/$total_steps] Instalação do bootloader..."
+  ds_install_progress_screen "$current_step" "$total_steps" "Instalando bootloader..."
+  
+  log "Instalando ZFSBootMenu..."
+  ds_spinner "Copiando ZFSBootMenu..." bash -c "zbm_install $part_esp $MOUNT_POINT" || error_exit "Falha ao instalar ZFSBootMenu"
+  log "✓ ZFSBootMenu instalado"
+  
+  if [[ "$FIRMWARE_MODE" == "UEFI" ]]; then
+    log "Configurando EFI..."
+    ds_spinner "Configurando EFI..." bash -c "zbm_configure_efi $SELECTED_DISK 2 $MOUNT_POINT" || log "AVISO: Falha ao configurar EFI"
+    log "✓ EFI configurado"
+  fi
+  
+  log "Configurando fallback boot..."
+  zbm_setup_fallback "$part_esp" "$MOUNT_POINT" || log "AVISO: Falha ao configurar fallback"
+  log "✓ Fallback configurado"
+  
+  local hostid
+  hostid=$(system_get_hostid "$MOUNT_POINT")
+  log "Configurando propriedades ZFS (hostid=$hostid)..."
+  zbm_configure_zfs_properties "$POOL_NAME" "$hostid" || error_exit "Falha ao configurar propriedades ZFS"
+  log "✓ Propriedades ZFS configuradas"
+  
+  log "Bootloader instalado"
+  
+  # 6. Finalização
+  ((current_step++ || true))
+  log "[$current_step/$total_steps] Finalização..."
+  ds_install_progress_screen "$current_step" "$total_steps" "Finalizando instalação..."
+  
+  log "Atualizando initramfs..."
+  ds_spinner "Atualizando initramfs..." bash -c "system_update_initramfs $MOUNT_POINT" || log "AVISO: Falha ao atualizar initramfs"
+  log "✓ initramfs atualizado"
+  
+  log "Desmontando sistemas virtuais..."
+  system_umount_vfs "$MOUNT_POINT"
+  log "✓ Sistemas virtuais desmontados"
+  
+  log "Desmontando ESP..."
+  zbm_unmount_esp "$MOUNT_POINT"
+  log "✓ ESP desmontado"
+  
+  log "Exportando pool ZFS..."
+  ds_spinner "Exportando pool ZFS..." bash -c "zfs_export_pool" || error_exit "Falha ao exportar pool"
+  log "✓ Pool exportado"
+  
+  log "=== INSTALAÇÃO CONCLUÍDA COM SUCESSO ==="
+}
+
+step_complete() {
+  log "STEP: Complete"
+  ds_complete_screen
+  
+  log "Aguardando decisão do usuário..."
+  if ds_confirm "Deseja reiniciar agora?"; then
+    log "Reiniciando sistema..."
+    reboot
+  fi
+  
+  log "Instalação finalizada. Usuário optou por não reiniciar."
+}
+
+# ============================================================================
+# FUNÇÃO PRINCIPAL
+# ============================================================================
+
+main() {
+  log "========================================="
+  log "=== INICIANDO INSTALADOR (DEBUG) ==="
+  log "========================================="
+  
+  # Verifica se é root
+  if [[ $EUID -ne 0 ]]; then
+    error_exit "Este script deve ser executado como root"
+  fi
+  
+  log "✓ Executando como root"
+  
+  # Verifica dependências
+  log "Verificando dependências..."
+  for cmd in gum zpool gdisk sgdisk wipefs rsync; do
+    if command -v "$cmd" &>/dev/null; then
+      log "✓ $cmd encontrado"
+    else
+      error_exit "Dependência não encontrada: $cmd"
+    fi
+  done
+  
+  # Configura trap para cleanup
+  trap cleanup EXIT
+  
+  # Inicializa log
+  mkdir -p "$(dirname "$LOG_FILE")"
+  log "Log inicializado: $LOG_FILE"
+  
+  # Carrega módulos
+  load_modules
+  
+  # Garante que set -e que venha dos módulos não quebre o fluxo principal
+  set +e
+  
+  # Inicializa log do Design System
+  ds_log "Instalador iniciado"
+  step_welcome
+  step_select_disk
+  step_configure
+  step_confirm
+  step_install
+  step_complete
+  
+  log "========================================="
+  log "=== INSTALAÇÃO FINALIZADA ==="
+  log "========================================="
+}
+
+# Executa main
+main "$@"

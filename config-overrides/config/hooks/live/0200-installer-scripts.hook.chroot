@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+# Hook live-build: Garante permissões dos scripts do instalador
+#
+
+set -e
+
+echo "📦 Configurando permissões do instalador..."
+
+# Garante permissões de execução
+chmod +x /usr/local/bin/install-zfs-debian 2>/dev/null || true
+chmod +x /usr/local/lib/fileserver-ds.sh 2>/dev/null || true
+chmod +x /usr/local/lib/installer/*.sh 2>/dev/null || true
+
+# Verifica instalação
+echo "✅ Scripts instalados:"
+ls -la /usr/local/bin/install-zfs-debian 2>/dev/null || echo "⚠ install-zfs-debian não encontrado"
+ls -la /usr/local/lib/fileserver-ds.sh 2>/dev/null || echo "⚠ fileserver-ds.sh não encontrado"
+ls -la /usr/local/lib/installer/*.sh 2>/dev/null || echo "⚠ Módulos não encontrados"
+
+echo "✅ Hook concluído"
