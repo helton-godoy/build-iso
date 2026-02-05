@@ -23,6 +23,7 @@ ibrazilian
 ifupdown2
 iproute2
 iputils-ping
+isc-dhcp-client
 jq
 keyboard-configuration
 kmod
@@ -45,6 +46,7 @@ rsync
 sed
 squashfs-tools
 sudo
+sshpass
 tzdata
 unzip
 util-linux
