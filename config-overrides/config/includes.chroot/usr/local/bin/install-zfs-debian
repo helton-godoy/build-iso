@@ -1,227 +1,362 @@
 #!/usr/bin/env bash
 #
-# install-zfs-debian - Instalador Avançado Aurora (ZFS + Gum)
+# install-zfs-debian - Instalador ZFS Debian (arquitetura modular v2.0)
+#
+# Entry point principal que orquestra o fluxo de instalação usando
+# o Design System v2.0 e módulos especializados.
 #
 
 set -euo pipefail
 
-# --- Configurações ---
+# ============================================================================
+# CONFIGURAÇÕES GLOBAIS
+# ============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="${SCRIPT_DIR}/../lib/installer"
 POOL_NAME="zroot"
-ZBM_BIN_DIR="/usr/share/zfsbootmenu"
-MOUNT_POINT="/mnt/target"
+MOUNT_POINT="/mnt"
 LOG_FILE="/var/log/installer.log"
 
-# Cores e Estilos (Gum)
-PRIMARY_COLOR="#00D7FF" # Cyan/Blue Aurora
+# Variáveis do wizard
+HOSTNAME=""
+USERNAME=""
+USER_PASS=""
+ROOT_PASS=""
+SELECTED_DISK=""
+FIRMWARE_MODE=""
 
-# --- Helpers ---
+# ============================================================================
+# FUNÇÕES DE UTILIDADE
+# ============================================================================
+
 log() {
-	echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >>"$LOG_FILE"
+  local msg="$1"
+  local timestamp
+  timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+  echo "[$timestamp] $msg" >> "$LOG_FILE"
 }
 
 error_exit() {
-	gum format -- "# ❌ Erro Crítico" "$*"
-	log "ERROR: $*"
-	cleanup
-	exit 1
+  local msg="$1"
+  log "ERROR: $msg"
+  
+  if command -v gum &>/dev/null; then
+    gum style --foreground "#ef4444" "✗ $msg"
+  else
+    echo "ERROR: $msg" >&2
+  fi
+  
+  cleanup
+  exit 1
 }
 
 cleanup() {
-	log "Iniciando limpeza..."
-	sync
-	if mountpoint -q "$MOUNT_POINT/boot/efi"; then umount "$MOUNT_POINT/boot/efi"; fi
-
-	# Desmontar sistemas virtuais se estiverem montados
-	for dir in dev proc sys run; do
-		if mountpoint -q "$MOUNT_POINT/$dir"; then umount -l "$MOUNT_POINT/$dir"; fi
-	done
-
-	if zpool list "$POOL_NAME" >/dev/null 2>&1; then
-		zpool export -a || true
-	fi
+  log "Iniciando limpeza..."
+  sync
+  
+  # Desmonta ESP se montado
+  if mountpoint -q "${MOUNT_POINT}/boot/efi" 2>/dev/null; then
+    umount "${MOUNT_POINT}/boot/efi" 2>/dev/null || true
+  fi
+  
+  # Desmonta sistemas virtuais
+  for dir in dev proc sys run; do
+    if mountpoint -q "${MOUNT_POINT}/${dir}" 2>/dev/null; then
+      umount -l "${MOUNT_POINT}/${dir}" 2>/dev/null || true
+    fi
+  done
+  
+  # Desmonta ZFS
+  if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+    umount -R "$MOUNT_POINT" 2>/dev/null || true
+  fi
+  
+  # Exporta pool se existir
+  if zpool list "$POOL_NAME" &>/dev/null; then
+    zpool export "$POOL_NAME" 2>/dev/null || true
+  fi
 }
 
-trap cleanup ERR SIGINT SIGTERM
+# ============================================================================
+# CARREGAMENTO DE MÓDULOS
+# ============================================================================
 
-# --- Interface TUI ---
-
-welcome_screen() {
-	clear
-	gum format -- "
-# 🌌 Aurora OS - Instalador ZFS
-Bem-vindo ao instalador oficial do **Aurora OS**.
-Este assistente irá guiá-lo através da instalação do Debian com **ZFS-on-Root** e **ZFSBootMenu**.
-
-> *Aviso: Este processo pode ser destrutivo para o disco selecionado.*
-"
-	gum confirm "Deseja iniciar a instalação agora?" || exit 0
+load_modules() {
+  # Carrega Design System
+  if [[ -f "${LIB_DIR}/../fileserver-ds.sh" ]]; then
+    source "${LIB_DIR}/../fileserver-ds.sh"
+  else
+    echo "ERRO: Design System não encontrado" >&2
+    exit 1
+  fi
+  
+  # Carrega módulos do instalador
+  local modules=(
+    "firmware-detection.sh"
+    "disk-detection.sh"
+    "partitioning.sh"
+    "zfs-setup.sh"
+    "system-config.sh"
+    "zbm-install.sh"
+  )
+  
+  for module in "${modules[@]}"; do
+    local module_path="${LIB_DIR}/${module}"
+    if [[ -f "$module_path" ]]; then
+      source "$module_path"
+      log "Módulo carregado: $module"
+    else
+      error_exit "Módulo não encontrado: $module"
+    fi
+  done
 }
 
-collect_info() {
-	HOSTNAME=$(gum input --placeholder "Hostname do sistema" --value "aurora")
-	USERNAME=$(gum input --placeholder "Nome do usuário comum" --value "admin")
+# ============================================================================
+# FLUXO DO WIZARD
+# ============================================================================
 
-	gum format -- "### Configuração de Segurança"
-	USER_PASS=$(gum input --password --placeholder "Senha para o usuário $USERNAME")
-	ROOT_PASS=$(gum input --password --placeholder "Senha para o usuário root")
-
-	if [[ -z "$USER_PASS" || -z "$ROOT_PASS" ]]; then
-		error_exit "As senhas não podem ser vazias."
-	fi
+step_welcome() {
+  firmware_detect
+  FIRMWARE_MODE=$(firmware_get_mode)
+  
+  ds_welcome_screen "$FIRMWARE_MODE"
+  
+  if ! ds_confirm "Deseja iniciar a instalação?"; then
+    log "Instalação cancelada pelo usuário na tela de boas-vindas"
+    exit 0
+  fi
 }
 
-select_disk() {
-	local disks
-	disks=$(lsblk -d -n -o NAME,SIZE,MODEL -e 7,11 | awk '{printf "/dev/%s (%s - %s)\n", $1, $2, substr($0, index($0,$3))}')
-
-	if [[ -z "$disks" ]]; then
-		error_exit "Nenhum disco detectado."
-	fi
-
-	SELECTED_RAW=$(echo "$disks" | gum choose --header "Selecione o disco de destino:")
-	DISK_PATH=$(echo "$SELECTED_RAW" | awk '{print $1}')
-
-	gum format -- "Você selecionou: **$DISK_PATH**"
-	gum confirm "⚠️ TODOS OS DADOS EM $DISK_PATH SERÃO APAGADOS. Confirmar?" || exit 0
+step_select_disk() {
+  ds_disk_select_screen
+  
+  if ! disk_has_available; then
+    error_exit "Nenhum disco disponível encontrado"
+  fi
+  
+  local disk_list
+  disk_list=$(disk_list_available)
+  
+  local selected
+  selected=$(echo "$disk_list" | gum choose --header "Selecione o disco de destino:")
+  
+  # Extrai apenas o caminho do dispositivo
+  SELECTED_DISK=$(echo "$selected" | awk '{print $1}')
+  
+  if [[ -z "$SELECTED_DISK" ]]; then
+    error_exit "Nenhum disco selecionado"
+  fi
+  
+  ds_card "$(ds_text_bold "Disco selecionado:")
+$(disk_get_info "$SELECTED_DISK")" "info"
+  
+  log "Disco selecionado: $SELECTED_DISK"
 }
 
-# --- Lógica de Instalação ---
-
-prepare_disk() {
-	gum spin --spinner dot --title "Limpando e particionando $DISK_PATH..." -- bash -c "
-        wipefs -a $DISK_PATH
-        sgdisk --zap-all $DISK_PATH
-        sgdisk -n 1:2048:+1M -t 1:EF02 -c 1:'BIOS Boot' $DISK_PATH
-        sgdisk -n 2:0:+512M -t 2:EF00 -c 2:'EFI System' $DISK_PATH
-        sgdisk -n 3:0:0 -t 3:BF00 -c 3:'ZFS Root' $DISK_PATH
-        partprobe $DISK_PATH
-        sleep 2
-    "
+step_configure() {
+  ds_config_screen
+  
+  # Hostname
+  HOSTNAME=$(ds_input "Hostname do sistema" "fileserver")
+  while [[ ! "$HOSTNAME" =~ ^[a-zA-Z0-9-]+$ ]]; do
+    ds_error "Hostname inválido. Use apenas letras, números e hífens."
+    HOSTNAME=$(ds_input "Hostname do sistema" "fileserver")
+  done
+  
+  # Usuário
+  USERNAME=$(ds_input "Nome do usuário" "admin")
+  while [[ -z "$USERNAME" ]] || [[ ! "$USERNAME" =~ ^[a-z_][a-z0-9_-]*$ ]]; do
+    ds_error "Nome de usuário inválido"
+    USERNAME=$(ds_input "Nome do usuário" "admin")
+  done
+  
+  # Senhas
+  ds_section "Segurança"
+  
+  USER_PASS=$(ds_password "Senha para $USERNAME")
+  while [[ -z "$USER_PASS" ]]; do
+    ds_error "Senha não pode ser vazia"
+    USER_PASS=$(ds_password "Senha para $USERNAME")
+  done
+  
+  ROOT_PASS=$(ds_password "Senha para root")
+  while [[ -z "$ROOT_PASS" ]]; do
+    ds_error "Senha não pode ser vazia"
+    ROOT_PASS=$(ds_password "Senha para root")
+  done
+  
+  log "Configuração coletada: hostname=$HOSTNAME, user=$USERNAME"
 }
 
-setup_zfs() {
-	local part3
-	[[ "$DISK_PATH" =~ [0-9]$ ]] && part3="${DISK_PATH}p3" || part3="${DISK_PATH}3"
-
-	gum spin --spinner dot --title "Criando ZFS Pool e Datasets..." -- bash -c "
-        zpool create -f \
-            -o ashift=12 \
-            -o autotrim=on \
-            -O acltype=posixacl -O canmount=off -O compression=zstd \
-            -O dnodesize=auto -O normalization=formD -O relatime=on \
-            -O xattr=sa -O mountpoint=none \
-            $POOL_NAME $part3
-
-        zfs create -o canmount=off -o mountpoint=none $POOL_NAME/ROOT
-        zfs create -o canmount=noauto -o mountpoint=/ $POOL_NAME/ROOT/debian
-        
-        mkdir -p $MOUNT_POINT
-        zfs mount $POOL_NAME/ROOT/debian
-        
-        zfs create -o mountpoint=/home $POOL_NAME/home
-        zfs create -o mountpoint=/root $POOL_NAME/home/root
-        zfs create -o mountpoint=/var -o canmount=off $POOL_NAME/var
-        zfs create $POOL_NAME/var/log
-        zfs create $POOL_NAME/var/tmp
-    "
+step_confirm() {
+  ds_confirm_screen "$SELECTED_DISK" "$HOSTNAME" "$USERNAME"
+  
+  if ! ds_confirm "CONFIRMA A INSTALAÇÃO? TODOS OS DADOS SERÃO APAGADOS!"; then
+    log "Instalação cancelada na tela de confirmação"
+    exit 0
+  fi
 }
 
-copy_system() {
-	# Usando gum spin para o rsync (poderíamos usar progress se calculássemos o tamanho, mas spin é mais simples para este contexto)
-	gum spin --spinner pulse --title "Sincronizando arquivos do sistema Live (isso pode demorar)..." -- rsync -aAXH \
-		--exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found"} \
-		/ "$MOUNT_POINT/"
-
-	mkdir -p "$MOUNT_POINT"/{dev,proc,sys,tmp,run,mnt,media}
-	chmod 1777 "$MOUNT_POINT/tmp"
+step_install() {
+  local total_steps=6
+  local current_step=0
+  
+  # 1. Particionamento
+  ((current_step++))
+  ds_install_progress_screen "$current_step" "$total_steps" "Particionando disco..."
+  
+  ds_spinner "Limpando disco..." bash -c "partition_wipe_disk $SELECTED_DISK"
+  ds_spinner "Criando partições GPT..." bash -c "partition_create_gpt $SELECTED_DISK"
+  
+  local part_esp part_zfs
+  part_esp=$(partition_get_esp "$SELECTED_DISK")
+  part_zfs=$(partition_get_zfs "$SELECTED_DISK")
+  
+  ds_spinner "Formatando ESP..." bash -c "partition_format_esp $part_esp"
+  
+  log "Particionamento concluído: ESP=$part_esp, ZFS=$part_zfs"
+  
+  # 2. Configuração ZFS
+  ((current_step++))
+  ds_install_progress_screen "$current_step" "$total_steps" "Configurando ZFS..."
+  
+  ds_spinner "Criando pool ZFS..." bash -c "zfs_create_pool $part_zfs"
+  ds_spinner "Criando datasets..." bash -c "zfs_create_datasets"
+  
+  log "Pool ZFS criado com sucesso"
+  
+  # 3. Cópia do sistema
+  ((current_step++))
+  ds_install_progress_screen "$current_step" "$total_steps" "Copiando arquivos do sistema..."
+  
+  ds_spinner "Sincronizando arquivos..." bash -c "
+    rsync -aAXH --info=progress2 \
+      --exclude={/dev/*,/proc/*,/sys/*,/tmp/*,/run/*,/mnt/*,/media/*,/lost+found,/var/log/*} \
+      / ${MOUNT_POINT}/
+  "
+  
+  # Cria diretórios necessários
+  mkdir -p "${MOUNT_POINT}"/{dev,proc,sys,tmp,run,mnt,media}
+  chmod 1777 "${MOUNT_POINT}/tmp"
+  
+  log "Cópia do sistema concluída"
+  
+  # 4. Configuração do sistema
+  ((current_step++))
+  ds_install_progress_screen "$current_step" "$total_steps" "Configurando sistema..."
+  
+  # Monta sistemas virtuais
+  system_mount_vfs "$MOUNT_POINT"
+  
+  # Configura hostname
+  system_set_hostname "$HOSTNAME" "$MOUNT_POINT"
+  
+  # Configura timezone e locales
+  system_set_timezone "UTC" "$MOUNT_POINT"
+  system_set_locales "$MOUNT_POINT"
+  
+  # Configura rede
+  system_configure_network "$MOUNT_POINT"
+  
+  # Gera hostid
+  system_generate_hostid "$MOUNT_POINT"
+  
+  # Cria usuário
+  system_create_user "$USERNAME" "$USER_PASS" "$MOUNT_POINT"
+  system_set_root_password "$ROOT_PASS" "$MOUNT_POINT"
+  
+  # Configura fstab
+  system_configure_fstab "$POOL_NAME" "$MOUNT_POINT"
+  
+  log "Configuração do sistema concluída"
+  
+  # 5. Instalação do bootloader
+  ((current_step++))
+  ds_install_progress_screen "$current_step" "$total_steps" "Instalando bootloader..."
+  
+  # Instala ZBM
+  ds_spinner "Copiando ZFSBootMenu..." bash -c "zbm_install $part_esp $MOUNT_POINT"
+  
+  # Configura EFI
+  if [[ "$FIRMWARE_MODE" == "UEFI" ]]; then
+    ds_spinner "Configurando EFI..." bash -c "zbm_configure_efi $SELECTED_DISK 2 $MOUNT_POINT"
+  fi
+  
+  # Configura fallback boot
+  zbm_setup_fallback "$part_esp" "$MOUNT_POINT"
+  
+  # Configura propriedades ZFS
+  local hostid
+  hostid=$(system_get_hostid "$MOUNT_POINT")
+  zbm_configure_zfs_properties "$POOL_NAME" "$hostid"
+  
+  log "Bootloader instalado"
+  
+  # 6. Finalização
+  ((current_step++))
+  ds_install_progress_screen "$current_step" "$total_steps" "Finalizando instalação..."
+  
+  # Atualiza initramfs
+  ds_spinner "Atualizando initramfs..." bash -c "system_update_initramfs $MOUNT_POINT"
+  
+  # Desmonta sistemas virtuais
+  system_umount_vfs "$MOUNT_POINT"
+  
+  # Desmonta ESP
+  zbm_unmount_esp "$MOUNT_POINT"
+  
+  # Exporta pool
+  ds_spinner "Exportando pool ZFS..." bash -c "zfs_export_pool"
+  
+  log "Instalação finalizada com sucesso"
 }
 
-run_in_chroot() {
-	local cmd="$1"
-	chroot "$MOUNT_POINT" /usr/bin/env bash -c "$cmd"
+step_complete() {
+  ds_complete_screen
+  
+  if ds_confirm "Deseja reiniciar agora?"; then
+    reboot
+  fi
 }
 
-configure_system() {
-	gum spin --spinner dot --title "Configurando sistema (Chroot)..." -- bash -c "
-        # Montar sistemas virtuais
-        mount --bind /dev $MOUNT_POINT/dev
-        mount --bind /proc $MOUNT_POINT/proc
-        mount --bind /sys $MOUNT_POINT/sys
-        mount --bind /run $MOUNT_POINT/run
+# ============================================================================
+# FUNÇÃO PRINCIPAL
+# ============================================================================
 
-        # Hostname e Hosts
-        echo '$HOSTNAME' > $MOUNT_POINT/etc/hostname
-        printf '127.0.0.1\tlocalhost\n127.0.1.1\t%s\n' '$HOSTNAME' > $MOUNT_POINT/etc/hosts
-
-        # Sincronizar hostid
-        zgenhostid -f -o $MOUNT_POINT/etc/hostid
-
-        # Usuarios e Senhas
-        echo 'root:$ROOT_PASS' | chroot $MOUNT_POINT chpasswd
-        chroot $MOUNT_POINT useradd -m -s /bin/bash -G sudo '$USERNAME'
-        echo '$USERNAME:$USER_PASS' | chroot $MOUNT_POINT chpasswd
-
-        # Fstab mínimo
-        echo '$POOL_NAME/ROOT/debian / zfs defaults 0 0' > $MOUNT_POINT/etc/fstab
-
-        # Gerar initramfs (CRÍTICO para ZFS)
-        chroot $MOUNT_POINT update-initramfs -u -k all
-    "
-}
-
-setup_bootloader() {
-	local part2
-	[[ "$DISK_PATH" =~ [0-9]$ ]] && part2="${DISK_PATH}p2" || part2="${DISK_PATH}2"
-
-	gum spin --spinner dot --title "Instalando ZFSBootMenu..." -- bash -c "
-        mkfs.vfat -F 32 -n 'EFI' $part2
-        mkdir -p $MOUNT_POINT/boot/efi
-        mount $part2 $MOUNT_POINT/boot/efi
-        
-        mkdir -p $MOUNT_POINT/boot/efi/EFI/ZBM
-        if [[ -d '$ZBM_BIN_DIR' ]]; then
-            cp $ZBM_BIN_DIR/*.EFI $MOUNT_POINT/boot/efi/EFI/ZBM/zfsbootmenu.EFI
-        fi
-        
-        if command -v efibootmgr >/dev/null; then
-            efibootmgr -c -d $DISK_PATH -p 2 -L 'ZFSBootMenu' -l '\\EFI\\ZBM\\zfsbootmenu.EFI'
-        fi
-        
-        # Configurar linha de comando do kernel no dataset
-        zfs set org.zfsbootmenu:commandline='quiet splash' $POOL_NAME/ROOT/debian
-    "
-}
-
-finalize() {
-	gum spin --spinner dot --title "Finalizando e exportando pool..." -- bash -c "
-        sync
-        umount $MOUNT_POINT/boot/efi
-        zpool export $POOL_NAME
-    "
-
-	gum format -- "
-# 🎉 Instalação Concluída!
-O **Aurora OS** foi instalado com sucesso.
-
-1. Remova a mídia de instalação.
-2. Reinicie o computador.
-"
-}
-
-# --- Main ---
 main() {
-	[[ $EUID -eq 0 ]] || error_exit "Este script precisa ser executado como root."
-
-	welcome_screen
-	select_disk
-	collect_info
-
-	prepare_disk
-	setup_zfs
-	copy_system
-	configure_system
-	setup_bootloader
-	finalize
+  # Verifica se é root
+  if [[ $EUID -ne 0 ]]; then
+    echo "Este script deve ser executado como root" >&2
+    exit 1
+  fi
+  
+  # Verifica dependências
+  if ! command -v gum &>/dev/null; then
+    echo "ERRO: 'gum' não encontrado. Instalador não pode continuar." >&2
+    exit 1
+  fi
+  
+  # Configura trap para cleanup
+  trap cleanup ERR SIGINT SIGTERM
+  
+  # Inicializa log
+  mkdir -p "$(dirname "$LOG_FILE")"
+  log "=== Iniciando instalador ==="
+  
+  # Carrega módulos
+  load_modules
+  
+  # Executa wizard
+  step_welcome
+  step_select_disk
+  step_configure
+  step_confirm
+  step_install
+  step_complete
+  
+  log "=== Instalação concluída ==="
 }
 
+# Executa main
 main "$@"
