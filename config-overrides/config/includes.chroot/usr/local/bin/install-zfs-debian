@@ -331,6 +331,42 @@ main() {
     exit 1
   fi
   
+  # Parse argumentos
+  local auto_install=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --auto-install)
+        auto_install=1
+        export AUTOCONFIRM=1
+        shift
+        ;;
+      --disk)
+        SELECTED_DISK="$2"
+        shift 2
+        ;;
+      --hostname)
+        HOSTNAME="$2"
+        shift 2
+        ;;
+      --username)
+        USERNAME="$2"
+        shift 2
+        ;;
+      --user-pass)
+        USER_PASS="$2"
+        shift 2
+        ;;
+      --root-pass)
+        ROOT_PASS="$2"
+        shift 2
+        ;;
+      *)
+        echo "Opção desconhecida: $1" >&2
+        exit 1
+        ;;
+    esac
+  done
+  
   # Verifica dependências
   if ! command -v gum &>/dev/null; then
     echo "ERRO: 'gum' não encontrado. Instalador não pode continuar." >&2
@@ -347,15 +383,40 @@ main() {
   # Carrega módulos
   load_modules
   
-  # Executa wizard
-  step_welcome
-  step_select_disk
-  step_configure
-  step_confirm
-  step_install
-  step_complete
-  
-  log "=== Instalação concluída ==="
+  if [[ $auto_install -eq 1 ]]; then
+    # Modo automatizado - usa valores padrão ou de env
+    firmware_detect
+    FIRMWARE_MODE=$(firmware_get_mode)
+    log "Modo automatizado ativado. FIRMWARE=$FIRMWARE_MODE"
+    
+    # Define valores padrão se não fornecidos
+    SELECTED_DISK="${SELECTED_DISK:-/dev/vda}"
+    HOSTNAME="${HOSTNAME:-fileserver}"
+    USERNAME="${USERNAME:-admin}"
+    USER_PASS="${USER_PASS:-admin123}"
+    ROOT_PASS="${ROOT_PASS:-root123}"
+    
+    log "Configuração automática: disk=$SELECTED_DISK hostname=$HOSTNAME user=$USERNAME"
+    
+    # Executa instalação sem wizard
+    step_install
+    
+    log "=== Instalação automática concluída ==="
+    
+    # Reboot automático
+    sync
+    reboot
+  else
+    # Modo interativo original
+    step_welcome
+    step_select_disk
+    step_configure
+    step_confirm
+    step_install
+    step_complete
+    
+    log "=== Instalação concluída ==="
+  fi
 }
 
 # Executa main

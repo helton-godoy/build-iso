@@ -218,6 +218,12 @@ ds_confirm() {
 	local affirmative="${2:-Sim}"
 	local negative="${3:-Não}"
 
+	# Se AUTOCONFIRM=1, pula a confirmação e retorna sucesso
+	if [[ "${AUTOCONFIRM:-0}" == "1" ]]; then
+		gum style --foreground "$DS_COLOR_SUCCESS" "✓ [AUTO-CONFIRMADO] $message"
+		return 0
+	fi
+
 	gum confirm "$message" \
 		--prompt.foreground "$DS_COLOR_SLATE_600" \
 		--selected.background "$DS_COLOR_PRIMARY" \
