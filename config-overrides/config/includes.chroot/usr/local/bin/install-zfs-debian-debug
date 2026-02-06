@@ -23,7 +23,9 @@ HOSTNAME=""
 USERNAME=""
 USER_PASS=""
 ROOT_PASS=""
-SELECTED_DISK=""
+BOOT_DISK=""
+SELECTED_DISKS=()
+POOL_TYPE=""
 FIRMWARE_MODE=""
 
 # ============================================================================
@@ -166,22 +168,90 @@ step_select_disk() {
   
   local disk_list
   disk_list=$(disk_list_available) || error_exit "Falha ao listar discos"
-  log "Discos encontrados:"
+  
+  local num_disks
+  num_disks=$(echo "$disk_list" | wc -l)
+  log "Discos encontrados: $num_disks"
   log "$disk_list"
   
-  local selected
-  selected=$(echo "$disk_list" | gum choose --header "Selecione o disco de destino:") || error_exit "Falha na seleção de disco"
-  
-  # Extrai apenas o caminho do dispositivo
-  SELECTED_DISK=$(echo "$selected" | awk '{print $1}')
-  
-  if [[ -z "$SELECTED_DISK" ]]; then
-    error_exit "Nenhum disco selecionado"
+  if [[ $num_disks -eq 1 ]]; then
+    # Disco único - modo simples
+    local selected
+    selected=$(echo "$disk_list" | awk '{print $1}')
+    BOOT_DISK="$selected"
+    SELECTED_DISKS=("$selected")
+    POOL_TYPE="stripe"
+    
+    log "Disco único detectado: $BOOT_DISK"
+    ds_card "$(ds_text_bold "Disco único detectado:")
+$(disk_get_info "$BOOT_DISK")
+Tipo de pool: stripe (sem redundância)" "info"
+  else
+    # Múltiplos discos - seleção avançada
+    ds_section "Seleção de Discos"
+    gum style --foreground "$DS_COLOR_TEXT_MUTED" \
+      "Você tem $num_disks discos disponíveis." \
+      "Selecione um ou mais discos para o pool ZFS." \
+      "Use ESPAÇO para selecionar, ENTER para confirmar."
+    
+    log "Aguardando seleção de múltiplos discos..."
+    local selected
+    selected=$(echo "$disk_list" | gum choose --no-limit --header "Selecione os discos:") || error_exit "Falha na seleção de disco"
+    
+    if [[ -z "$selected" ]]; then
+      error_exit "Nenhum disco selecionado"
+    fi
+    
+    # Processa seleção múltipla
+    while IFS= read -r line; do
+      local disk_path
+      disk_path=$(echo "$line" | awk '{print $1}')
+      SELECTED_DISKS+=("$disk_path")
+      log "Disco adicionado: $disk_path"
+    done <<< "$selected"
+    
+    BOOT_DISK="${SELECTED_DISKS[0]}"
+    local selected_count=${#SELECTED_DISKS[@]}
+    log "Total de discos selecionados: $selected_count"
+    log "Disco de boot: $BOOT_DISK"
+    
+    # Seleção de tipo de pool
+    ds_section "Tipo de Pool ZFS"
+    
+    local available_types
+    available_types=$(zfs_get_available_pool_types "$selected_count")
+    
+    local type_options=""
+    while IFS= read -r ptype; do
+      local desc=""
+      local usable
+      usable=$(zfs_calculate_usable_space "$ptype" "$selected_count" 10)
+      case "$ptype" in
+        stripe) desc="Máximo desempenho, sem redundância (~${usable}GB)" ;;
+        mirror) desc="Espelhamento, tolera 1 falha (~${usable}GB)" ;;
+        raidz1) desc="RAID-Z1, tolera 1 falha (~${usable}GB)" ;;
+        raidz2) desc="RAID-Z2, tolera 2 falhas (~${usable}GB)" ;;
+        raidz3) desc="RAID-Z3, tolera 3 falhas (~${usable}GB)" ;;
+      esac
+      type_options+="${ptype} - ${desc}"$'\n'
+    done <<< "$available_types"
+    
+    log "Tipos de pool disponíveis:"
+    log "$available_types"
+    
+    local selected_type
+    selected_type=$(echo -n "$type_options" | gum choose --header "Selecione o tipo de pool:")
+    POOL_TYPE=$(echo "$selected_type" | cut -d' ' -f1)
+    
+    log "Tipo de pool selecionado: $POOL_TYPE"
+    
+    ds_card "$(ds_text_bold "Configuração selecionada:")
+Discos: ${#SELECTED_DISKS[@]} selecionados
+Boot: $BOOT_DISK
+Pool: $POOL_TYPE" "info"
   fi
   
-  log "Disco selecionado: $SELECTED_DISK"
-  ds_card "$(ds_text_bold "Disco selecionado:")
-$(disk_get_info "$SELECTED_DISK")" "info"
+  log "Seleção de disco concluída: ${SELECTED_DISKS[*]}, tipo: $POOL_TYPE"
 }
 
 step_configure() {
@@ -226,9 +296,20 @@ step_configure() {
 
 step_confirm() {
   log "STEP: Confirm"
-  ds_confirm_screen "$SELECTED_DISK" "$HOSTNAME" "$USERNAME"
+  ds_confirm_screen "$BOOT_DISK" "$HOSTNAME" "$USERNAME"
+  
+  local disk_summary="${#SELECTED_DISKS[@]} disco(s): ${SELECTED_DISKS[*]}"
+  
+  ds_card "$(ds_text_bold "Resumo da Instalação:")
+Boot: $BOOT_DISK
+Pool: $POOL_TYPE
+Discos ZFS: $disk_summary
+Hostname: $HOSTNAME
+Usuário: $USERNAME" "warning"
   
   log "Aguardando confirmação final..."
+  log "Resumo: Boot=$BOOT_DISK, Pool=$POOL_TYPE, Discos=${#SELECTED_DISKS[@]}, Host=$HOSTNAME, User=$USERNAME"
+  
   if ! ds_confirm "CONFIRMA A INSTALAÇÃO? TODOS OS DADOS SERÃO APAGADOS!"; then
     log "Instalação cancelada na tela de confirmação"
     exit 0
@@ -245,35 +326,56 @@ step_install() {
   # 1. Particionamento
   ((current_step++ || true))
   log "[$current_step/$total_steps] Particionamento..."
-  ds_install_progress_screen "$current_step" "$total_steps" "Particionando disco..."
+  ds_install_progress_screen "$current_step" "$total_steps" "Particionando discos..."
   
-  log "Limpando disco $SELECTED_DISK..."
-  ds_spinner "Limpando disco..." bash -c "partition_wipe_disk $SELECTED_DISK" || error_exit "Falha ao limpar disco"
-  log "✓ Disco limpo"
+  # Particiona o disco de boot (primeiro disco)
+  log "Particionando disco de boot: $BOOT_DISK..."
+  ds_spinner "Limpando disco de boot..." bash -c "partition_wipe_disk $BOOT_DISK" || error_exit "Falha ao limpar disco de boot"
+  log "✓ Disco de boot limpo"
   
-  log "Criando partições GPT..."
-  ds_spinner "Criando partições GPT..." bash -c "partition_create_gpt $SELECTED_DISK" || error_exit "Falha ao criar partições"
+  log "Criando partições GPT no disco de boot..."
+  ds_spinner "Criando partições GPT..." bash -c "partition_create_gpt $BOOT_DISK" || error_exit "Falha ao criar partições"
   log "✓ Partições criadas"
   
   local part_esp part_zfs
-  part_esp=$(partition_get_esp "$SELECTED_DISK")
-  part_zfs=$(partition_get_zfs "$SELECTED_DISK")
+  part_esp=$(partition_get_esp "$BOOT_DISK")
+  part_zfs=$(partition_get_zfs "$BOOT_DISK")
   log "Partições: ESP=$part_esp, ZFS=$part_zfs"
   
   log "Formatando ESP..."
   ds_spinner "Formatando ESP..." bash -c "partition_format_esp $part_esp" || error_exit "Falha ao formatar ESP"
   log "✓ ESP formatado"
   
-  log "Particionamento concluído: ESP=$part_esp, ZFS=$part_zfs"
+  # Prepara lista de partições ZFS
+  local zfs_parts=("$part_zfs")
+  
+  # Particiona discos adicionais (se houver)
+  if [[ ${#SELECTED_DISKS[@]} -gt 1 ]]; then
+    log "Particionando ${#SELECTED_DISKS[@]} discos adicionais..."
+    for disk in "${SELECTED_DISKS[@]:1}"; do
+      log "Preparando $disk..."
+      ds_spinner "Preparando $disk..." bash -c "
+        wipefs -af $disk
+        sgdisk --zap-all $disk
+        sgdisk -n1:0:0 -t1:BF00 -c1:ZFS $disk
+        partprobe $disk
+      " || error_exit "Falha ao preparar $disk"
+      zfs_parts+=("${disk}1")
+      log "✓ $disk preparado"
+    done
+  fi
+  
+  log "Particionamento concluído: ESP=$part_esp, ZFS=${zfs_parts[*]}"
   
   # 2. Configuração ZFS
   ((current_step++ || true))
   log "[$current_step/$total_steps] Configuração ZFS..."
   ds_install_progress_screen "$current_step" "$total_steps" "Configurando ZFS..."
   
-  log "Criando pool ZFS..."
-  ds_spinner "Criando pool ZFS..." bash -c "zfs_create_pool $part_zfs" || error_exit "Falha ao criar pool ZFS"
-  log "✓ Pool ZFS criado"
+  log "Criando pool ZFS ($POOL_TYPE) com ${#zfs_parts[@]} dispositivos..."
+  log "Dispositivos: ${zfs_parts[*]}"
+  ds_spinner "Criando pool ZFS ($POOL_TYPE)..." bash -c "zfs_create_pool $POOL_TYPE ${zfs_parts[*]}" || error_exit "Falha ao criar pool ZFS"
+  log "✓ Pool ZFS criado com tipo $POOL_TYPE"
   
   log "Criando datasets..."
   ds_spinner "Criando datasets..." bash -c "zfs_create_datasets" || error_exit "Falha ao criar datasets"
@@ -355,7 +457,7 @@ step_install() {
   
   if [[ "$FIRMWARE_MODE" == "UEFI" ]]; then
     log "Configurando EFI..."
-    ds_spinner "Configurando EFI..." bash -c "zbm_configure_efi $SELECTED_DISK 2 $MOUNT_POINT" || log "AVISO: Falha ao configurar EFI"
+    ds_spinner "Configurando EFI..." bash -c "zbm_configure_efi $BOOT_DISK 2 $MOUNT_POINT" || log "AVISO: Falha ao configurar EFI"
     log "✓ EFI configurado"
   fi
   
@@ -424,6 +526,44 @@ main() {
   
   log "✓ Executando como root"
   
+  # Parse argumentos
+  local auto_install=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --auto-install)
+        auto_install=1
+        export AUTOCONFIRM=1
+        log "Modo auto-install ativado"
+        shift
+        ;;
+      --disk)
+        BOOT_DISK="$2"
+        SELECTED_DISKS=("$2")
+        shift 2
+        ;;
+      --hostname)
+        HOSTNAME="$2"
+        shift 2
+        ;;
+      --username)
+        USERNAME="$2"
+        shift 2
+        ;;
+      --user-pass)
+        USER_PASS="$2"
+        shift 2
+        ;;
+      --root-pass)
+        ROOT_PASS="$2"
+        shift 2
+        ;;
+      *)
+        log "Opção desconhecida: $1"
+        shift
+        ;;
+    esac
+  done
+  
   # Verifica dependências
   log "Verificando dependências..."
   for cmd in gum zpool gdisk sgdisk wipefs rsync; do
@@ -447,14 +587,41 @@ main() {
   # Garante que set -e que venha dos módulos não quebre o fluxo principal
   set +e
   
-  # Inicializa log do Design System
-  ds_log "Instalador iniciado"
-  step_welcome
-  step_select_disk
-  step_configure
-  step_confirm
-  step_install
-  step_complete
+  if [[ $auto_install -eq 1 ]]; then
+    # Modo automatizado
+    log "=== MODO AUTO-INSTALL ==="
+    firmware_detect || error_exit "Falha ao detectar firmware"
+    FIRMWARE_MODE=$(firmware_get_mode)
+    log "Firmware: $FIRMWARE_MODE"
+    
+    # Define valores padrão
+    BOOT_DISK="${BOOT_DISK:-/dev/vda}"
+    SELECTED_DISKS=("${SELECTED_DISKS[@]:-$BOOT_DISK}")
+    POOL_TYPE="${POOL_TYPE:-stripe}"
+    HOSTNAME="${HOSTNAME:-fileserver}"
+    USERNAME="${USERNAME:-admin}"
+    USER_PASS="${USER_PASS:-admin123}"
+    ROOT_PASS="${ROOT_PASS:-root123}"
+    
+    log "Configuração: disk=$BOOT_DISK, pool=$POOL_TYPE, host=$HOSTNAME, user=$USERNAME"
+    
+    # Executa instalação direta
+    step_install
+    
+    log "=== INSTALAÇÃO AUTOMÁTICA CONCLUÍDA ==="
+    log "Reiniciando em 5 segundos..."
+    sleep 5
+    reboot
+  else
+    # Modo interativo
+    ds_log "Instalador iniciado"
+    step_welcome
+    step_select_disk
+    step_configure
+    step_confirm
+    step_install
+    step_complete
+  fi
   
   log "========================================="
   log "=== INSTALAÇÃO FINALIZADA ==="
