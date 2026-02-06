@@ -206,14 +206,29 @@ step_install() {
   ((current_step++))
   ds_install_progress_screen "$current_step" "$total_steps" "Particionando disco..."
   
-  ds_spinner "Limpando disco..." bash -c "partition_wipe_disk $SELECTED_DISK"
-  ds_spinner "Criando partições GPT..." bash -c "partition_create_gpt $SELECTED_DISK"
+  # CORREÇÃO: Chamadas diretas sem ds_spinner para preservar variáveis no shell pai
+  log "Limpando disco $SELECTED_DISK..."
+  partition_wipe_disk "$SELECTED_DISK" || error_exit "Falha ao limpar disco"
+  log "✓ Disco limpo"
   
+  log "Criando partições GPT..."
+  partition_create_gpt "$SELECTED_DISK" || error_exit "Falha ao criar partições"
+  log "✓ Partições criadas"
+  
+  # Captura das variáveis imediatamente após criação
   local part_esp part_zfs
-  part_esp=$(partition_get_esp "$SELECTED_DISK")
-  part_zfs=$(partition_get_zfs "$SELECTED_DISK")
+  part_esp=$(partition_get_esp)
+  part_zfs=$(partition_get_zfs)
   
-  ds_spinner "Formatando ESP..." bash -c "partition_format_esp $part_esp"
+  log "Partições: ESP=$part_esp, ZFS=$part_zfs"
+  
+  if [[ -z "$part_esp" || -z "$part_zfs" ]]; then
+    error_exit "Partições não encontradas após criação"
+  fi
+  
+  log "Formatando ESP..."
+  partition_format_esp "$part_esp" || error_exit "Falha ao formatar ESP"
+  log "✓ ESP formatado"
   
   log "Particionamento concluído: ESP=$part_esp, ZFS=$part_zfs"
   
@@ -221,8 +236,14 @@ step_install() {
   ((current_step++))
   ds_install_progress_screen "$current_step" "$total_steps" "Configurando ZFS..."
   
-  ds_spinner "Criando pool ZFS..." bash -c "zfs_create_pool $part_zfs"
-  ds_spinner "Criando datasets..." bash -c "zfs_create_datasets"
+  # CORREÇÃO: Chamadas diretas sem ds_spinner
+  log "Criando pool ZFS em $part_zfs..."
+  zfs_create_pool "$part_zfs" || error_exit "Falha ao criar pool ZFS"
+  log "✓ Pool ZFS criado"
+  
+  log "Criando datasets..."
+  zfs_create_datasets || error_exit "Falha ao criar datasets"
+  log "✓ Datasets criados"
   
   log "Pool ZFS criado com sucesso"
   
