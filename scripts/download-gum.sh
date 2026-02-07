@@ -7,7 +7,7 @@ set -euo pipefail
 
 # --- Configurações ---
 REPO="charmbracelet/gum"
-DEST_DIR="$(pwd)/config-overrides/config/include.chroot/usr/local/bin"
+DEST_DIR="$(pwd)/config-overrides/config/includes.chroot/usr/local/bin"
 TEMP_DIR="/tmp/gum-download"
 
 # Cores para output

@@ -43,8 +43,9 @@ Para uso direto ou automação customizada:
 | Script                                                                            | Propósito                                  |
 | --------------------------------------------------------------------------------- | ------------------------------------------ |
 | [`scripts/vm/vm-start-test-boot-iso.sh`](../scripts/vm/vm-start-test-boot-iso.sh) | Inicia VM de teste com ISO + 4 discos      |
+| [`scripts/vm/vm-start-test-boot-disk.sh`](../scripts/vm/vm-start-test-boot-disk.sh) | Inicia VM a partir de disco instalado      |
 | [`scripts/vm/vm-start-test-all.sh`](../scripts/vm/vm-start-test-all.sh)           | Executa testes BIOS + UEFI simultaneamente |
-| [`scripts/vm/vm-connent-agent-llm.sh`](../scripts/vm/vm-connent-agent-llm.sh)     | Gateway de comunicação serial              |
+| [`scripts/vm/vm-connent-socket.sh`](../scripts/vm/vm-connent-socket.sh)           | Conexão ao console serial via socket       |
 | [`scripts/vm/vm-setup.sh`](../scripts/vm/vm-setup.sh)                             | Instala dependências de virtualização      |
 
 ---
@@ -66,6 +67,85 @@ make test-vm-all
 make vm-connect-uefi
 # ou
 make vm-connect-bios
+```
+
+---
+
+## 💾 Boot a Partir de Disco Instalado
+
+Para testar sistemas já instalados em discos virtuais, use o script [`vm-start-test-boot-disk.sh`](../scripts/vm/vm-start-test-boot-disk.sh):
+
+### Uso Básico
+
+```bash
+# Boot UEFI com disco específico
+./scripts/vm/vm-start-test-boot-disk.sh scripts/vm/disks/uefi/installed-system.qcow2
+
+# Boot BIOS com disco específico
+./scripts/vm/vm-start-test-boot-disk.sh -f bios scripts/vm/disks/bios/installed-system.qcow2
+```
+
+### Opções Disponíveis
+
+| Opção | Descrição | Padrão |
+| ----- | ---------- | ------- |
+| `-f, --firmware` | Tipo de firmware (uefi/bios) | uefi |
+| `-m, --memory` | Memória da VM | 4G |
+| `-c, --cpus` | Número de CPUs | 2 |
+| `-n, --name` | Nome da VM | disk-boot-<firmware> |
+| `-h, --help` | Mostra ajuda | - |
+
+### Exemplos Avançados
+
+```bash
+# Boot com configuração customizada
+./scripts/vm/vm-start-test-boot-disk.sh \
+  -f uefi \
+  -m 8G \
+  -c 4 \
+  -n meu-teste-zfs \
+  scripts/vm/disks/uefi/debian-zfs.qcow2
+
+# Boot BIOS com recursos mínimos
+./scripts/vm/vm-start-test-boot-disk.sh \
+  -f bios \
+  -m 2G \
+  -c 1 \
+  scripts/vm/disks/bios/debian-zfs.qcow2
+```
+
+### Validações Automáticas
+
+O script realiza as seguintes validações antes de iniciar a VM:
+
+- ✅ Verifica existência do arquivo de disco
+- ✅ Detecta formato do disco (qcow2, raw, vmdk)
+- ✅ Valida tamanho mínimo (1GB)
+- ✅ Limpa VM anterior com mesmo nome (idempotência)
+- ✅ Configura boot apropriado para firmware
+
+### Conexão ao Console
+
+Após iniciar a VM, conecte-se ao console serial:
+
+```bash
+# Via script de conexão
+./scripts/vm/vm-connent-socket.sh disk-boot-uefi
+
+# Via netcat direto
+nc -U /tmp/disk-boot-uefi.sock
+```
+
+### Criação de Disco de Teste
+
+Se precisar criar um disco de teste:
+
+```bash
+# Criar disco vazio de 20GB
+qemu-img create -f qcow2 scripts/vm/disks/uefi/test-disk.qcow2 20G
+
+# Criar disco com formato raw
+qemu-img create -f raw scripts/vm/disks/bios/test-disk.raw 20G
 ```
 
 ---
@@ -132,6 +212,16 @@ make vm-connect-bios VM_CMD="mdadm --detail /dev/md0" > raid_report.txt
 
 ## 📝 Referência de Comandos
 
+### vm-start-test-boot-disk.sh
+
+Inicia VM a partir de disco virtual com sistema instalado:
+
+- Suporta formatos: qcow2, raw, vmdk
+- Validações automáticas de disco
+- Configuração flexível via flags
+- Console serial acessível via socket
+- Limpeza automática de VMs anteriores
+
 ### make test-vm-uefi / make test-vm-bios
 
 Inicia VM isolada com:
@@ -176,3 +266,6 @@ Executa testes simultâneos:
 | Socket não encontrado | Verifique se a VM está rodando com `make vm-list`   |
 | Permissão negada      | Faça logout/login ou execute `newgrp libvirt`       |
 | Disco em uso          | Execute `make vm-destroy` para liberar recursos     |
+| Disco não encontrado  | Verifique o caminho do disco ou crie um novo       |
+| Boot falha            | Verifique se o disco contém sistema instalado válido  |
+| Formato inválido      | Use `qemu-img info <disco>` para verificar formato   |

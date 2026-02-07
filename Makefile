@@ -25,6 +25,8 @@ VM_NAME_UEFI  = nas-test-uefi
 VM_NAME_BIOS  = nas-test-bios
 VM_SOCKET_UEFI = /tmp/$(VM_NAME_UEFI).sock
 VM_SOCKET_BIOS = /tmp/$(VM_NAME_BIOS).sock
+VM_DISK_PATH_UEFI = scripts/vm/disks/uefi/installed-system.qcow2
+VM_DISK_PATH_BIOS = scripts/vm/disks/bios/installed-system.qcow2
 
 # -----------------------------------------------------------------------------
 # Targets Phony (sempre executados)
@@ -32,6 +34,7 @@ VM_SOCKET_BIOS = /tmp/$(VM_NAME_BIOS).sock
 .PHONY: all help build download-zbm setup-docker build-iso clean
 .PHONY: setup-vm vm-list vm-destroy vm-destroy-all
 .PHONY: test-vm-uefi test-vm-bios test-vm-all vm-connect-uefi vm-connect-bios
+.PHONY: vm-boot-disk-uefi vm-boot-disk-bios
 
 # -----------------------------------------------------------------------------
 # Targets Principais
@@ -57,6 +60,10 @@ help:
 	@echo "  make test-vm-uefi     - Inicia VM em modo UEFI"
 	@echo "  make test-vm-bios     - Inicia VM em modo BIOS"
 	@echo "  make test-vm-all      - Inicia VMs UEFI + BIOS simultaneamente"
+	@echo ""
+	@echo "💾 VM BOOT DISCO:"
+	@echo "  make vm-boot-disk-uefi - Inicia VM a partir de disco (UEFI)"
+	@echo "  make vm-boot-disk-bios - Inicia VM a partir de disco (BIOS)"
 	@echo ""
 	@echo "🔌 VM CONEXÃO:"
 	@echo "  make vm-connect-uefi  - Conecta ao console serial UEFI"
@@ -131,6 +138,20 @@ test-vm-all:
 	@echo "🧪 Iniciando bateria de testes (UEFI + BIOS)..."
 	@chmod +x $(VM_DIR)/vm-start-test-all.sh
 	@bash $(VM_DIR)/vm-start-test-all.sh
+
+# -----------------------------------------------------------------------------
+# VM Boot Disk Targets
+# -----------------------------------------------------------------------------
+
+vm-boot-disk-uefi:
+	@echo "💾 Iniciando VM a partir de disco (UEFI)..."
+	@chmod +x $(VM_DIR)/vm-start-test-boot-disk.sh
+	@bash $(VM_DIR)/vm-start-test-boot-disk.sh -f uefi $(VM_DISK_PATH_UEFI)
+
+vm-boot-disk-bios:
+	@echo "💾 Iniciando VM a partir de disco (BIOS)..."
+	@chmod +x $(VM_DIR)/vm-start-test-boot-disk.sh
+	@bash $(VM_DIR)/vm-start-test-boot-disk.sh -f bios $(VM_DISK_PATH_BIOS)
 
 # -----------------------------------------------------------------------------
 # VM Connection Targets

@@ -1,0 +1,13 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "plugin": [
+        "@tarquinen/opencode-dcp@latest",
+        "opencode-pty@latest",
+        "@franlol/opencode-md-table-formatter@0.0.3",
+        "@zenobius/opencode-skillful@latest",
+        "@openspoon/subtask2@latest"
+    ],
+    "instructions": [
+        ".opencode/plugins/shell-strategy/shell_strategy.md"
+    ]
+}
