@@ -40,7 +40,7 @@ graph TD
 O instalador é composto por 20 etapas lógicas. A navegação permite avançar ou retroceder (quando aplicável).
 
 ```mermaid
-flowchart LR
+flowchart TD
     Start((Início)) --> S00[00: Boas-vindas]
     S00 --> S01[01: Idioma/Localidade]
     S01 --> S02[02: Teclado]

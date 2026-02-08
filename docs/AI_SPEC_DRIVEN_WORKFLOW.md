@@ -117,7 +117,7 @@ flowchart TD
 ```
 
 ```mermaid
-flowchart LR
+flowchart TB
 
     A[Definir demanda] --> B{Escopo}
 
