@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: welcome
+# @INST_STEP_FLOW: next=installer_prefs_locale
+# @INST_STATE: welcome_screen
 step_welcome() {
     ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
     ui_section "Boas-vindas"

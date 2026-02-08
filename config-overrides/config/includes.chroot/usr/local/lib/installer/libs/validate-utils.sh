@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-#
-# validate-utils.sh - Validações de configuração
-#
+# @INST_LIB_NAME: validate-utils
+# @INST_DESC: Funções de validação de dados (IP, Hostname, Regex) para pre-flight.
 
 set -euo pipefail
 

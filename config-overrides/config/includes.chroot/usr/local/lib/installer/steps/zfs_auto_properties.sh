@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: zfs_auto_properties
+# @INST_STEP_FLOW: prev=zfs_auto_topology, next=zfs_auto_datasets
+# @INST_STATE: zfs_compression, zfs_dedup, zfs_arc_mode, zfs_arc_max
+
 step_zfs_auto_properties() {
 	ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
 	ui_section "ZFS: Propriedades"

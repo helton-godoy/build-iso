@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: install
+# @INST_STEP_FLOW: prev=review, next=post_install
+# @INST_DESC: Orquestra a execução real da instalação: particionamento, ZFS, debootstrap e configuração base.
+# @INST_TODO: Refatorar install_prepare_disks para delegar totalmente à libs/partitioning.
+
 set -o errexit
 set -o nounset
 set -o pipefail

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: zfs_auto_topology
+# @INST_STEP_FLOW: prev=zfs_strategy, next=zfs_auto_properties
+# @INST_STATE: zfs_topology, zfs_pool_name, install_plan_data_topology, install_plan_data_vdevs
 
 _split_disks_into_groups() {
 	local disks_csv="$1"

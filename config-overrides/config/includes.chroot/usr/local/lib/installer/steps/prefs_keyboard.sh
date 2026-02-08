@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: installer_prefs_keyboard
+# @INST_STEP_FLOW: prev=installer_prefs_locale, next=identity
+# @INST_STATE: install_kbd_layout
 
 list_keyboard_layouts() {
 	local xkb_file="/usr/share/X11/xkb/rules/base.lst"

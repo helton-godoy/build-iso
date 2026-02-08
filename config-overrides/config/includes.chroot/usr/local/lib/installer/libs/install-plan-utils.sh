@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# @INST_LIB_NAME: install-plan-utils
+# @INST_DESC: Gerenciamento do estado complexo do plano de instalação (vdevs, topologia).
 
 plan_get_selected_disks_csv() {
 	local disks_csv
@@ -71,6 +73,9 @@ plan_get_aux_layout() {
 	printf '%s' "$(sanitize_id "$(state_kv_get install_plan_aux_${klass}_layout)")"
 }
 
+# @INST_FUNC: plan_signature
+# @INST_DESC: Gera um hash SHA256 do plano atual para garantir integridade antes da instalação.
+# @INST_RETURN: checksum (string)
 plan_signature() {
 	local payload
 	payload="v=$(sanitize_ws "$(state_kv_get install_plan_version)")"

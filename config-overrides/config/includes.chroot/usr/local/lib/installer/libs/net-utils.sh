@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-#
-# net-utils.sh - Configuração de rede
-#
+# @INST_LIB_NAME: net-utils
+# @INST_DESC: Configuração de interfaces de rede (DHCP/Estático) no sistema alvo.
 
 set -euo pipefail
 

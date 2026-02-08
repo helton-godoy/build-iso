@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-#
-# partitioning.sh - Particionamento GPT híbrido (BIOS Boot + ESP + ZFS)
-#
+# @INST_LIB_NAME: partitioning
+# @INST_DESC: Particionamento GPT híbrido (BIOS Boot + ESP + ZFS).
+# @INST_FUNC: partition_wipe_disk
+# @INST_DESC: Remove assinaturas e tabelas de partição do disco.
+# @INST_FUNC: partition_create_gpt
+# @INST_DESC: Cria o layout padrão (BIOS Boot, EFI, ZFS Solaris).
 
 set -euo pipefail
 

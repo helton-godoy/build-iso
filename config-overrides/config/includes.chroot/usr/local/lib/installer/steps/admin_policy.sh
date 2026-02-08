@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: admin_policy
+# @INST_STEP_FLOW: prev=user_account, next=disk_select
+# @INST_STATE: install_admin_policy, install_root_same_pass, install_root_pass
 step_admin_policy() {
 	ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
 	ui_section "Administração (Root/Sudo)"

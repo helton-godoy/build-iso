@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: installer_prefs_locale
+# @INST_STEP_FLOW: prev=welcome, next=installer_prefs_keyboard
+# @INST_STATE: install_lang
 
 list_supported_locales() {
 	local supported_file="/usr/share/i18n/SUPPORTED"

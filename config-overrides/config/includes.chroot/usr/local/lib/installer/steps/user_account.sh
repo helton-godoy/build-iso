@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: user_account
+# @INST_STEP_FLOW: prev=time, next=admin_policy
+# @INST_STATE: install_user_fullname, install_username, install_user_pass
 step_user_account() {
 	ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
 	ui_section "Conta do Usuário"

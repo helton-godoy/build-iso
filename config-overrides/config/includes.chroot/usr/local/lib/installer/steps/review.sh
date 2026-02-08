@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: review
+# @INST_STEP_FLOW: prev=boot, next=install
+# @INST_STATE: install_plan_review_sig
 step_review() {
 	ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
 	ui_section "Revisão"

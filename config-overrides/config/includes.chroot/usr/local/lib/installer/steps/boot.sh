@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: boot
+# @INST_STEP_FLOW: prev=zfs_auto_datasets|zfs_manual, next=review
+# @INST_STATE: bootloader, kernel_params
 step_boot() {
 	ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
 	ui_section "Boot"

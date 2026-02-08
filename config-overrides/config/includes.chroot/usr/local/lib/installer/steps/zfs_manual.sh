@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: zfs_manual
+# @INST_STEP_FLOW: prev=zfs_strategy, next=boot
+# @INST_STATE: zfs_manual_ack
 step_zfs_manual() {
     ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
     ui_section "ZFS: Manual (Avançado)"

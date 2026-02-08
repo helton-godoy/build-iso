@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: post_install
+# @INST_STEP_FLOW: prev=install, next=finish
+# @INST_STATE: post_install_done
 step_post_install() {
     ui_hero "${PROJECT_NAME:-FILESERVER INSTALLER}" "${PROJECT_TAGLINE:-Debian 13 + ZFS on Root}"
     ui_section "Pós-instalação"

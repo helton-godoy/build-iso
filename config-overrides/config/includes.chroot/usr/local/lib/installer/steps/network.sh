@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: network
+# @INST_STEP_FLOW: prev=identity, next=time
+# @INST_STATE: install_net_method, install_net_ip, install_net_mask, install_net_gw, install_net_dns, install_proxy
 step_network() {
 	ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
 	ui_section "Rede"

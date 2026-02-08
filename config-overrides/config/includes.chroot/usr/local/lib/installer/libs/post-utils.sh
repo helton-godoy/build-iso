@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-#
-# post-utils.sh - Utilitários pós-instalação
-#
+# @INST_LIB_NAME: post-utils
+# @INST_DESC: Utilitários de pós-instalação (initramfs, hooks, finalização).
 
 set -euo pipefail
 

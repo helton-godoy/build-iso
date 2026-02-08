@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: zfs_strategy
+# @INST_STEP_FLOW: prev=disk_wipe_confirm, next=zfs_auto_topology|zfs_manual
+# @INST_STATE: install_zfs_strategy, install_profile
 step_zfs_strategy() {
 	ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
 	ui_section "Estratégia ZFS"

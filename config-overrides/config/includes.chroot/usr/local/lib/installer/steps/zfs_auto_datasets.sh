@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: zfs_auto_datasets
+# @INST_STEP_FLOW: prev=zfs_auto_properties, next=boot
+# @INST_STATE: zfs_dataset_preset, install_plan_aux_*
 
 _select_aux_disks() {
 	local title="$1"

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: disk_wipe_confirm
+# @INST_STEP_FLOW: prev=disk_select, next=zfs_strategy
+# @INST_STATE: install_wipe_confirmed
 
 strip_ansi() {
 	printf '%s' "${1-}" | sed -E $'s/\x1B\[[0-9;]*[[:alpha:]]//g'

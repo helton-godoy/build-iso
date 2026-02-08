@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-#
-# disk-detection.sh - Detecção e listagem de discos disponíveis
-#
+# @INST_LIB_NAME: disk-utils
+# @INST_DESC: Detecção, listagem e seleção de dispositivos de armazenamento.
+# @INST_DEP: lsblk, awk, sed
 
 set -euo pipefail
 
@@ -61,6 +61,9 @@ _disk_human_readable() {
 
 # Lista todos os discos disponíveis (exclui loop, cdrom, etc)
 # Output: Lista formatada para gum choose
+# @INST_FUNC: disk_list_available
+# @INST_DESC: Retorna uma lista de discos que atendem aos requisitos mínimos de tamanho.
+# @INST_STATE: MIN_DISK_SIZE_GB
 disk_list_available() {
 	local disks
 	disks=$(lsblk -d -n -o NAME,SIZE,MODEL,TYPE,ROTA -e 7,11 -p 2>/dev/null || true)
@@ -129,6 +132,10 @@ disk_has_available() {
 
 # Seleciona um disco interativamente usando gum
 # Retorna: Define SELECTED_DISK com o caminho do dispositivo
+# @INST_FUNC: disk_select_interactive
+# @INST_DESC: Interface para usuário selecionar o disco alvo da instalação.
+# @INST_ARGS: prompt (opcional)
+# @INST_STATE: SELECTED_DISK
 disk_select_interactive() {
 	local selected_many
 	selected_many="$(disk_select_multi_interactive "${1:-Selecione o disco de destino:}")" || return 1
@@ -246,9 +253,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 	echo "Total: $(disk_count) disco(s)"
 fi
 #!/usr/bin/env bash
-#
-# partitioning.sh - Particionamento GPT híbrido (BIOS Boot + ESP + ZFS)
-#
+# @INST_LIB_NAME: partitioning
+# @INST_DESC: Gerenciamento de tabelas GPT e criação de partições híbridas.
+# @INST_DEP: sgdisk, wipefs, partprobe
 
 set -euo pipefail
 
@@ -285,6 +292,9 @@ _get_partition_name() {
 
 # Limpa completamente o disco (wipefs + gdisk zap)
 # Uso: partition_wipe_disk /dev/sda
+# @INST_FUNC: partition_wipe_disk
+# @INST_DESC: Remove todas as assinaturas e tabelas de partição de um disco.
+# @INST_CAUTION: Operação destrutiva.
 partition_wipe_disk() {
 	local disk="$1"
 
@@ -308,6 +318,10 @@ partition_wipe_disk() {
 # Cria tabela de partição GPT com layout híbrido
 # Layout: 1=BIOS Boot (1MB), 2=ESP (512MB), 3=ZFS (restante)
 # Uso: partition_create_gpt /dev/sda
+# @INST_FUNC: partition_create_gpt
+# @INST_DESC: Cria o layout de partições padrão (BIOS Boot, ESP, ZFS).
+# @INST_ARGS: disk
+# @INST_STATE: PART_BIOS, PART_ESP, PART_ZFS
 partition_create_gpt() {
 	local disk="$1"
 

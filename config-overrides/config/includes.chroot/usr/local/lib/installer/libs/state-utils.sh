@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# state-utils.sh - Gerenciamento de estado e persistência (key-value)
+# @INST_LIB_NAME: state-utils
+# @INST_DESC: Gerenciamento de estado e persistência via pares chave-valor.
+# @INST_FUNC: state_kv_set
+# @INST_DESC: Salva o valor de uma chave no arquivo de estado persistente.
+# @INST_FUNC: state_kv_get
+# @INST_DESC: Recupera o valor de uma chave do arquivo de estado.
 
 state_prepare() {
 	mkdirs "$STATE_DIR"

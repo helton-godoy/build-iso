@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: finish
+# @INST_STEP_FLOW: prev=post_install, next=none
+# @INST_STATE: reboot_requested
 step_finish() {
     ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
     ui_section "Concluído"

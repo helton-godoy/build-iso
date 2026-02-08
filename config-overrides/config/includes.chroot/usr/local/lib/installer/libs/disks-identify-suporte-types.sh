@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-#
-# disks-identify-suporte-types.sh - Identificação de tipos de disco para topologia ZFS
-#
+# @INST_LIB_NAME: disks-identify
+# @INST_DESC: Lógica de identificação de tipos de disco para topologias ZFS.
 
 set -euo pipefail
 

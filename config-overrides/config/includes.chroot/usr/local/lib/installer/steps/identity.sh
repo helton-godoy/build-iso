@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: identity
+# @INST_STEP_FLOW: prev=installer_prefs_keyboard, next=network
+# @INST_STATE: install_hostname, install_domain
 step_identity() {
 	ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
 	ui_section "Identidade do Sistema"

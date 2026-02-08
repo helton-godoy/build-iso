@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-#
-# zfs-setup.sh - Criação de pool ZFS e datasets para ZFSBootMenu
-#
+# @INST_LIB_NAME: zfs-utils
+# @INST_DESC: Gerenciamento de pools ZFS, datasets e propriedades de boot.
+# @INST_DEP: zfs, zpool
 
 set -euo pipefail
 
@@ -15,6 +15,9 @@ MOUNT_POINT="/mnt"
 
 # Cria o pool ZFS com propriedades otimizadas
 # Uso: zfs_create_pool <device> [pool_name]
+# @INST_FUNC: zfs_create_pool
+# @INST_DESC: Cria um pool ZFS (vdev único) com propriedades otimizadas para o sistema.
+# @INST_ARGS: device, pool_name
 zfs_create_pool() {
 	local device="$1"
 	local pool="${2:-$POOL_NAME}"
@@ -45,6 +48,9 @@ zfs_create_pool() {
 
 # Cria a hierarquia de datasets ZBM
 # Uso: zfs_create_datasets [pool_name]
+# @INST_FUNC: zfs_create_datasets
+# @INST_DESC: Cria a hierarquia padrão de datasets para ZFSBootMenu (ROOT, home, var).
+# @INST_STATE: zroot/ROOT, zroot/ROOT/debian
 zfs_create_datasets() {
 	local pool="${1:-$POOL_NAME}"
 
@@ -143,6 +149,8 @@ zfsutils_export_pool() {
     zpool export "$1"
 }
 
+# @INST_FUNC: zfsutils_pool_create_single
+# @INST_DESC: API Adapter para criar um pool com configurações customizadas (ashift, comp, dedup).
 zfsutils_pool_create_single() {
     local pool="$1"
     local disk="$2"
@@ -171,6 +179,8 @@ zfsutils_pool_create_single() {
         "$pool" "$disk"
 }
 
+# @INST_FUNC: zfsutils_create_root_datasets
+# @INST_DESC: API Adapter para configurar a topologia de datasets e propriedades ZBM.
 zfsutils_create_root_datasets() {
     local pool="$1"
     local root_ds="$2"

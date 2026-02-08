@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: time
+# @INST_STEP_FLOW: prev=network, next=user_account
+# @INST_STATE: install_tz, install_ntp, install_ntp_server
 
 list_timezones() {
 	local tz_file="/usr/share/zoneinfo/zone1970.tab"

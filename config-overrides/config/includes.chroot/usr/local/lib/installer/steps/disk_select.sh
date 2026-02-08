@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# @INST_STEP_ID: disk_select
+# @INST_STEP_FLOW: prev=admin_policy, next=disk_wipe_confirm
+# @INST_STATE: install_disk, install_disks, install_plan_selected_disks
+# @INST_TODO: Melhorar validação de discos já em uso por outros pools.
 step_disk_select() {
 	ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
 	ui_section "Disco de Destino"

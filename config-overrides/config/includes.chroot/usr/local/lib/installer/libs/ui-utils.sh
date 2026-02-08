@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# ui-utils.sh - FILESERVER Design System v2.0
-# Sistema visual monocromático para instalador TTY
+# @INST_LIB_NAME: ui-utils
+# @INST_DESC: FILESERVER Design System v2.0 - Componentes visuais baseados no 'gum'.
+# @INST_DEP: gum
 
 # ═══════════════════════════════════════════════════════════
 # PALETA DE CORES
@@ -52,6 +53,8 @@ export UI_WARN='⚠'
 # COMPONENTES
 # ═══════════════════════════════════════════════════════════
 
+# @INST_FUNC: ui_hero
+# @INST_DESC: Exibe o cabeçalho principal da aplicação (Hero component).
 ui_hero() {
 	local title="${1:-FILESERVER INSTALLER}"
 	local subtitle="${2:-}"
@@ -116,6 +119,8 @@ ui_progress() {
 		"      $UI_ARROW $label"
 }
 
+# @INST_FUNC: ui_input
+# @INST_DESC: Solicita entrada de texto do usuário via 'gum input'.
 ui_input() {
 	local label="$1"
 	local placeholder="${2:-}"
@@ -150,6 +155,8 @@ ui_password() {
 	echo "$value"
 }
 
+# @INST_FUNC: ui_select
+# @INST_DESC: Menu de seleção única via 'gum choose'.
 ui_select() {
 	local title="$1"
 	shift
@@ -323,6 +330,8 @@ ui_success() {
 		"$UI_CHECK $message"
 }
 
+# @INST_FUNC: ui_confirm
+# @INST_DESC: Diálogo de confirmação sim/não.
 ui_confirm() {
 	local title="$1"
 	local affirmative="${2:-Sim}"
@@ -344,6 +353,9 @@ ui_confirm() {
 # Process Wrapper (Spinner)
 # ──────────────────────────────────────────────────────────────────────────────
 
+# @INST_FUNC: ui_process_step
+# @INST_DESC: Executa um comando com spinner e redirecionamento de logs.
+# @INST_DEP: gum spin
 ui_process_step() {
 	local title="$1"
 	shift

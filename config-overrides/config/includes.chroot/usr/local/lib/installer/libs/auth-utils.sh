@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-#
-# auth-utils.sh - Gerenciamento de usuários e senhas
-#
+# @INST_LIB_NAME: auth-utils
+# @INST_DESC: Gerenciamento de contas de usuário, grupos e credenciais no chroot.
 
 set -euo pipefail
 

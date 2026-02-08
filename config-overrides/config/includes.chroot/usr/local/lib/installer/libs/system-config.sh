@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-#
-# system-config.sh - Configuração do sistema instalado (hostname, usuário, rede)
-#
+# @INST_LIB_NAME: system-config
+# @INST_DESC: Configurações essenciais do sistema instalado (hostname, timezone, usuários).
 
 set -euo pipefail
 

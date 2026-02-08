@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-#
-# install-utils.sh - Utilitários de instalação (debootstrap, apt, packages)
-#
+# @INST_LIB_NAME: install-utils
+# @INST_DESC: Utilitários de implantação base (debootstrap, apt, mounts).
 
 set -euo pipefail
 

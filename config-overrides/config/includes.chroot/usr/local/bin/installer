@@ -4,7 +4,9 @@ set -o nounset
 set -o pipefail
 
 # ──────────────────────────────────────────────────────────────────────────────
-# FILESERVER Installer Router (Debian 13 + ZFS) — Step Map + Lazy Loading
+# @INST_FILE: installer (Router Principal)
+# @INST_DESC: Gerencia o fluxo de estados, registro de etapas e navegação do instalador.
+# @INST_FLOW: welcome -> identity -> network -> time -> user_account -> admin_policy -> disk_select -> disk_wipe_confirm -> zfs_strategy -> zfs_auto_topology/zfs_manual -> boot -> review -> install -> post_install -> finish
 # ──────────────────────────────────────────────────────────────────────────────
 
 SCRIPT_NAME="fileserver-installer-router"
@@ -74,8 +76,8 @@ declare -a STEP_IDS=()
 source "${LIBS_DIR}/core-utils.sh"
 source "${LIBS_DIR}/state-utils.sh"
 
-# Traps are kept here or moved? trap_cleanup depends on log_line (now in core-utils)
-# Let's keep traps here for main loop control, but they use log_line which is sourced.
+# As traps são mantidas aqui ou movidas? trap_cleanup depende de log_line (agora em core-utils)  
+# Vamos manter as traps aqui para controle do loop principal, mas elas usam log_line que é importado.  
 
 trap_cleanup() {
     local code; code="${1-0}"
@@ -120,6 +122,9 @@ setup_traps() {
 # Step Registration + Lazy Loading
 # ──────────────────────────────────────────────────────────────────────────────
 
+# @INST_FUNC: register_step
+# @INST_DESC: Registra uma nova etapa no mapa do instalador para carregamento preguiçoso.
+# @INST_ARGS: id, order, title, desc, prev, next, deps, module, handler
 register_step() {
     local id; id="$(sanitize_id "${1-}")"
     local order; order="$(sanitize_ws "${2-}")"
@@ -166,6 +171,9 @@ step_module_path() {
     printf '%s' "$STEPS_DIR/$module"
 }
 
+# @INST_FUNC: lazy_source_step
+# @INST_DESC: Carrega o arquivo de módulo (.sh) associado a uma etapa sob demanda.
+# @INST_ARGS: id (ID da etapa)
 lazy_source_step() {
     local id; id="$(sanitize_id "${1-}")"
     local path
@@ -210,34 +218,68 @@ lazy_source_deps() {
 # Step Map (Stable IDs) — Router-friendly
 # ──────────────────────────────────────────────────────────────────────────────
 
+# @INST_FLOW_MAP: Registro completo da sequência do instalador.
+# @INST_STATE: current_step (Ponto atual no fluxo)
 register_all_steps() {
-    # ID, ORDER, TITLE, DESC, PREV, NEXT, DEPS, MODULE, HANDLER
-    register_step "welcome"                   "00" "Boas-vindas"               "Contexto, requisitos e início"           ""                          "installer_prefs_locale"    ""                           "welcome.sh"                "step_welcome"
-    register_step "installer_prefs_locale"    "01" "Idioma e Localidade"       "Idioma, região e codificação"            "welcome"                   "installer_prefs_keyboard"  ""                           "prefs_locale.sh"           "step_installer_prefs_locale"
-    register_step "installer_prefs_keyboard"  "02" "Teclado"                   "Layout, variante e teste"                "installer_prefs_locale"    "identity"                  ""                           "prefs_keyboard.sh"         "step_installer_prefs_keyboard"
-    register_step "identity"                  "03" "Identidade do Sistema"     "Hostname e domínio opcional"             "installer_prefs_keyboard"  "network"                   ""                           "identity.sh"               "step_identity"
+#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░|░NEXT░░░░░░░░░░░░░░░░░░░░░|░DEPS░|░MODULE░░░░░░░|░HANDLER░░░░░░░░|
+    register_step   "welcome"   "00"    "Boas-vindas"   "Contexto, requisitos e início"   ""     "installer_prefs_locale"   ""     "welcome.sh"   "step_welcome"
 
-    register_step "network"                   "04" "Rede"                      "Interface, DHCP/Manual, DNS e proxy"     "identity"                  "time"                      "net-utils.sh"               "network.sh"                "step_network"
-    register_step "time"                      "05" "Data e Hora"               "Fuso horário e NTP"                      "network"                   "user_account"              "time-utils.sh"              "time.sh"                   "step_time"
+#                 |░ID░░░░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░░░░░░░░░░░░░░░░░░░|░DEPS░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░░░░░|
+    register_step   "installer_prefs_locale"   "01"    "Idioma e Localidade"   "Idioma, região e codificação"   "welcome"   "installer_prefs_keyboard"   ""     "prefs_locale.sh"   "step_installer_prefs_locale"
 
-    register_step "user_account"              "06" "Conta do Usuário"          "Nome, usuário e senha"                   "time"                      "admin_policy"              "auth-utils.sh"              "user_account.sh"           "step_user_account"
-    register_step "admin_policy"              "07" "Administração (Root/Sudo)" "Política de root e senha root opcional"  "user_account"              "disk_select"               "auth-utils.sh"              "admin_policy.sh"           "step_admin_policy"
+#                 |░ID░░░░░░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░░░░░░|░NEXT░░░░░░░|░DEPS░|░MODULE░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░░░░░░|
+    register_step   "installer_prefs_keyboard"   "02"    "Teclado"   "Layout, variante e teste"   "installer_prefs_locale"   "identity"   ""     "prefs_keyboard.sh"   "step_installer_prefs_keyboard"
 
-    register_step "disk_select"               "08" "Disco de Destino"          "Detectar e selecionar o disco alvo"      "admin_policy"              "disk_wipe_confirm"         "disk-utils.sh,install-plan-utils.sh"      "disk_select.sh"            "step_disk_select"
-    register_step "disk_wipe_confirm"         "09" "Confirmação de Wipe"       "Confirmação forte para apagar dados"     "disk_select"               "zfs_strategy"              "disk-utils.sh,install-plan-utils.sh"      "disk_wipe_confirm.sh"      "step_disk_wipe_confirm"
+#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░░░░░░░░|░NEXT░░░░░░|░DEPS░|░MODULE░░░░░░░░|░HANDLER░░░░░░░░|
+    register_step "identity"    "03"    "Identidade do Sistema"   "Hostname e domínio opcional"   "installer_prefs_keyboard"   "network"   ""     "identity.sh"   "step_identity"
 
-    register_step "zfs_strategy"              "10" "Estratégia ZFS"            "Automático (recomendado) ou Avançado"    "disk_wipe_confirm"         "zfs_auto_topology"         "zfs-utils.sh,install-plan-utils.sh"       "zfs_strategy.sh"           "step_zfs_strategy"
-    register_step "zfs_auto_topology"         "11" "ZFS: Topologia do Pool"    "Stripe/Mirror/RAIDZ conforme discos"     "zfs_strategy"              "zfs_auto_properties"       "zfs-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh" "zfs_auto_topology.sh" "step_zfs_auto_topology"
-    register_step "zfs_auto_properties"       "12" "ZFS: Propriedades"         "Compressão, dedup, ARC e avançado"       "zfs_auto_topology"         "zfs_auto_datasets"         "zfs-utils.sh,install-plan-utils.sh"       "zfs_auto_properties.sh"    "step_zfs_auto_properties"
-    register_step "zfs_auto_datasets"         "13" "ZFS: Datasets"             "Preset padrão/servidor/custom"           "zfs_auto_properties"       "boot"                      "zfs-utils.sh,disk-utils.sh,install-plan-utils.sh" "zfs_auto_datasets.sh"      "step_zfs_auto_datasets"
+#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░|░MODULE░░░░░░░|░HANDLER░░░░░░░░|
+    register_step   "network"   "04"    "Rede"   "Interface, DHCP/Manual, DNS e proxy"   "identity"   "time"   "net-utils.sh"   "network.sh"   "step_network"
 
-    register_step "zfs_manual"                "14" "ZFS: Manual (Avançado)"    "VDEVs, pools, datasets e propriedades"   "zfs_strategy"              "boot"                      "zfs-utils.sh"               "zfs_manual.sh"             "step_zfs_manual"
+#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░|░HANDLER░░░░░|
+    register_step   "time"      "05"    "Data e Hora"   "Fuso horário e NTP"   "network"   "user_account"   "time-utils.sh"   "time.sh"   "step_time"
 
-    register_step "boot"                      "15" "Boot"                      "UEFI/BIOS, bootloader e parâmetros"      "zfs_auto_datasets"         "review"                    "boot-utils.sh"              "boot.sh"                   "step_boot"
-    register_step "review"                    "16" "Revisão"                   "Resumo, validações e checkpoint"         "boot"                      "install"                   "validate-utils.sh,install-plan-utils.sh"  "review.sh"                 "step_review"
-    register_step "install"                   "17" "Instalação"                "Execução e progresso"                    "review"                    "post_install"              "install-utils.sh,disk-utils.sh,zfs-utils.sh,boot-utils.sh,validate-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh" "install.sh"                "step_install"
-    register_step "post_install"              "18" "Pós-instalação"            "Ajustes finais: apt, serviços, pacotes"  "install"                   "finish"                    "post-utils.sh,finalize-chroot.sh,setup-zbm-config.sh" "post_install.sh" "step_post_install"
-    register_step "finish"                    "19" "Concluído"                 "Resumo final e reboot"                   "post_install"              ""                          ""                           "finish.sh"                 "step_finish"
+#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░|░PREV░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
+    register_step   "user_account"   "06"    "Conta do Usuário"   "Nome, usuário e senha"   "time"   "admin_policy"   "auth-utils.sh"   "user_account.sh"   "step_user_account"
+
+#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
+    register_step   "admin_policy"   "07"    "Administração (Root/Sudo)"   "Política de root e senha root opcional"   "user_account"   "disk_select"   "auth-utils.sh"   "admin_policy.sh"   "step_admin_policy"
+
+#                 |░ID░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░|░HANDLER░░░░░░░░░░░|
+    register_step   "disk_select"   "08"    "Disco de Destino"   "Detectar e selecionar o disco alvo"   "admin_policy"   "disk_wipe_confirm"   "disk-utils.sh,install-plan-utils.sh"   "disk_select.sh"   "step_disk_select"
+
+#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
+    register_step   "disk_wipe_confirm"   "09"    "Confirmação de Wipe"   "Confirmação forte para apagar dados"   "disk_select"   "zfs_strategy"   "disk-utils.sh,install-plan-utils.sh"   "disk_wipe_confirm.sh"   "step_disk_wipe_confirm"
+
+#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
+    register_step   "zfs_strategy"   "10"    "Estratégia ZFS"   "Automático (recomendado) ou Avançado"   "disk_wipe_confirm"   "zfs_auto_topology"   "zfs-utils.sh,install-plan-utils.sh"   "zfs_strategy.sh"   "step_zfs_strategy"
+
+#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
+    register_step   "zfs_auto_topology"   "11"    "ZFS: Topologia do Pool"   "Stripe/Mirror/RAIDZ conforme discos"   "zfs_strategy"   "zfs_auto_properties"   "zfs-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh"   "zfs_auto_topology.sh"   "step_zfs_auto_topology"
+
+#                 |░ID░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░|
+    register_step   "zfs_auto_properties"   "12"    "ZFS: Propriedades"   "Compressão, dedup, ARC e avançado"   "zfs_auto_topology"   "zfs_auto_datasets"   "zfs-utils.sh,install-plan-utils.sh"   "zfs_auto_properties.sh"   "step_zfs_auto_properties"
+
+#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
+    register_step   "zfs_auto_datasets"   "13"    "ZFS: Datasets"   "Preset padrão/servidor/custom"   "zfs_auto_properties"   "boot"   "zfs-utils.sh,disk-utils.sh,install-plan-utils.sh"   "zfs_auto_datasets.sh"   "step_zfs_auto_datasets"
+
+#                 |░ID░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░|░MODULE░░░░░░░░░░|░HANDLER░░░░░░░░░░|
+    register_step   "zfs_manual"   "14"    "ZFS: Manual (Avançado)"   "VDEVs, pools, datasets e propriedades"   "zfs_strategy"   "boot"   "zfs-utils.sh"   "zfs_manual.sh"   "step_zfs_manual"
+
+#                 |░ID░░░░░|░ORDER░|░TITLE░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░|░HANDLER░░░░|
+    register_step   "boot"   "15"    "Boot"   "UEFI/BIOS, bootloader e parâmetros"   "zfs_auto_datasets"   "review"   "boot-utils.sh"   "boot.sh"   "step_boot"
+
+#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░|░NEXT░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░|░HANDLER░░░░░░|
+    register_step   "review"    "16"    "Revisão"   "Resumo, validações e checkpoint"   "boot"   "install"   "validate-utils.sh,install-plan-utils.sh"   "review.sh"   "step_review"
+
+#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░|░PREV░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░|░HANDLER░░░░░░░|
+    register_step   "install"   "17"    "Instalação"   "Execução e progresso"   "review"   "post_install"   "install-utils.sh,disk-utils.sh,zfs-utils.sh,boot-utils.sh,validate-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh"   "install.sh"   "step_install"
+
+#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
+    register_step   "post_install"   "18"    "Pós-instalação"   "Ajustes finais: apt, serviços, pacotes"   "install"   "finish"   "post-utils.sh,finalize-chroot.sh,setup-zbm-config.sh"   "post_install.sh"   "step_post_install"
+
+#                 |░ID░░░░░░░|░ORDER░|░TITLE░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░|░DEPS░|░MODULE░░░░░░|░HANDLER░░░░░░|
+    register_step   "finish"   "19"    "Concluído"   "Resumo final e reboot"   "post_install"   ""     ""     "finish.sh"   "step_finish"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -290,6 +332,9 @@ compute_prev_step() {
     printf '%s' "$prev"
 }
 
+# @INST_FUNC: step_invoke
+# @INST_DESC: Executa o handler de uma etapa, carregando suas dependências e módulo.
+# @INST_ARGS: id (ID da etapa)
 step_invoke() {
     local id; id="$(sanitize_id "${1-}")"
     local handler; handler="$(sanitize_ws "${STEP_HANDLER[$id]-}")"

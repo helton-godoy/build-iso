@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-#
-# firmware-detection.sh - Detecção de modo de boot (UEFI/BIOS)
-#
+# @INST_LIB_NAME: boot-utils
+# @INST_DESC: Detecção de firmware (UEFI/BIOS) e utilitários de bootloader.
 
 set -euo pipefail
 
@@ -15,6 +14,9 @@ IS_EFI=false
 
 # Detecta se o sistema está rodando em modo UEFI ou BIOS Legacy
 # Retorna: Define FIRMWARE_MODE="UEFI" ou "BIOS", IS_EFI=true/false
+# @INST_FUNC: firmware_detect
+# @INST_DESC: Identifica se o ambiente atual é UEFI analisando /sys/firmware/efi.
+# @INST_STATE: FIRMWARE_MODE, IS_EFI
 firmware_detect() {
 	if [[ -d /sys/firmware/efi ]] && [[ -n "$(ls -A /sys/firmware/efi 2>/dev/null)" ]]; then
 		FIRMWARE_MODE="UEFI"
@@ -81,12 +83,18 @@ bootutils_is_uefi() {
     "$IS_EFI"
 }
 
+# @INST_FUNC: bootutils_ensure_boot_dirs
+# @INST_DESC: Garante que os diretórios de boot necessários existam.
+# @INST_ARGS: target
 bootutils_ensure_boot_dirs() {
     local target="${1:-/mnt}"
     mkdir -p "$target/boot/efi"
     mkdir -p "$target/boot/grub"
 }
 
+# @INST_FUNC: bootutils_mount_esp
+# @INST_DESC: Monta a partição ESP (EFI System Partition) em um ponto de montagem.
+# @INST_ARGS: esp_dev, mount_point
 bootutils_mount_esp() {
     local esp_dev="$1"
     local mount_point="$2"
@@ -117,6 +125,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 	firmware_info
 fi
 #!/usr/bin/env bash
+# @INST_LIB_NAME: auth-utils
+# @INST_DESC: Gerenciamento de contas de usuário, grupos e credenciais no chroot.
 #
 # zbm-install.sh - Instalação e configuração do ZFSBootMenu
 #

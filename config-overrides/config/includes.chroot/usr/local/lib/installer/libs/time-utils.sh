@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-#
-# time-utils.sh - Configuração de tempo e locale
-#
+# @INST_LIB_NAME: time-utils
+# @INST_DESC: Utilitários para configuração de fuso horário e geração de locales.
 
 set -euo pipefail
 

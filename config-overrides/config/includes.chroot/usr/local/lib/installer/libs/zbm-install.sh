@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-#
-# zbm-install.sh - Instalação e configuração do ZFSBootMenu
-#
+# @INST_LIB_NAME: zbm-install
+# @INST_DESC: Automação do deploy do binário ZFSBootMenu e registro no firmware EFI.
+# @INST_DEP: efibootmgr, cp
 
 set -euo pipefail
 
@@ -16,6 +16,9 @@ POOL_NAME="zroot"
 
 # Instala ZFSBootMenu na partição ESP
 # Uso: zbm_install <esp_partition> [target_mount] [pool_name]
+# @INST_FUNC: zbm_install
+# @INST_DESC: Prepara o diretório EFI/ZBM e implanta o executável EFI do ZFSBootMenu.
+# @INST_ARGS: esp_partition, target_mount, pool_name
 zbm_install() {
 	local esp_part="$1"
 	local target="${2:-/mnt}"
@@ -68,6 +71,9 @@ zbm_install() {
 
 # Configura entrada de boot EFI
 # Uso: zbm_configure_efi <disk> <partition_number> [target_mount]
+# @INST_FUNC: zbm_configure_efi
+# @INST_DESC: Registra o ZFSBootMenu na NVRAM do sistema via 'efibootmgr'.
+# @INST_ARGS: disk, partition_number, target_mount
 zbm_configure_efi() {
 	local disk="$1"
 	local part_num="$2"
@@ -88,6 +94,9 @@ zbm_configure_efi() {
 
 # Configura propriedades ZFS para boot
 # Uso: zbm_configure_zfs_properties <pool_name> [hostid]
+# @INST_FUNC: zbm_configure_zfs_properties
+# @INST_DESC: Configura as propriedades ZFS críticas (bootfs, commandline) para o ZBM.
+# @INST_STATE: org.zfsbootmenu:commandline
 zbm_configure_zfs_properties() {
 	local pool="${1:-$POOL_NAME}"
 	local hostid="${2:-}"
