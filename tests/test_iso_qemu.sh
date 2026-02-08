@@ -181,23 +181,29 @@ main() {
 	check_prerequisites
 	validate_iso
 
-	echo
-	read -p "Deseja testar boot UEFI? (s/N): " test_uefi_answer
-	if [[ "$test_uefi_answer" =~ ^[Ss]$ ]]; then
-		test_uefi || true
-	fi
+	# Modo não-interativo para CI/CD
+	local mode="${1:-all}"
 
-	echo
-	read -p "Deseja testar boot BIOS? (s/N): " test_bios_answer
-	if [[ "$test_bios_answer" =~ ^[Ss]$ ]]; then
-		test_bios || true
-	fi
+	case "$mode" in
+		uefi)
+			test_uefi || exit 1
+			;;
+		bios)
+			test_bios || exit 1
+			;;
+		all|*)
+			test_uefi || true
+			test_bios || true
+			;;
+	esac
 
 	log "=== Testes concluídos ==="
 	log "Log salvo em: $LOG_FILE"
 }
 
 # Se executado diretamente
+# Uso: ./test_iso_qemu.sh [uefi|bios|all]
+# Default: all (testa UEFI e BIOS)
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-	main "$@"
+	main "${1:-all}"
 fi

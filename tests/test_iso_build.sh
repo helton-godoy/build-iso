@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
+# @TEST_SCRIPT: test_iso_build.sh
+# @TEST_CATEGORY: build
+# @TEST_DESC: Valida artefato ISO gerado - existência e tamanho mínimo
+# @TEST_DEP: find, stat
+# @TEST_TARGETS: output/*.iso
+# @TEST_EXIT: 0=ISO válida (>100MB), 1=ISO ausente ou muito pequena
+
 set -euo pipefail
 
-ISO_FILE=$(ls docker/artifacts/dist/*.iso 2>/dev/null | head -n 1)
+ISO_FILE=$(find output -maxdepth 1 -name "*.iso" -type f 2>/dev/null | head -n 1)
 
 echo "Running tests for ISO build artifact..."
 

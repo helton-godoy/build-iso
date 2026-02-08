@@ -74,13 +74,10 @@ echo
 echo "[4/6] Verificando scripts do instalador..."
 INSTALLER_FILES=(
 	"config-overrides/config/includes.chroot/usr/local/bin/install-zfs-debian"
-	"scripts/lib/fileserver-ds.sh"
-	"scripts/lib/installer/firmware-detection.sh"
-	"scripts/lib/installer/disk-detection.sh"
-	"scripts/lib/installer/partitioning.sh"
-	"scripts/lib/installer/zfs-setup.sh"
-	"scripts/lib/installer/system-config.sh"
-	"scripts/lib/installer/zbm-install.sh"
+	"config-overrides/config/includes.chroot/usr/local/lib/installer/libs/core-utils.sh"
+	"config-overrides/config/includes.chroot/usr/local/lib/installer/libs/disk-detection.sh"
+	"config-overrides/config/includes.chroot/usr/local/lib/installer/libs/state-utils.sh"
+	"config-overrides/config/includes.chroot/usr/local/lib/installer/libs/install-plan-utils.sh"
 )
 
 for file in "${INSTALLER_FILES[@]}"; do
@@ -115,7 +112,7 @@ echo
 echo "[6/6] Validando sintaxe dos scripts..."
 SYNTAX_ERRORS=0
 
-for script in scripts/lib/installer/*.sh scripts/lib/fileserver-ds.sh; do
+for script in config-overrides/config/includes.chroot/usr/local/lib/installer/libs/*.sh; do
 	if [[ -f "$script" ]]; then
 		if bash -n "$script" 2>/dev/null; then
 			echo "✓ $(basename $script) - sintaxe OK"

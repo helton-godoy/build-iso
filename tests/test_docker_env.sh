@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DOCKERFILE="docker/Dockerfile"
+DOCKERFILE="scripts/docker/Dockerfile"
 
 echo "Running tests for Dockerfile..."
 
@@ -18,7 +18,7 @@ if ! grep -q "^FROM debian:trixie-slim" "$DOCKERFILE"; then
 fi
 
 # Test 3: Required packages
-REQUIRED_PACKAGES=("live-build" "git" "curl")
+REQUIRED_PACKAGES=("live-build" "zfsutils-linux" "curl")
 CONTENT=$(cat "$DOCKERFILE")
 
 for pkg in "${REQUIRED_PACKAGES[@]}"; do

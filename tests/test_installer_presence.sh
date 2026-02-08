@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER="config/includes.chroot/usr/local/bin/install-zfs-debian"
+INSTALLER="config-overrides/config/includes.chroot/usr/local/bin/installer"
 
 echo "Verificando presença do instalador interativo..."
 
 if [[ -f "$INSTALLER" ]]; then
-	echo "PASS: Instalador existe em config/includes.chroot/."
+	echo "PASS: Instalador existe em config-overrides/config/includes.chroot/."
 else
 	echo "FAIL: Instalador não encontrado."
 	exit 1
@@ -19,10 +19,10 @@ else
 	exit 1
 fi
 
-if grep -q "rsync" "$INSTALLER"; then
-	echo "PASS: Instalador utiliza rsync para cópia do sistema."
+if grep -q "gum" "$INSTALLER"; then
+	echo "PASS: Instalador utiliza gum para interface interativa."
 else
-	echo "FAIL: Instalador não contém lógica de rsync."
+	echo "FAIL: Instalador não contém referência ao gum (UI framework)."
 	exit 1
 fi
 

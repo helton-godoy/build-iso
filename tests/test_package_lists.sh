@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LIST_DIR="config/package-lists"
+LIST_DIR="config-overrides/config/package-lists"
 ZFS_LIST="$LIST_DIR/zfs.list.chroot"
 TOOLS_LIST="$LIST_DIR/tools.list.chroot"
 
@@ -28,7 +28,7 @@ for pkg in "${ZFS_PKGS[@]}"; do
 done
 
 # Test 3: Tool packages
-TOOL_PKGS=("gdisk" "dosfstools" "efibootmgr")
+TOOL_PKGS=("curl" "rsync" "jq" "openssh-server")
 for pkg in "${TOOL_PKGS[@]}"; do
 	if ! grep -q "^$pkg" "$TOOLS_LIST"; then
 		echo "FAIL: Package '$pkg' not found in $TOOLS_LIST."

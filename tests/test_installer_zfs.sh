@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-#
-# test_installer_zfs.sh - Teste de estrutura ZFS
-#
+# @TEST_SCRIPT: test_installer_zfs.sh
+# @TEST_CATEGORY: installer-zfs
+# @TEST_DESC: Teste de integração ZFS - valida criação de pool, datasets e propriedades
+# @TEST_DEP: zfs, zpool, zfs-setup.sh
+# @TEST_ENV: TEST_DEVICE=/dev/vda3, POOL_NAME=testzroot
+# @TEST_TARGETS: scripts/lib/installer/zfs-setup.sh
+# @TEST_DESTRUCTIVE: true - requer dispositivo de teste
+# @TEST_EXIT: 0=ZFS configurado corretamente, 1=falha na criação/verificação
 
 set -euo pipefail
 
