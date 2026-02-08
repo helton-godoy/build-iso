@@ -142,7 +142,7 @@ SP_XL=12   # Espaçamento de tela cheia
 │     │                             │    │
 │     └─────────────────────────────┘    │  ← margin-bottom: SP_XS
 │                                        │
-│  ──▶ Seção                            │  ← H2 divider
+│  ──▶ Seção                             │  ← H2 divider
 │                                        │  ← margin-bottom: SP_XS
 │     Conteúdo do formulário aqui...     │
 │                                        │
@@ -226,15 +226,15 @@ info_card() {
 **Resultado:**
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Configuração Atual                                     │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
-│                                                         │
-│  Disco:        /dev/nvme0n1                             │
-│  Tamanho:      1TB                                      │
-│  Filesystem:   ZFS on Root                              │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Configuração Atual                                         │
+│ ─────────────────────────────────────────────────────────── │
+│                                                             │
+│  Disco:        /dev/nvme0n1                                 │
+│  Tamanho:      1TB                                          │
+│  Filesystem:   ZFS on Root                                  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### 4. Progress Bar Monocromática
@@ -707,3 +707,4 @@ O código fornecido inclui:
 - Wireframes das 4 telas principais
 
 A implementação mantém 100% de compatibilidade com TTY puro, usando apenas [`gum`](https://github.com/charmbracelet/gum) como dependência para componentes interativos, preservando a elegância monocromática em todo o processo de instalação Debian ZFS.
+Local com [informações completas sobre opções avançadas do `gum`](https://github.com/charmbracelet/gum)

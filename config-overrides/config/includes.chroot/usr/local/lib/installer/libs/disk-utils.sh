@@ -11,10 +11,22 @@ MIN_DISK_SIZE_BYTES=$((MIN_DISK_SIZE_GB * 1024 * 1024 * 1024))
 
 # Variável global para disco selecionado
 SELECTED_DISK=""
+SELECTED_DISKS=()
 
 # ============================================================================
 # FUNÇÕES AUXILIARES
 # ============================================================================
+
+_disk_strip_ansi() {
+	local in="${1-}"
+	printf '%s' "$in" | sed -E $'s/\x1B\[[0-9;]*[[:alpha:]]//g'
+}
+
+_disk_extract_device() {
+	local line="${1-}"
+	line="$(_disk_strip_ansi "$line")"
+	printf '%s\n' "$line" | grep -oE '^/dev/[^ ]+'
+}
 
 # Converte tamanho para bytes
 _disk_to_bytes() {
@@ -118,6 +130,15 @@ disk_has_available() {
 # Seleciona um disco interativamente usando gum
 # Retorna: Define SELECTED_DISK com o caminho do dispositivo
 disk_select_interactive() {
+	local selected_many
+	selected_many="$(disk_select_multi_interactive "${1:-Selecione o disco de destino:}")" || return 1
+	SELECTED_DISK="$(printf '%s\n' "$selected_many" | sed -n '1p')"
+	printf '%s\n' "$SELECTED_DISK"
+}
+
+# Seleciona múltiplos discos interativamente usando gum
+# Retorna: caminhos /dev/... separados por nova linha
+disk_select_multi_interactive() {
 	local disks
 	disks=$(disk_list_available)
 
@@ -126,21 +147,53 @@ disk_select_interactive() {
 	fi
 
 	local prompt="${1:-Selecione o disco de destino:}"
-	
-	# Usar estilo do header definido no DS
-	gum style --foreground "${DS_CLOUD:-250}" "$prompt"
-	echo ""
+
+	# Usar estilo do DS sem contaminar stdout (capturado pelo chamador)
+	gum style --foreground "${DS_CLOUD:-250}" "$prompt" >&2
+	gum style --foreground "${DS_FOG:-245}" --italic "  ${UI_ARROW:-▶} Espaço marca • Enter confirma seleção" >&2
+	echo "" >&2
 
 	local selected
-	selected=$(echo "$disks" | gum choose \
-		--height 8 \
-		--cursor.foreground "${DS_FILESERVER_PEAK:-153}" \
-		--selected.foreground "${DS_SILVER:-252}")
+	if declare -F ui_filter_multiselect >/dev/null 2>&1; then
+		local -a options=()
+		while IFS= read -r line; do
+			[[ -z "$line" ]] && continue
+			options+=("$line")
+		done <<<"$disks"
+		selected="$(ui_filter_multiselect "$prompt" "${options[@]}")"
+	else
+		selected=$(echo "$disks" | gum choose \
+			--height 8 \
+			--show-help \
+			--no-limit \
+			--cursor "${UI_ARROW:-▶} " \
+			--selected-prefix "[${UI_BULLET:-●}] " \
+			--unselected-prefix "[ ] " \
+			--cursor-prefix "[ ] " \
+			--cursor.foreground "${DS_FILESERVER_PEAK:-153}" \
+			--item.foreground "${DS_CLOUD:-250}" \
+			--selected.foreground "${DS_SILVER:-252}" \
+			--selected.background "${DS_ELEVATION:-239}")
+	fi
 
-	# Extrai apenas o caminho do dispositivo (primeira coluna)
-	SELECTED_DISK=$(echo "$selected" | awk '{print $1}')
+	if [[ -z "$(sanitize_ws "$selected")" ]]; then
+		return 1
+	fi
 
-	echo "$SELECTED_DISK"
+	mapfile -t SELECTED_DISKS < <(
+		while IFS= read -r line; do
+			[[ -z "$line" ]] && continue
+			_disk_extract_device "$line"
+		done <<<"$selected"
+	)
+
+	if [[ "${#SELECTED_DISKS[@]}" -eq 0 ]]; then
+		return 1
+	fi
+
+	SELECTED_DISK="${SELECTED_DISKS[0]}"
+
+	printf '%s\n' "${SELECTED_DISKS[@]}"
 }
 
 # Retorna o disco selecionado
@@ -386,96 +439,95 @@ partition_info() {
 # ============================================================================
 
 diskutils_validate_target_disk() {
-    local disk="$1"
-    if [[ ! -b "$disk" ]]; then
-        stderr "Erro: Disco inválido: $disk"
-        return 1
-    fi
+	local disk="$1"
+	if [[ ! -b "$disk" ]]; then
+		stderr "Erro: Disco inválido: $disk"
+		return 1
+	fi
 }
 
 diskutils_refuse_install_on_media_disk() {
-    local disk="$1"
-    # TODO: Implementar verificação real se é a mídia de instalação
-    # Por enquanto, apenas loga
-    log_line "INFO" "Verificando se $disk é mídia de instalação..."
+	local disk="$1"
+	# TODO: Implementar verificação real se é a mídia de instalação
+	# Por enquanto, apenas loga
+	log_line "INFO" "Verificando se $disk é mídia de instalação..."
 }
 
 diskutils_umount_all_children() {
-    local disk="$1"
-    # Desmonta tudo associado ao disco
-    lsblk -n -o MOUNTPOINT "$disk" | grep -v "^$" | sort -r | xargs -r umount -f || true
+	local disk="$1"
+	# Desmonta tudo associado ao disco
+	lsblk -n -o MOUNTPOINT "$disk" | grep -v "^$" | sort -r | xargs -r umount -f || true
 }
 
 diskutils_wipe_signatures() {
-    partition_wipe_disk "$1"
+	partition_wipe_disk "$1"
 }
 
 diskutils_zap_gpt() {
-    sgdisk --zap-all "$1" 2>/dev/null || true
+	sgdisk --zap-all "$1" 2>/dev/null || true
 }
 
 diskutils_create_gpt_efi_swap_optional() {
-    local disk="$1"
-    local efi_mib="${2:-512}"
-    local swap_mib="${3:-0}"
-    local bios_grub="${4:-0}"
-    
-    local part_num=1
-    
-    sgdisk -o "$disk"
-    
-    if [[ "$bios_grub" == "1" ]]; then
-        sgdisk -n ${part_num}:2048:+"1MiB" -t ${part_num}:EF02 -c ${part_num}:"BIOS Boot" "$disk"
-        part_num=$((part_num + 1))
-    fi
-    
-    sgdisk -n ${part_num}:0:+"${efi_mib}MiB" -t ${part_num}:EF00 -c ${part_num}:"EFI System" "$disk"
-    part_num=$((part_num + 1))
-    
-    if [[ "$swap_mib" != "0" ]]; then
-        sgdisk -n ${part_num}:0:+"${swap_mib}MiB" -t ${part_num}:8200 -c ${part_num}:"Linux Swap" "$disk"
-        part_num=$((part_num + 1))
-    fi
-    
-    # Resto para ZFS
-    sgdisk -n ${part_num}:0:0 -t ${part_num}:BF00 -c ${part_num}:"ZFS Root" "$disk"
-    
-    partprobe "$disk"
-    sleep 2
+	local disk="$1"
+	local efi_mib="${2:-512}"
+	local swap_mib="${3:-0}"
+	local bios_grub="${4:-0}"
+
+	local part_num=1
+
+	sgdisk -o "$disk"
+
+	if [[ "$bios_grub" == "1" ]]; then
+		sgdisk -n ${part_num}:2048:+"1MiB" -t ${part_num}:EF02 -c ${part_num}:"BIOS Boot" "$disk"
+		part_num=$((part_num + 1))
+	fi
+
+	sgdisk -n ${part_num}:0:+"${efi_mib}MiB" -t ${part_num}:EF00 -c ${part_num}:"EFI System" "$disk"
+	part_num=$((part_num + 1))
+
+	if [[ "$swap_mib" != "0" ]]; then
+		sgdisk -n ${part_num}:0:+"${swap_mib}MiB" -t ${part_num}:8200 -c ${part_num}:"Linux Swap" "$disk"
+		part_num=$((part_num + 1))
+	fi
+
+	# Resto para ZFS
+	sgdisk -n ${part_num}:0:0 -t ${part_num}:BF00 -c ${part_num}:"ZFS Root" "$disk"
+
+	partprobe "$disk"
+	sleep 2
 }
 
 diskutils_partition_paths_for_zfs_layout() {
-    local disk="$1"
-    local has_swap="${2:-0}"
-    local bios_grub="${3:-0}"
-    
-    local p=1
-    
-    if [[ "$bios_grub" == "1" ]]; then
-        p=$((p + 1))
-    fi
-    
-    local efi_part="$(_get_partition_name "$disk" "$p")"
-    p=$((p + 1))
-    
-    local swap_part=""
-    if [[ "$has_swap" == "1" ]]; then
-        swap_part="$(_get_partition_name "$disk" "$p")"
-        p=$((p + 1))
-    fi
-    
-    local zfs_part="$(_get_partition_name "$disk" "$p")"
-    
-    echo "EFI=$efi_part"
-    echo "SWAP=$swap_part"
-    echo "ZFS=$zfs_part"
+	local disk="$1"
+	local has_swap="${2:-0}"
+	local bios_grub="${3:-0}"
+
+	local p=1
+
+	if [[ "$bios_grub" == "1" ]]; then
+		p=$((p + 1))
+	fi
+
+	local efi_part="$(_get_partition_name "$disk" "$p")"
+	p=$((p + 1))
+
+	local swap_part=""
+	if [[ "$has_swap" == "1" ]]; then
+		swap_part="$(_get_partition_name "$disk" "$p")"
+		p=$((p + 1))
+	fi
+
+	local zfs_part="$(_get_partition_name "$disk" "$p")"
+
+	echo "EFI=$efi_part"
+	echo "SWAP=$swap_part"
+	echo "ZFS=$zfs_part"
 }
 
 diskutils_mkfs_vfat_efi() {
-    partition_format_esp "$1"
+	partition_format_esp "$1"
 }
 
 diskutils_mkswap_partition() {
-    mkswap "$1"
+	mkswap "$1"
 }
-

@@ -15,6 +15,11 @@ TIMEOUT=5
 DHCP_TIMEOUT=30
 SSH_USER="root"
 
+is_vm_running() {
+	local vm_name="$1"
+	virsh list --state-running --name 2>/dev/null | grep -Fxq "$vm_name"
+}
+
 # -----------------------------------------------------------------------------
 # Funções de Detecção de Rede e IP
 # -----------------------------------------------------------------------------
@@ -33,20 +38,9 @@ detect_vm_network() {
 		return 1
 	}
 
-	# Parseia saída para encontrar rede "default"
-	# Formato: vnetX   network   default   virtio   MAC
-	while IFS= read -r line; do
-		# Ignora linhas de cabeçalho e vazias
-		[[ "$line" =~ ^(Interface|---|$) ]] && continue
-
-		# Extrai o nome da rede (3ª coluna)
-		local net_name
-		net_name=$(echo "$line" | awk '{print $3}')
-		if [[ -n "$net_name" && "$net_name" != "--" ]]; then
-			network="$net_name"
-			break
-		fi
-	done <<< "$interfaces"
+	# Parse robusto independente de locale.
+	# Linha válida esperada: <iface> network <nome-da-rede> <modelo> <mac>
+	network="$(printf '%s\n' "$interfaces" | awk '$2=="network" && $3!="--" {print $3; exit}')"
 
 	if [[ -z "$network" ]]; then
 		echo "❌ Erro: Nenhuma rede encontrada para VM '$vm_name'" >&2
@@ -105,7 +99,7 @@ get_vm_ip() {
 				ip="$lease_ip"
 				break 2
 			fi
-		done <<< "$leases"
+		done <<<"$leases"
 
 		echo "⏳ Aguardando lease DHCP... ($elapsed/$DHCP_TIMEOUT s)"
 		sleep 2
@@ -154,7 +148,7 @@ copy_ssh_key() {
 			ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa -q
 		else
 			echo "📝 Usando chave existente..."
-			ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub 2>/dev/null || true
+			ssh-keygen -y -f ~/.ssh/id_rsa >~/.ssh/id_rsa.pub 2>/dev/null || true
 		fi
 	fi
 
@@ -198,7 +192,8 @@ connect_serial() {
 
 	if [[ -n "$command" ]]; then
 		echo "📡 Enviando comando via serial: $command"
-		echo "$command" | nc -U -w "$TIMEOUT" "$SOCKET_PATH"
+		# Ctrl+U limpa a linha corrente no shell remoto e evita comandos corrompidos.
+		printf '\025%s\n' "$command" | nc -U -w "$TIMEOUT" "$SOCKET_PATH"
 	else
 		echo "📡 Conectando ao console serial (Ctrl+C para sair)..."
 		nc -U "$SOCKET_PATH"
@@ -214,7 +209,7 @@ main_with_ssh() {
 	local use_ssh="${USE_SSH:-false}"
 
 	# Se modo SSH explícito ou argumentos fornecidos
-	if [[ "$use_ssh" == "true" || -n "${2:-}" ]]; then
+	if [[ "$use_ssh" == "true" || -n "${1:-}" ]]; then
 		execute_ssh_flow "$@"
 	else
 		# Modo padrão: tenta socket primeiro
@@ -224,31 +219,35 @@ main_with_ssh() {
 
 # Executa fluxo SSH
 execute_ssh_flow() {
-	local command="${2:-}"
+	local command="${1:-}"
+	local ip="${VM_IP:-}"
 
-	# 1. Verifica se VM está rodando
-	echo "🔍 Verificando VM '$VM_NAME'..."
-	if ! virsh dominfo "$VM_NAME" 2>/dev/null | grep -q "running"; then
-		echo "❌ VM '$VM_NAME' não está rodando"
-		echo "   Inicie a VM primeiro com: ./vm-start-test-${MODE}.sh"
-		exit 1
+	if [[ -n "$ip" ]]; then
+		echo "🌐 Usando VM_IP informado: $ip"
+	else
+		# 1. Verifica se VM está rodando
+		echo "🔍 Verificando VM '$VM_NAME'..."
+		if ! is_vm_running "$VM_NAME"; then
+			echo "❌ VM '$VM_NAME' não está rodando"
+			echo "   Inicie a VM primeiro com: ./vm-start-test-${MODE}.sh"
+			exit 1
+		fi
+
+		# 2. Detecta rede
+		echo "🌐 Detectando rede da VM..."
+		local network
+		network=$(detect_vm_network "$VM_NAME") || exit 1
+		echo "   Rede: $network"
+
+		# 3. Obtém IP
+		echo "📡 Obtendo IP da VM..."
+		ip=$(get_vm_ip "$VM_NAME" "$network") || {
+			echo "⚠️  IP não obtido, usando fallback serial..."
+			connect_serial "$command"
+			return
+		}
+		echo "   IP: $ip"
 	fi
-
-	# 2. Detecta rede
-	echo "🌐 Detectando rede da VM..."
-	local network
-	network=$(detect_vm_network "$VM_NAME") || exit 1
-	echo "   Rede: $network"
-
-	# 3. Obtém IP
-	echo "📡 Obtendo IP da VM..."
-	local ip
-	ip=$(get_vm_ip "$VM_NAME" "$network") || {
-		echo "⚠️  IP não obtido, usando fallback serial..."
-		connect_serial "$command"
-		return
-	}
-	echo "   IP: $ip"
 
 	# 4. Verifica disponibilidade SSH
 	if ! check_ssh_available "$ip"; then
@@ -298,7 +297,12 @@ execute_ssh_flow() {
 
 # Fluxo padrão (socket primeiro)
 execute_default_flow() {
-	local command="${2:-}"
+	local command="${1:-}"
+
+	if [[ -n "${VM_IP:-}" ]]; then
+		execute_ssh_flow "$command"
+		return
+	fi
 
 	# Tenta socket primeiro
 	if check_socket; then
@@ -311,7 +315,7 @@ execute_default_flow() {
 	echo "   Tentando conexão SSH..."
 
 	# Verifica se VM está rodando
-	if ! virsh dominfo "$VM_NAME" 2>/dev/null | grep -q "running"; then
+	if ! is_vm_running "$VM_NAME"; then
 		echo "❌ VM '$VM_NAME' não está rodando"
 		echo "   Inicie a VM primeiro com: ./vm-start-test-${MODE}.sh"
 		exit 1
@@ -347,7 +351,7 @@ execute_default_flow() {
 # -----------------------------------------------------------------------------
 
 show_help() {
-	cat << EOF
+	cat <<EOF
 Uso: $0 [mode] [command]
 
 Conecta a VMs de teste via SSH ou console serial.
@@ -388,16 +392,16 @@ EOF
 
 # Parseia argumentos
 case "${1:-}" in
-	--help|-h)
-		show_help
-		exit 0
-		;;
-	uefi|bios)
-		MODE="$1"
-		VM_NAME="nas-test-${MODE}"
-		SOCKET_PATH="/tmp/${VM_NAME}.sock"
-		shift
-		;;
+--help | -h)
+	show_help
+	exit 0
+	;;
+uefi | bios)
+	MODE="$1"
+	VM_NAME="nas-test-${MODE}"
+	SOCKET_PATH="/tmp/${VM_NAME}.sock"
+	shift
+	;;
 esac
 
 # Executa fluxo principal

@@ -12,6 +12,7 @@ SCRIPT_VERSION="2.0.0"
 PROJECT_NAME="FILESERVER INSTALLER"
 PROJECT_TAGLINE="Debian 13 + ZFS on Root"
 DEFAULT_STEP="welcome"
+RESUME_SESSION="0"
 STATE_DIR_DEFAULT="/run/fileserver-installer"
 STATE_FILE_DEFAULT="$STATE_DIR_DEFAULT/state.env"
 STEPS_DIR_DEFAULT="/usr/local/lib/installer/steps"
@@ -79,8 +80,21 @@ source "${LIBS_DIR}/state-utils.sh"
 trap_cleanup() {
     local code; code="${1-0}"
     local msg
-    msg="Encerrando ($code)."
+    msg="Encerrando de forma segura ($code)."
     log_line "INFO" "$msg"
+
+    if declare -F state_kv_set >/dev/null 2>&1; then
+        state_kv_set "installer_cancelled" "1" || true
+        state_kv_set "installer_cancelled_step" "${CURRENT_STEP:-unknown}" || true
+    fi
+
+    if declare -F ui_error >/dev/null 2>&1; then
+        ui_error "Instalação cancelada" "Cancelamento solicitado pelo usuário (Ctrl+C). Nenhuma etapa crítica em andamento foi forçada." || true
+    else
+        stderr "Instalação cancelada com segurança (Ctrl+C)."
+    fi
+
+    exit "$code"
 }
 
 on_sigint() { trap_cleanup 130; }
@@ -209,19 +223,19 @@ register_all_steps() {
     register_step "user_account"              "06" "Conta do Usuário"          "Nome, usuário e senha"                   "time"                      "admin_policy"              "auth-utils.sh"              "user_account.sh"           "step_user_account"
     register_step "admin_policy"              "07" "Administração (Root/Sudo)" "Política de root e senha root opcional"  "user_account"              "disk_select"               "auth-utils.sh"              "admin_policy.sh"           "step_admin_policy"
 
-    register_step "disk_select"               "08" "Disco de Destino"          "Detectar e selecionar o disco alvo"      "admin_policy"              "disk_wipe_confirm"         "disk-utils.sh"              "disk_select.sh"            "step_disk_select"
-    register_step "disk_wipe_confirm"         "09" "Confirmação de Wipe"       "Confirmação forte para apagar dados"     "disk_select"               "zfs_strategy"              "disk-utils.sh"              "disk_wipe_confirm.sh"      "step_disk_wipe_confirm"
+    register_step "disk_select"               "08" "Disco de Destino"          "Detectar e selecionar o disco alvo"      "admin_policy"              "disk_wipe_confirm"         "disk-utils.sh,install-plan-utils.sh"      "disk_select.sh"            "step_disk_select"
+    register_step "disk_wipe_confirm"         "09" "Confirmação de Wipe"       "Confirmação forte para apagar dados"     "disk_select"               "zfs_strategy"              "disk-utils.sh,install-plan-utils.sh"      "disk_wipe_confirm.sh"      "step_disk_wipe_confirm"
 
-    register_step "zfs_strategy"              "10" "Estratégia ZFS"            "Automático (recomendado) ou Avançado"    "disk_wipe_confirm"         "zfs_auto_topology"         "zfs-utils.sh"               "zfs_strategy.sh"           "step_zfs_strategy"
-    register_step "zfs_auto_topology"         "11" "ZFS: Topologia do Pool"    "Stripe/Mirror/RAIDZ conforme discos"     "zfs_strategy"              "zfs_auto_properties"       "zfs-utils.sh,disks-identify-suporte-types.sh" "zfs_auto_topology.sh" "step_zfs_auto_topology"
-    register_step "zfs_auto_properties"       "12" "ZFS: Propriedades"         "Compressão, dedup, ARC e avançado"       "zfs_auto_topology"         "zfs_auto_datasets"         "zfs-utils.sh"               "zfs_auto_properties.sh"    "step_zfs_auto_properties"
-    register_step "zfs_auto_datasets"         "13" "ZFS: Datasets"             "Preset padrão/servidor/custom"           "zfs_auto_properties"       "boot"                      "zfs-utils.sh"               "zfs_auto_datasets.sh"      "step_zfs_auto_datasets"
+    register_step "zfs_strategy"              "10" "Estratégia ZFS"            "Automático (recomendado) ou Avançado"    "disk_wipe_confirm"         "zfs_auto_topology"         "zfs-utils.sh,install-plan-utils.sh"       "zfs_strategy.sh"           "step_zfs_strategy"
+    register_step "zfs_auto_topology"         "11" "ZFS: Topologia do Pool"    "Stripe/Mirror/RAIDZ conforme discos"     "zfs_strategy"              "zfs_auto_properties"       "zfs-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh" "zfs_auto_topology.sh" "step_zfs_auto_topology"
+    register_step "zfs_auto_properties"       "12" "ZFS: Propriedades"         "Compressão, dedup, ARC e avançado"       "zfs_auto_topology"         "zfs_auto_datasets"         "zfs-utils.sh,install-plan-utils.sh"       "zfs_auto_properties.sh"    "step_zfs_auto_properties"
+    register_step "zfs_auto_datasets"         "13" "ZFS: Datasets"             "Preset padrão/servidor/custom"           "zfs_auto_properties"       "boot"                      "zfs-utils.sh,disk-utils.sh,install-plan-utils.sh" "zfs_auto_datasets.sh"      "step_zfs_auto_datasets"
 
     register_step "zfs_manual"                "14" "ZFS: Manual (Avançado)"    "VDEVs, pools, datasets e propriedades"   "zfs_strategy"              "boot"                      "zfs-utils.sh"               "zfs_manual.sh"             "step_zfs_manual"
 
     register_step "boot"                      "15" "Boot"                      "UEFI/BIOS, bootloader e parâmetros"      "zfs_auto_datasets"         "review"                    "boot-utils.sh"              "boot.sh"                   "step_boot"
-    register_step "review"                    "16" "Revisão"                   "Resumo, validações e checkpoint"         "boot"                      "install"                   "validate-utils.sh"          "review.sh"                 "step_review"
-    register_step "install"                   "17" "Instalação"                "Execução e progresso"                    "review"                    "post_install"              "install-utils.sh"           "install.sh"                "step_install"
+    register_step "review"                    "16" "Revisão"                   "Resumo, validações e checkpoint"         "boot"                      "install"                   "validate-utils.sh,install-plan-utils.sh"  "review.sh"                 "step_review"
+    register_step "install"                   "17" "Instalação"                "Execução e progresso"                    "review"                    "post_install"              "install-utils.sh,disk-utils.sh,zfs-utils.sh,boot-utils.sh,validate-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh" "install.sh"                "step_install"
     register_step "post_install"              "18" "Pós-instalação"            "Ajustes finais: apt, serviços, pacotes"  "install"                   "finish"                    "post-utils.sh,finalize-chroot.sh,setup-zbm-config.sh" "post_install.sh" "step_post_install"
     register_step "finish"                    "19" "Concluído"                 "Resumo final e reboot"                   "post_install"              ""                          ""                           "finish.sh"                 "step_finish"
 }
@@ -419,6 +433,9 @@ parse_args() {
                     CURRENT_STEP="$DEFAULT_STEP"
                 fi
                 ;;
+            --resume)
+                RESUME_SESSION="1"
+                ;;
             --print-map)
                 state_prepare || return 1
                 register_all_steps || return 1
@@ -474,11 +491,11 @@ main_loop() {
             continue
         fi
 
-        # Falha/voltar: tenta ir para prev; se não houver, encerra com erro.
         PREV_STEP="$(sanitize_id "$(compute_prev_step "$CURRENT_STEP")")"
         if [[ -n "$PREV_STEP" ]]; then
             goto_prev || return 1
             state_load || true
+            sleep 0.5
             continue
         fi
 
@@ -505,10 +522,16 @@ main() {
     register_all_steps || return 1
     state_load || true
 
-    local cs
-    cs="$(sanitize_id "${current_step-}")"
+    local cs=""
+    if [[ "$RESUME_SESSION" == "1" ]]; then
+        cs="$(sanitize_id "${current_step-}")"
+    fi
+
     if [[ -n "$cs" ]]; then
         CURRENT_STEP="$cs"
+    else
+        CURRENT_STEP="$DEFAULT_STEP"
+        state_kv_set "current_step" "$CURRENT_STEP" || return 1
     fi
     if [[ -z "$CURRENT_STEP" ]]; then
         CURRENT_STEP="$DEFAULT_STEP"
@@ -526,4 +549,3 @@ main() {
 }
 
 main "$@"
-

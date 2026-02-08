@@ -160,12 +160,12 @@ vm-boot-disk-bios:
 vm-connect-uefi:
 	@echo "🔌 Conectando ao console serial (UEFI)..."
 	@chmod +x $(VM_DIR)/vm-connent-agent-llm.sh
-	@bash $(VM_DIR)/vm-connent-agent-llm.sh uefi
+	@VM_CMD="$(VM_CMD)" VM_IP="$(VM_IP)" bash $(VM_DIR)/vm-connent-agent-llm.sh uefi
 
 vm-connect-bios:
 	@echo "🔌 Conectando ao console serial (BIOS)..."
 	@chmod +x $(VM_DIR)/vm-connent-agent-llm.sh
-	@bash $(VM_DIR)/vm-connent-agent-llm.sh bios
+	@VM_CMD="$(VM_CMD)" VM_IP="$(VM_IP)" bash $(VM_DIR)/vm-connent-agent-llm.sh bios
 
 # -----------------------------------------------------------------------------
 # Cleanup Targets
