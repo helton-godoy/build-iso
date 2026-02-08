@@ -35,6 +35,7 @@ VM_DISK_PATH_BIOS = scripts/vm/disks/bios/installed-system.qcow2
 .PHONY: setup-vm vm-list vm-destroy vm-destroy-all
 .PHONY: test-vm-uefi test-vm-bios test-vm-all vm-connect-uefi vm-connect-bios
 .PHONY: vm-boot-disk-uefi vm-boot-disk-bios
+.PHONY: docs docs-installer docs-dev docs-tests docs-all docs-markdown docs-stats verify-docs
 
 # -----------------------------------------------------------------------------
 # Targets Principais
@@ -71,6 +72,15 @@ help:
 	@echo ""
 	@echo "🧹 LIMPEZA:"
 	@echo "  make clean            - Remove artefatos de build e VMs"
+	@echo ""
+	@echo "📖 DOCUMENTAÇÃO:"
+	@echo "  make docs             - Exibe toda a documentação (instalador + dev + testes)"
+	@echo "  make docs-installer   - Exibe apenas documentação do instalador (@INST)"
+	@echo "  make docs-dev         - Exibe apenas scripts de desenvolvimento (@DEV)"
+	@echo "  make docs-tests       - Exibe apenas scripts de teste (@TEST)"
+	@echo "  make docs-markdown    - Gera documentação completa em Markdown"
+	@echo "  make docs-stats       - Estatísticas de cobertura de documentação"
+	@echo "  make verify-docs      - Valida a integridade de todas as tags"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════"
 
@@ -159,13 +169,13 @@ vm-boot-disk-bios:
 
 vm-connect-uefi:
 	@echo "🔌 Conectando ao console serial (UEFI)..."
-	@chmod +x $(VM_DIR)/vm-connent-agent-llm.sh
-	@VM_CMD="$(VM_CMD)" VM_IP="$(VM_IP)" bash $(VM_DIR)/vm-connent-agent-llm.sh uefi
+	@chmod +x $(VM_DIR)/vm-connect-agent-llm.sh
+	@VM_CMD="$(VM_CMD)" VM_IP="$(VM_IP)" bash $(VM_DIR)/vm-connect-agent-llm.sh uefi
 
 vm-connect-bios:
 	@echo "🔌 Conectando ao console serial (BIOS)..."
-	@chmod +x $(VM_DIR)/vm-connent-agent-llm.sh
-	@VM_CMD="$(VM_CMD)" VM_IP="$(VM_IP)" bash $(VM_DIR)/vm-connent-agent-llm.sh bios
+	@chmod +x $(VM_DIR)/vm-connect-agent-llm.sh
+	@VM_CMD="$(VM_CMD)" VM_IP="$(VM_IP)" bash $(VM_DIR)/vm-connect-agent-llm.sh bios
 
 # -----------------------------------------------------------------------------
 # Cleanup Targets
@@ -176,3 +186,34 @@ clean:
 	@sudo rm -rf $(LOGS_DIR) $(OUTPUT_DIR) live-build-workspace
 	@$(MAKE) vm-destroy
 	@echo "✅ Limpeza completa!"
+
+# -----------------------------------------------------------------------------
+# Documentation Targets
+# -----------------------------------------------------------------------------
+
+docs:
+	@bash $(SCRIPTS_DIR)/extract-docs.sh --all
+
+docs-installer:
+	@bash $(SCRIPTS_DIR)/extract-docs.sh --installer
+
+docs-dev:
+	@bash $(SCRIPTS_DIR)/extract-docs.sh --dev
+
+docs-tests:
+	@bash $(SCRIPTS_DIR)/extract-docs.sh --tests
+
+docs-all: docs
+
+docs-markdown:
+	@mkdir -p $(OUTPUT_DIR)
+	@bash $(SCRIPTS_DIR)/extract-docs.sh --markdown --all > $(OUTPUT_DIR)/docs-$(shell date +%Y%m%d).md
+	@echo "📄 Documentação gerada em: $(OUTPUT_DIR)/docs-$(shell date +%Y%m%d).md"
+
+docs-stats:
+	@bash $(SCRIPTS_DIR)/extract-docs.sh --stats
+
+verify-docs:
+	@echo "🔍 Validando metadados da documentação..."
+	@chmod +x tests/test-docs.sh
+	@bash tests/test-docs.sh
