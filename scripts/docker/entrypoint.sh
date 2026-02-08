@@ -1,8 +1,16 @@
 #!/bin/bash
+# =============================================================================
+# @DEV_SCRIPT: entrypoint - Orquestra build da ISO dentro do container Docker
+# @DEV_CATEGORY: docker
+# @DEV_DEP: live-build (lb), rsync, tee
+# @DEV_INPUT: /build/config-overrides (volume montado)
+# @DEV_OUTPUT: /build/output/*.iso, /build/logs/*.log
+# @DEV_MAKEFILE: build-iso
+# =============================================================================
 set -e
 set -o pipefail
 
-# 1. Sync overrides to live-build workspace
+# @DEV_FUNC: sync_overrides - Sincroniza config-overrides para workspace
 echo "🚚 Syncing custom configurations..."
 # We use a dedicated workspace to avoid cluttering the mount
 rm -rf /build/live-build-workspace
@@ -17,12 +25,12 @@ cd /build/live-build-workspace
 # Adjusted for Debian Trixie and amd64 architecture
 echo "⚙️ Configuring live-build..."
 lb config \
-    --distribution trixie \
-    --debian-installer false \
-    --archive-areas "main contrib non-free non-free-firmware" \
-    --memtest none \
-    --source false \
-    --binary-images iso-hybrid
+	--distribution trixie \
+	--debian-installer false \
+	--archive-areas "main contrib non-free non-free-firmware" \
+	--memtest none \
+	--source false \
+	--binary-images iso-hybrid
 
 # 3. Execute build
 echo "🏗️ Starting ISO build process..."

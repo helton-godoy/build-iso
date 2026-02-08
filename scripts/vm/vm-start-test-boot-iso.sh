@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# =============================================================================
+# @DEV_SCRIPT: vm-start-test-boot-iso - Inicia VM com ISO e 4 discos virtuais
+# @DEV_CATEGORY: vm
+# @DEV_DEP: virt-install, virsh, qemu-img
+# @DEV_INPUT: $1=mode (uefi|bios), output/*.iso
+# @DEV_OUTPUT: scripts/vm/disks/{mode}/disk{1-4}.qcow2, /tmp/nas-test-{mode}.sock
+# @DEV_MAKEFILE: test-vm-uefi, test-vm-bios
+# =============================================================================
 set -euo pipefail
 
 # --- Logging Configuration ---
@@ -7,6 +15,7 @@ LOG_FILE="logs/vm-start-test-${1:-uefi}.log"
 exec > >(tee -a "${LOG_FILE}") 2>&1
 echo "--- Run: $(date --iso-8601=seconds) ---"
 
+# @DEV_FUNC: main - Configura e inicia VM com virt-install
 # Script para iniciar VM de teste com a ISO gerada e 4 discos virtuais (NAS simulation)
 
 # 1. Define o modo (uefi ou bios)

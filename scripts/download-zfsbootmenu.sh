@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
-#
-# download-zfsbootmenu.sh - Download ZFSBootMenu binaries for live-build integration
-#
+# =============================================================================
+# @DEV_SCRIPT: download-zfsbootmenu - Baixa binários do ZFSBootMenu
+# @DEV_CATEGORY: build
+# @DEV_MAKEFILE: download-zbm
+# @DEV_DEP: curl, tar, grep, awk
+# @DEV_OUTPUT: config-overrides/config/includes.binary/EFI/BOOT/BOOTX64.EFI
+# @DEV_OUTPUT: config-overrides/config/includes.binary/zbm/vmlinuz
+# @DEV_OUTPUT: config-overrides/config/includes.binary/zbm/initramfs.img
+# =============================================================================
+# Download ZFSBootMenu binaries for live-build integration
+# Detecta automaticamente a versão mais recente via GitHub API e baixa:
+# - EFI executable para boot UEFI (BOOTX64.EFI)
+# - Kernel + initramfs para boot BIOS (vmlinuz, initramfs.img)
+# =============================================================================
 
 set -euo pipefail
 
@@ -32,9 +43,18 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# @DEV_FUNC: log - Exibe mensagem informativa
 log() { echo -e "${GREEN}[INFO]${NC} $*" >&2; }
+
+# @DEV_FUNC: log_step - Exibe etapa do processo
 log_step() { echo -e "${BLUE}[STEP]${NC} $*" >&2; }
 
+# -----------------------------------------------------------------------------
+# @DEV_FUNC: detect_latest_version - Detecta versão mais recente do ZFSBootMenu
+# @DEV_INPUT: Nenhum (usa API GitHub)
+# @DEV_OUTPUT: String com versão (ex: v2.3.0) via stdout
+# @DEV_TODO: Adicionar cache local para evitar rate-limit da API
+# -----------------------------------------------------------------------------
 detect_latest_version() {
 	log "Detecting latest ZFSBootMenu version..."
 	# Try getting version from redirect
@@ -53,6 +73,11 @@ detect_latest_version() {
 	echo "$version"
 }
 
+# -----------------------------------------------------------------------------
+# @DEV_FUNC: main - Orquestra download de todos os componentes ZBM
+# @DEV_INPUT: Nenhum argumento requerido
+# @DEV_OUTPUT: Arquivos em config-overrides/config/includes.binary/
+# -----------------------------------------------------------------------------
 main() {
 	local version
 	version=$(detect_latest_version)
@@ -67,7 +92,9 @@ main() {
 	local release_json
 	release_json=$(curl --retry 3 --retry-delay 5 -s https://api.github.com/repos/zbm-dev/zfsbootmenu/releases/latest)
 
-	# Function to extract URL for a specific pattern, sorting to get the latest kernel
+	# @DEV_FUNC: get_asset_url - Extrai URL de asset do release JSON
+	# @DEV_INPUT: $1=pattern (regex para filtrar assets)
+	# @DEV_OUTPUT: URL do asset via stdout
 	get_asset_url() {
 		local pattern="$1"
 		echo "$release_json" | grep "browser_download_url" | cut -d '"' -f 4 | grep -E "$pattern" | sort -V | tail -n 1

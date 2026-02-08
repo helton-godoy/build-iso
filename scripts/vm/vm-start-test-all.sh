@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# =============================================================================
+# @DEV_SCRIPT: vm-start-test-all - Executa testes UEFI + BIOS em paralelo
+# @DEV_CATEGORY: vm
+# @DEV_DEP: vm-start-test-boot-iso.sh, vm-connect-agent-llm.sh
+# @DEV_INPUT: output/*.iso
+# @DEV_OUTPUT: logs/test-*/boot-{uefi,bios}.log
+# @DEV_MAKEFILE: test-vm-all
+# =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,7 +16,7 @@ mkdir -p "$LOG_DIR"
 echo "🧪 Iniciando Bateria de Testes Simultâneos (BIOS & UEFI)..."
 echo "📂 Logs desta sessão: $LOG_DIR"
 
-# Função para rodar a VM e capturar o log inicial de boot
+# @DEV_FUNC: run_test - Inicia VM e captura log de boot inicial
 run_test() {
 	local MODE=$1
 	echo "⚙️  Preparando instância $MODE..."

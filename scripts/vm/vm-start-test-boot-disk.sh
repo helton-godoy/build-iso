@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# =============================================================================
+# @DEV_SCRIPT: vm-start-test-boot-disk - Inicia VM a partir de disco instalado
+# @DEV_CATEGORY: vm
+# @DEV_DEP: virt-install, virsh, qemu-img
+# @DEV_INPUT: $1=disk_path, -f={uefi|bios}, -m=memory, -c=cpus
+# @DEV_OUTPUT: /tmp/{vm-name}.sock
+# @DEV_MAKEFILE: vm-boot-disk-uefi, vm-boot-disk-bios
+# =============================================================================
 set -euo pipefail
 
 # =============================================================================
@@ -15,7 +23,7 @@ echo "--- Run: $(date --iso-8601=seconds) ---"
 
 # --- Funções de Ajuda ---
 show_help() {
-	cat << EOF
+	cat <<EOF
 Uso: $0 [opções] <caminho-do-disco>
 
 Inicia uma VM QEMU/KVM a partir de um disco virtual com sistema instalado.
@@ -57,40 +65,40 @@ DISK_PATH=""
 
 while [[ $# -gt 0 ]]; do
 	case $1 in
-		-f|--firmware)
-			FIRMWARE="$2"
-			shift 2
-			;;
-		-m|--memory)
-			MEMORY="$2"
-			shift 2
-			;;
-		-c|--cpus)
-			CPUS="$2"
-			shift 2
-			;;
-		-n|--name)
-			VM_NAME="$2"
-			shift 2
-			;;
-		-h|--help)
-			show_help
-			exit 0
-			;;
-		-*)
-			echo "❌ Opção desconhecida: $1"
-			show_help
+	-f | --firmware)
+		FIRMWARE="$2"
+		shift 2
+		;;
+	-m | --memory)
+		MEMORY="$2"
+		shift 2
+		;;
+	-c | --cpus)
+		CPUS="$2"
+		shift 2
+		;;
+	-n | --name)
+		VM_NAME="$2"
+		shift 2
+		;;
+	-h | --help)
+		show_help
+		exit 0
+		;;
+	-*)
+		echo "❌ Opção desconhecida: $1"
+		show_help
+		exit 1
+		;;
+	*)
+		if [ -z "$DISK_PATH" ]; then
+			DISK_PATH="$1"
+		else
+			echo "❌ Múltiplos caminhos de disco especificados"
 			exit 1
-			;;
-		*)
-			if [ -z "$DISK_PATH" ]; then
-				DISK_PATH="$1"
-			else
-				echo "❌ Múltiplos caminhos de disco especificados"
-				exit 1
-			fi
-			shift
-			;;
+		fi
+		shift
+		;;
 	esac
 done
 

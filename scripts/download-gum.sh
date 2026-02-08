@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-#
-# download-gum.sh - Baixa o binário estático do gum (charmbracelet)
-#
+# =============================================================================
+# @DEV_SCRIPT: download-gum - Baixa binário estático do gum (charmbracelet)
+# @DEV_CATEGORY: build
+# @DEV_DEP: curl, tar
+# @DEV_OUTPUT: config-overrides/config/includes.chroot/usr/local/bin/gum
+# =============================================================================
 
 set -euo pipefail
 
@@ -10,7 +13,6 @@ REPO="charmbracelet/gum"
 DEST_DIR="$(pwd)/config-overrides/config/includes.chroot/usr/local/bin"
 TEMP_DIR="/tmp/gum-download"
 
-# Cores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
@@ -21,6 +23,7 @@ log_error() {
 	exit 1
 }
 
+# @DEV_FUNC: main - Detecta versão, baixa e instala gum
 main() {
 	log_info "Detectando a versão mais recente do gum..."
 	local version

@@ -1,3 +1,11 @@
+# =============================================================================
+# @DEV_SCRIPT: Dockerfile - Imagem Docker para build da ISO live-build
+# @DEV_CATEGORY: docker
+# @DEV_DEP: debian:trixie-slim, live-build, zfsutils-linux, gum
+# @DEV_OUTPUT: zbm-iso-builder:latest
+# @DEV_MAKEFILE: setup-docker
+# =============================================================================
+
 # Base Debian Trixie/Stable
 FROM debian:trixie-slim
 
