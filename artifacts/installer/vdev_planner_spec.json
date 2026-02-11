@@ -1,0 +1,14 @@
+{
+  "vdev_types_supported": [
+    "stripe",
+    "mirror",
+    "raidz1",
+    "raidz2",
+    "raidz3",
+    "draid",
+    "slog",
+    "l2arc",
+    "special"
+  ],
+  "description": "Especificação do planejador de vdev para o instalador, incluindo tipos de vdev suportados pelo ZFS. NOTA: 'dedup' não é um tipo de vdev e foi removido; dedup é uma propriedade de dataset e NÃO é recomendado no baseline deste projeto."
+}
