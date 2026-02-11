@@ -1,0 +1,97 @@
+[
+  {
+    "name": "area:bash",
+    "color": "1f6feb",
+    "description": "Bash/scripts/installer"
+  },
+  {
+    "name": "area:powershell",
+    "color": "8250df",
+    "description": "PowerShell/scripts/AD automation"
+  },
+  {
+    "name": "area:zfs",
+    "color": "238636",
+    "description": "ZFS/storage/datasets"
+  },
+  {
+    "name": "area:samba",
+    "color": "ffd33d",
+    "description": "Samba/AD integration/shares"
+  },
+  {
+    "name": "area:ha",
+    "color": "ff7b72",
+    "description": "High availability/failover/replication"
+  },
+  {
+    "name": "area:installer",
+    "color": "bf8700",
+    "description": "Live-build/installer/first-boot"
+  },
+  {
+    "name": "area:docs",
+    "color": "f85149",
+    "description": "Documentation/runbooks"
+  },
+  {
+    "name": "area:ci",
+    "color": "d29922",
+    "description": "CI/CD/linting/testing"
+  },
+  {
+    "name": "priority:high",
+    "color": "b62324",
+    "description": "High priority - critical bug or feature"
+  },
+  {
+    "name": "priority:medium",
+    "color": "fbca04",
+    "description": "Medium priority - important but not urgent"
+  },
+  {
+    "name": "priority:low",
+    "color": "0e8a16",
+    "description": "Low priority - nice to have"
+  },
+  {
+    "name": "status:ready",
+    "color": "0e8a16",
+    "description": "Ready for implementation"
+  },
+  {
+    "name": "status:in-progress",
+    "color": "fbca04",
+    "description": "Currently being worked on"
+  },
+  {
+    "name": "status:blocked",
+    "color": "b62324",
+    "description": "Blocked by external factors"
+  },
+  {
+    "name": "type:bug",
+    "color": "d73a49",
+    "description": "Bug report or fix"
+  },
+  {
+    "name": "type:feature",
+    "color": "0052cc",
+    "description": "New feature request"
+  },
+  {
+    "name": "type:documentation",
+    "color": "006b75",
+    "description": "Documentation improvement"
+  },
+  {
+    "name": "type:refactor",
+    "color": "fbca04",
+    "description": "Code refactoring"
+  },
+  {
+    "name": "type:test",
+    "color": "0e8a16",
+    "description": "Test addition or improvement"
+  }
+]

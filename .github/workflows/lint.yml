@@ -1,0 +1,50 @@
+name: Lint
+
+on:
+  push:
+    branches: [main, master, main-v5]
+  pull_request:
+    branches: [main, master, main-v5]
+
+jobs:
+  shell:
+    name: Shell Lint (shellcheck + shfmt + checkbashisms)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell lint
+        uses: luizm/action-sh-checker@master
+        env:
+          SHELLCHECK_OPTS: "--severity=warning"
+          SHFMT_OPTS: "-i 2 -s"
+        with:
+          sh_checker_checkbashisms_enable: true
+
+  validate:
+    name: Validate JSON & YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JSON files
+        run: |
+          find . -name '*.json' -not -path './.git/*' -print0 | \
+            xargs -0 -I{} python3 -m json.tool {} > /dev/null
+
+      - name: Validate YAML files
+        run: |
+          pip install pyyaml
+          find . -name '*.yml' -o -name '*.yaml' | grep -v '.git/' | \
+            xargs -I{} python3 -c "import yaml; yaml.safe_load(open('{}'))"
+
+  secrets:
+    name: Secret Scanning (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

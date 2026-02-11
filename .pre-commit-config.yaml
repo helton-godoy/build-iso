@@ -1,0 +1,41 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+
+  # shfmt (formatação de scripts shell)
+  - repo: https://github.com/pecigonzalo/pre-commit-shfmt
+    rev: v2.2.0
+    hooks:
+      - id: shfmt
+        args: ["-w", "-s", "-i", "2"]
+
+  # ShellCheck (lint bash/sh)
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: ["--severity=warning"]
+
+  # Gitleaks (secret scanning - evita vazar credenciais/keys)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # PowerShell lint (hook local via pwsh)
+  # NOTA: Requer pwsh instalado. O PSScriptAnalyzer é executado como hook local
+  # porque não há um repositório pre-commit oficial para ele.
+  - repo: local
+    hooks:
+      - id: psscriptanalyzer
+        name: PSScriptAnalyzer
+        language: system
+        entry: pwsh -NoProfile -Command "Invoke-ScriptAnalyzer -Path ./powershell -Recurse -Settings ./PSScriptAnalyzerSettings.psd1"
+        files: '\.ps1$|\.psd1$'
+        pass_filenames: false
