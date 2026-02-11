@@ -24,7 +24,7 @@ Este guia ajuda a equipe tecnica a operar o instalador com seguranca em ambiente
 - `log (SLOG)`: escritas sincronas; prefira disco(s) dedicado(s), idealmente mirror.
 - `cache (L2ARC)`: melhora leitura quando RAM nao cobre o working set.
 - `special`: metadados/blocos pequenos; use com redundancia adequada.
-- `dedup`: tabela DDT dedicada; somente com caso de uso claro.
+- `dedup`: **NÃO RECOMENDADO** — impacto severo em performance e RAM. Consulte `docs/00_SOURCE_OF_TRUTH.md`.
 - `spare`: disco de reserva para substituicao automatica.
 
 ## Alertas Operacionais

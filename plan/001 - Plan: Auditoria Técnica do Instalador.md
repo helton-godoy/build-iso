@@ -1,5 +1,14 @@
 # Auditoria Técnica: Instalador GPT com Lazy Loading
 
+**Data:** 2026-02-07
+**Status:** ~~Em Execução~~ → **Superseded**
+**Autor:** Antigravity AI
+
+> [!WARNING]
+> **Plano superseded.** O instalador foi refatorado com `gum` e a arquitetura de `libs/` e `steps/` está implementada em
+> `config-overrides/config/includes.chroot/usr/local/lib/installer/`. Consulte
+> [`docs/INSTALLER_ARCHITECTURE.md`](../docs/INSTALLER_ARCHITECTURE.md) para a arquitetura atual.
+
 ## Descrição do Problema
 
 A implementação anterior do instalador, embora tenha buscado uma abordagem modular com **Lazy Loading em Shell Script**, apresenta desvios significativos da arquitetura definida em [projeto.md](file:///home/helton/git/build-iso/projeto.md):

@@ -62,7 +62,7 @@ scripts/
     ├── vm-start-test-all.sh          # Testa BIOS + UEFI simultaneamente
     ├── vm-start-test-boot-disk.sh    # Testa boot com disco
     ├── vm-start-test-boot-iso.sh     # Testa boot via ISO
-    ├── vm-connent-agent-llm.sh       # Gateway serial para agentes LLM
+    ├── vm-connect-agent-llm.sh        # Gateway serial para agentes LLM
     ├── vm-setup.sh                   # Setup de dependências KVM
     └── disks/
 ```
@@ -95,7 +95,29 @@ Documentação técnica e arquitetural:
 docs/
 ├── PROJECT_STRUCTURE.md              # Este documento
 ├── ARCHITECTURE.md                   # Arquitetura do projeto
-└── "Architectural Blueprint for Automated Debian Deployment..."  # Blueprint detalhado (inglês)
+├── "Architectural Blueprint..."       # Blueprint detalhado (inglês)
+├── PRD.md                            # Product Requirements Document
+├── PROPOSTA-DEBIAN-ZFS.md            # Proposta técnica original
+├── INSTALLER_GUIDE.md                # Guia do instalador
+├── INSTALLER_ARCHITECTURE.md         # Arquitetura modular do instalador
+├── INSTALLER_JUNIOR_PLAYBOOK.md      # Playbook para equipe junior
+├── MAPA_INSTALLER.md                 # Mapa técnico do instalador
+├── DESIGN_SYSTEM_v2.0.md             # Design System monocromático
+├── SCRIPTS_TESTS_INVENTORY.md        # Inventário de scripts/testes
+├── AI_SPEC_DRIVEN_WORKFLOW.md         # Workflow AI/Spec-driven
+├── BUGFIX_REPORT.md                  # Relatório de correções
+├── IMPLEMENTATION_REPORT.md           # Relatório de implementação
+├── 00_SOURCE_OF_TRUTH.md             # Fonte da verdade (NAS/Samba/AD)
+├── 10_SMB_STACK.md                   # Pilha SMB (VFS, ACLs, multichannel)
+├── 20_ZFS_DATASET_TEMPLATES.md       # Templates ZFS (5 cenários)
+├── 30_AD_JOIN_AND_ALIAS.md           # AD join, SPNs, DNS
+├── 31_RUNBOOK_FILESERVICE_...md      # Runbook completo SMB+AD
+├── 32_AD_OBJECTS_CHECKLIST.md        # Checklist de objetos AD
+├── 35_JUMPBOX_SSH_KEYS.md            # SSH keys para jump box
+├── 36_POWERSHELL_OVER_SSH_...md      # PowerShell over SSH
+├── 40_FAILOVER_REPLICATION.md        # HA: Syncoid + Pacemaker
+├── ROADMAP.md                        # Roadmap unificado (8 fases)
+└── HANDOFF_PROMPT_NEW_SESSION.md     # Contexto para novas sessões LLM
 ```
 
 ### 📁 `tests/` (Suite de Testes)
@@ -192,6 +214,10 @@ output/
 | `scripts/scripts_exemplos/` | Removido                 | ❌                                         |
 | ❌                          | `conductor/`             | 🆕 Adicionado                              |
 | ❌                          | `archived/`              | 🆕 Adicionado                              |
+| ❌                          | `artifacts/`             | 🆕 Artefatos NAS                           |
+| ❌                          | `labels/`                | 🆕 Labels GitHub                            |
+| ❌                          | `.pre-commit-config.yaml`| 🆕 Hooks de qualidade                       |
+| ❌                          | `.editorconfig`          | 🆕 Padronização formato                     |
 
 ---
 
@@ -202,10 +228,12 @@ O projeto oferece uma interface unificada via [`Makefile`](Makefile):
 | Categoria         | Comandos Make                                                |
 | :---------------- | :----------------------------------------------------------- |
 | **Build**         | `make download-zbm`, `make setup-docker`, `make build-iso`   |
-| **VM Setup**      | `make setup-vm`, `make vm-create-disks`                      |
+| **VM Setup**      | `make setup-vm`                                              |
 | **VM Testes**     | `make test-vm-uefi`, `make test-vm-bios`, `make test-vm-all` |
 | **VM Conexão**    | `make vm-connect-uefi`, `make vm-connect-bios`               |
 | **Gerenciamento** | `make vm-list`, `make vm-destroy`, `make clean`              |
+| **NAS / AD**      | `make validate-ad`, `make ad-precheck`, `make validate-configs`, `make lint` |
+| **Documentação** | `make docs`, `make verify-docs`, `make docs-markdown`         |
 
 Execute `make help` para ver todos os comandos disponíveis.
 
@@ -213,15 +241,18 @@ Execute `make help` para ver todos os comandos disponíveis.
 
 ## Guia para Colaboradores
 
-| Necessidade                     | Onde Encontrar                                                                                                                                                                      |
-| :------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Adicionar pacotes na ISO        | `config-overrides/config/package-lists/`                                                                                                                                            |
-| Adicionar arquivos customizados | `config-overrides/config/includes.chroot/`                                                                                                                                          |
-| Scripts de automação            | `scripts/`                                                                                                                                                                          |
-| Documentação de VMs             | [`scripts/vm/README_VM.md`](scripts/vm/README_VM.md)                                                                                                                                |
-| Documentação de Docker          | [`scripts/docker/README_DOCKER.md`](scripts/docker/README_DOCKER.md)                                                                                                                |
-| Arquitetura detalhada           | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)                                                                                                                                      |
-| Blueprint completo              | [`docs/Architectural Blueprint...md`](docs/"Architectural Blueprint for Automated Debian Deployment: Integrating OpenZFS and FSBootMenu across Universal Firmware Environments.md") |
+| Necessidade                     | Onde Encontrar                                                    |
+| :------------------------------ | :---------------------------------------------------------------- |
+| Adicionar pacotes na ISO        | `config-overrides/config/package-lists/`                          |
+| Adicionar arquivos customizados | `config-overrides/config/includes.chroot/`                        |
+| Scripts de automação            | `scripts/`                                                        |
+| Documentação de VMs             | `scripts/vm/README_VM.md`                                         |
+| Documentação de Docker          | `scripts/docker/README_DOCKER.md`                                 |
+| Arquitetura detalhada           | `docs/ARCHITECTURE.md`                                            |
+| Blueprint completo              | `docs/Architectural Blueprint...md`                               |
+| **Arquitetura NAS**             | `docs/00_SOURCE_OF_TRUTH.md`                                      |
+| **Roadmap do projeto**          | `docs/ROADMAP.md`                                                 |
+| **Artefatos NAS**               | `artifacts/` (templates, scripts, specs)                          |
 
 ---
 
@@ -236,10 +267,12 @@ Execute `make help` para ver todos os comandos disponíveis.
 
 - [`Makefile`](Makefile) - Interface de comandos
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - Arquitetura técnica
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) - Roadmap unificado
+- [`docs/00_SOURCE_OF_TRUTH.md`](docs/00_SOURCE_OF_TRUTH.md) - Fonte da verdade NAS
 - [`scripts/vm/README_VM.md`](scripts/vm/README_VM.md) - Guia de testes em VM
-- [`scripts/docker/README_DOCKER.md`](scripts/docker/README_DOCKER.md) - Guia de configuração Docker
+- [`scripts/docker/README_DOCKER.md`](scripts/docker/README_DOCKER.md) - Guia Docker
 - [`AGENTS.md`](AGENTS.md) - Base de conhecimento para agentes LLM
 
 ---
 
-_Última atualização: 2026-02-04_
+_Última atualização: 2026-02-11_

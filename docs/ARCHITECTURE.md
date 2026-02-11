@@ -22,16 +22,16 @@ O OpenZFS não pode ser distribuído pré-compilado diretamente no kernel Linux 
 
 Nossa abordagem move a complexidade da **compilação** para a etapa de **construção da ISO**, utilizando um container Docker como uma "fábrica limpa".
 
-1.  **Ambiente de Build (Docker):** Contém todas as ferramentas pesadas de desenvolvimento (`build-essential`, `devscripts`, `headers`).
-2.  **Processo de Build:** A ISO é gerada e, durante o processo (`chroot`), os módulos ZFS são compilados e instalados no sistema de arquivos da imagem.
-3.  **Produto Final (ISO):** Contém os módulos já binários (`.ko`) e um instalador leve. Não possui compiladores.
-4.  **Instalação (Target):** O script apenas copia o sistema já pronto para o disco e configura o bootloader. **Zero compilação no cliente.**
+1. **Ambiente de Build (Docker):** Contém todas as ferramentas pesadas de desenvolvimento (`build-essential`, `devscripts`, `headers`).
+2. **Processo de Build:** A ISO é gerada e, durante o processo (`chroot`), os módulos ZFS são compilados e instalados no sistema de arquivos da imagem.
+3. **Produto Final (ISO):** Contém os módulos já binários (`.ko`) e um instalador leve. Não possui compiladores.
+4. **Instalação (Target):** O script apenas copia o sistema já pronto para o disco e configura o bootloader. **Zero compilação no cliente.**
 
 ---
 
 ## 2. Fluxo de Construção (Pipeline)
 
-O processo é automatizado via `scripts/build-iso-in-docker.sh` e `live-build`.
+O processo é automatizado via `make build-iso` (Docker + `live-build`).
 
 ```mermaid
 flowchart TD
@@ -85,7 +85,7 @@ flowchart TD
 Diferenciação clara entre o que é necessário para _construir_ e o que vai na _mídia final_.
 
 | Categoria        | Pacotes no Docker (Build Factory)      | Pacotes na ISO Final (Runtime)      | Motivo                                                                           |
-| :--------------- | :------------------------------------- | :---------------------------------- | :------------------------------------------------------------------------------- |
+|:---------------- |:-------------------------------------- |:----------------------------------- |:-------------------------------------------------------------------------------- |
 | **Kernel**       | `linux-headers-amd64`                  | `linux-image-amd64`                 | Headers são necessários apenas para compilar o módulo.                           |
 | **ZFS**          | `zfs-dkms`, `dkms`                     | `zfsutils-linux`, `libzfs*`         | O módulo `.ko` gerado é persistido; o código-fonte pode ser removido (opcional). |
 | **Compiladores** | `build-essential`, `gcc`, `make`       | _Nenhum_                            | Economia de espaço e segurança (reduz superfície de ataque).                     |
@@ -148,18 +148,23 @@ sequenceDiagram
 
 ```bash
 /
-├── docker/
-│   └── Dockerfile          # Define a "Fábrica": instala compiladores e live-build
-├── config/
-│   ├── package-lists/
-│   │   ├── tools.list.chroot  # Ferramentas leves para a ISO (gdisk, ssh)
-│   │   └── zfs.list.chroot    # Pacotes ZFS (dkms é executado no chroot)
-│   └── includes.chroot/       # Arquivos injetados diretamente na ISO
-│       ├── usr/local/bin/install-zfs-debian  # O script instalador
-│       └── usr/share/zfsbootmenu/            # Binários do bootloader
-└── scripts/
-    ├── build-iso-in-docker.sh # Orquestrador principal
-    └── download-zfsbootmenu.sh # Pré-requisito: baixa ZBM
+├── scripts/
+│   ├── docker/
+│   │   ├── Dockerfile          # Define a "Fábrica": instala compiladores e live-build
+│   │   └── entrypoint.sh       # Ponto de entrada do container
+│   ├── vm/                     # Scripts de teste em VMs QEMU/KVM
+│   └── download-zfsbootmenu.sh # Pré-requisito: baixa ZBM
+├── config-overrides/
+│   ├── auto/config             # Configuração automática live-build
+│   ├── config/
+│   │   ├── package-lists/      # Listas de pacotes para a ISO
+│   │   ├── hooks/live/         # Hooks de build (ZFS DKMS, etc.)
+│   │   └── includes.chroot/    # Arquivos injetados na ISO
+│   │       ├── usr/local/bin/  # Instalador + gum
+│   │       └── usr/local/lib/  # Módulos do instalador
+│   └── includes.binary/        # EFI/BOOT + ZBM binários
+├── artifacts/                   # Artefatos NAS (templates, scripts, specs)
+└── Makefile                     # Interface unificada (make build-iso, etc.)
 ```
 
 ### 5.2 Na ISO Final (Resultado)
@@ -179,10 +184,10 @@ sequenceDiagram
 
 ## 6. Vantagens da Abordagem
 
-1.  **Confiabilidade:** O build ocorre em um ambiente Docker controlado e imutável. Se funciona na máquina do desenvolvedor A, funciona na B.
-2.  **Velocidade de Instalação:** O usuário final não compila nada. A instalação é limitada apenas pela velocidade de escrita no disco.
-3.  **Instalação Offline:** Não requer internet no cliente para baixar headers ou compiladores.
-4.  **Tamanho Reduzido:** A ISO não carrega gigabytes de ferramentas de desenvolvimento (`gcc`, `make`, headers não utilizados), apenas o resultado do build.
+1. **Confiabilidade:** O build ocorre em um ambiente Docker controlado e imutável. Se funciona na máquina do desenvolvedor A, funciona na B.
+2. **Velocidade de Instalação:** O usuário final não compila nada. A instalação é limitada apenas pela velocidade de escrita no disco.
+3. **Instalação Offline:** Não requer internet no cliente para baixar headers ou compiladores.
+4. **Tamanho Reduzido:** A ISO não carrega gigabytes de ferramentas de desenvolvimento (`gcc`, `make`, headers não utilizados), apenas o resultado do build.
 
 ---
 
@@ -200,7 +205,6 @@ make build-iso       # Inicia build da ISO
 
 # Testes em VMs
 make setup-vm         # Instala dependências de virtualização
-make vm-create-disks  # Cria 4 discos virtuais
 make test-vm-uefi     # Testa ISO em VM UEFI
 make test-vm-bios     # Testa ISO em VM BIOS
 make test-vm-all      # Testa ambas as VMs simultaneamente
@@ -213,6 +217,16 @@ make vm-connect-bios  # Conecta ao console serial BIOS
 make vm-list          # Lista VMs em execução
 make vm-destroy       # Destrói VMs ativas
 make clean            # Limpa artefatos e VMs
+
+# NAS / Samba / AD
+make validate-ad      # Validação AD/SMB (Linux-side)
+make ad-precheck      # Precheck AD no fileserver
+make validate-configs # Valida JSON/YAML de configuração
+make lint             # Shellcheck em todos os scripts
+
+# Documentação
+make docs             # Exibe documentação (instalador + dev + testes)
+make verify-docs      # Valida integridade das tags
 ```
 
 Execute `make help` para ver todos os comandos disponíveis com descrições detalhadas.

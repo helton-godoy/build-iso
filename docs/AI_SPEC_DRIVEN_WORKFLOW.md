@@ -23,10 +23,14 @@ Use quando o foco for **build, boot de VM, conexao e validacao tecnica**.
 - `make test-vm-all`
 - `make vm-connect-uefi`
 - `make vm-connect-bios`
+- `make validate-ad`
+- `make ad-precheck`
+- `make validate-configs`
+- `make lint`
 
 Script-chave para agentes:
 
-- `scripts/vm/vm-connent-agent-llm.sh`
+- `scripts/vm/vm-connect-agent-llm.sh`
 
 ### 2) Workflow AI-driven (OpenCode commands)
 
@@ -186,7 +190,7 @@ flowchart TD
 
 ## Fluxo de Conectividade para Agentes LLM (Nao Interativo)
 
-O alvo `make vm-connect-bios` e `make vm-connect-uefi` usa `vm-connent-agent-llm.sh` como gateway.
+O alvo `make vm-connect-bios` e `make vm-connect-uefi` usa `vm-connect-agent-llm.sh` como gateway.
 
 Esse gateway automatiza:
 
@@ -203,7 +207,7 @@ Esse gateway automatiza:
 
 ```mermaid
 flowchart TD
-    A[make vm-connect-<mode>] --> B[vm-connent-agent-llm.sh]
+    A[make vm-connect-<mode>] --> B[vm-connect-agent-llm.sh]
     B --> C{Chave local existe?}
     C -->|Nao| D[Gerar id_ed25519]
     C -->|Sim| E[Continuar]
@@ -332,9 +336,11 @@ make vm-connect-bios VM_CMD="sed -i 's/^PasswordAuthentication.*/PasswordAuthent
 
 ## Referencias Internas
 
-- `scripts/vm/vm-connent-agent-llm.sh`
-- `scripts/vm/vm-connent-ssh.sh`
+- `scripts/vm/vm-connect-agent-llm.sh`
+- `scripts/vm/vm-connect-ssh.sh`
 - `scripts/vm/README_VM.md`
 - `docs/PROJECT_STRUCTURE.md`
 - `docs/INSTALLER_JUNIOR_PLAYBOOK.md`
+- `docs/00_SOURCE_OF_TRUTH.md`
+- `docs/ROADMAP.md`
 - `AGENTS.md`

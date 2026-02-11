@@ -14,7 +14,7 @@ YOU MUST ALWAYS COMMUNICATE IN BRAZILIAN PORTUGUESE, REGARDLESS OF THE INPUT LAN
 
 ## Visão Geral do Projeto
 
-Este projeto tem como objetivo automatizar a criação de uma imagem ISO do Debian (Live) configurada para realizar instalações com **ZFS-on-root** e **ZFSBootMenu**. O diferencial é o suporte universal a firmware, permitindo boot tanto em sistemas **UEFI** quanto **Legacy BIOS** (Hybrid Boot) a partir da mesma imagem e instalação.
+Este projeto tem como objetivo automatizar a criação de uma imagem ISO do Debian (Live) configurada para realizar instalações com **ZFS-on-root** e **ZFSBootMenu**. O diferencial é o suporte universal a firmware, permitindo boot tanto em sistemas **UEFI** quanto **Legacy BIOS** (Hybrid Boot) a partir da mesma imagem e instalação. O produto final é um **NAS corporativo** com Samba integrado ao Active Directory, alta disponibilidade ativo/passivo e replicação ZFS.
 
 ### Objetivos Principais
 
@@ -22,49 +22,54 @@ Este projeto tem como objetivo automatizar a criação de uma imagem ISO do Debi
 - **ZFSBootMenu:** Utilização do ZFSBootMenu como gerenciador de boot, permitindo snapshots, clones e criptografia nativa no boot.
 - **Boot Híbrido:** Particionamento GPT preparado para ESP (UEFI) e BIOS Boot (Legacy).
 - **Padronização:** Estrutura de datasets ZFS otimizada para Debian e ambientes de boot múltiplos.
+- **NAS Corporativo:** Samba com AD, alta disponibilidade (Pacemaker/Syncoid), e templates ZFS.
 
 ## Status do Projeto
 
-**Fase Atual:** Build ISO em Desenvolvimento.
+**Fase Atual:** Build ISO em Desenvolvimento + Documentação NAS integrada.
 
 - ✅ Arquitetura definida no Blueprint
 - ✅ Scripts de download ZBM implementados
 - ✅ Configuração live-build configurada
 - ✅ Suite de testes implementada
 - 🔄 Pipeline de build ISO em implementação
+- 🔄 Documentação NAS/Samba/AD/HA integrada
 
 ## Estrutura de Diretórios e Arquivos Chave
 
 - **`docs/PROJECT_STRUCTURE.md`**: Estrutura detalhada do projeto. **Leitura Obrigatória.**
 - **`AGENTS.md`**: Diretrizes para agentes de IA, convenções de código e status detalhado.
 - **`docs/Architectural Blueprint...md`**: Documento completo da arquitetura (inglês).
-- **`scripts/`**: Contém os scripts de automação.
-  - `download-zfsbootmenu.sh`: Script para baixar os componentes do ZFSBootMenu.
-  - `docker/`: Dockerfile e entrypoint para build ISO.
-  - `vm/`: Scripts de teste em VMs QEMU/KVM.
+- **`docs/00_SOURCE_OF_TRUTH.md`**: Fonte da verdade — decisões fixas NAS/Samba/AD.
+- **`docs/ROADMAP.md`**: Roadmap unificado (8 fases: ISO + NAS + HA).
+- **`scripts/`**: Scripts de automação (download-zbm, docker, vm).
+- **`artifacts/`**: Artefatos NAS (templates smb.conf, scripts validação AD, specs).
 - **`plan/`**: Documentos de planejamento e análise crítica da proposta.
 - **`config-overrides/`**: Configuração do live-build.
 - **`conductor/`**: Metadados e trilhas de desenvolvimento.
+- **`labels/`**: Labels GitHub para automação de PRs.
 
-### Estrutura Reorganizada (2026-02-04)
+### Estrutura Reorganizada (2026-02-11)
 
-| Antigo | Atual | Observação |
-|--------|-------|------------|
-| `config/` | `config-overrides/` | Renomeado |
-| `docker/` | `scripts/docker/` | Reorganizado |
-| `plans/` | `plan/` | Sem 's' |
-| `build-iso-in-docker.sh` | `make build-iso` | Via Makefile |
-| `test-iso.sh` | `make test-vm-all` | Via Makefile |
-| `ZFSBOOTMENU_BINARIES.md` | Documentação embutida | Removido (arquivo não existe)
+| Antigo                    | Atual                     | Observação                    |
+| ------------------------- | ------------------------- | ----------------------------- |
+| `config/`                 | `config-overrides/`       | Renomeado                     |
+| `docker/`                 | `scripts/docker/`         | Reorganizado                  |
+| `plans/`                  | `plan/`                   | Sem 's'                       |
+| `build-iso-in-docker.sh`  | `make build-iso`          | Via Makefile                  |
+| `test-iso.sh`             | `make test-vm-all`        | Via Makefile                  |
+| `ZFSBOOTMENU_BINARIES.md` | Documentação embutida     | Removido                      |
+| *(novo)*                  | `artifacts/`              | Artefatos NAS                 |
+| *(novo)*                  | `labels/`                 | Labels GitHub                 |
+| *(novo)*                  | `.pre-commit-config.yaml` | Hooks de qualidade            |
+| *(novo)*                  | `.editorconfig`           | Padronização formato          |
 
 ## Uso e Comandos
 
 ### Scripts Disponíveis
 
-Atualmente, apenas o script de download de binários está implementado:
-
 ```bash
-# Baixar binários do ZFSBootMenu para o diretório ./zbm-binaries
+# Baixar binários do ZFSBootMenu
 ./scripts/download-zfsbootmenu.sh --output-dir ./zbm-binaries
 ```
 
@@ -80,12 +85,21 @@ make build-iso       # Inicia build da ISO
 
 # Testes
 make setup-vm         # Instala dependências KVM
-make vm-create-disks  # Cria discos virtuais
 make test-vm-all      # Testa UEFI + BIOS simultaneamente
 
 # Conexão
 make vm-connect-uefi  # Conecta ao console serial UEFI
 make vm-connect-bios  # Conecta ao console serial BIOS
+
+# NAS / Samba / AD
+make validate-ad      # Validação AD/SMB pós-join
+make ad-precheck      # Precheck AD no fileserver
+make validate-configs # Valida JSON/YAML
+make lint             # Shellcheck em scripts
+
+# Documentação
+make docs             # Exibe documentação
+make verify-docs      # Valida tags de doc
 ```
 
 ## Convenções de Desenvolvimento

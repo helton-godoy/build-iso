@@ -11,7 +11,7 @@ O instalador segue uma arquitetura baseada em um **Router Central** que utiliza 
 ```mermaid
 graph TD
     User([Usuário]) --> Router[Router: /usr/local/bin/installer]
-    
+
     subgraph "Núcleo (Router)"
         Router --> Setup[Setup: traps, logging, state]
         Router --> Registry[Registry: register_step]
@@ -52,7 +52,7 @@ flowchart TD
     S07 --> S08[08: Seleção Disco]
     S08 --> S09[09: Wipe Confirm]
     S09 --> S10[10: Estratégia ZFS]
-    
+
     subgraph "Configuração ZFS"
         S10 -- Auto --> S11[11: Topologia]
         S11 --> S12[12: Propriedades]
@@ -75,17 +75,17 @@ flowchart TD
 
 As bibliotecas em `libs/` fornecem as funções de baixo nível utilizadas pelos módulos em `steps/`.
 
-| Biblioteca | Responsabilidade | Utilizado em (Exemplos) |
-| :--- | :--- | :--- |
-| `ui-utils.sh` | Elementos Visuais (Design System v2.0), Spinners | Todas as etapas |
-| `core-utils.sh` | Logging, Sanitização, Saída de erro | Todas as etapas |
-| `state-utils.sh` | Persistência KV (salvar/carregar variáveis) | Todas as etapas |
-| `disk-utils.sh` | Listagem de discos, wipe, particionamento GPT | `disk_select`, `install` |
-| `zfs-utils.sh` | Criação de pools, datasets, propriedades ZFS | `zfs_*`, `install` |
-| `net-utils.sh` | Configuração DHCP e IP Estático | `network`, `post_install` |
-| `auth-utils.sh` | Criação de usuários, senhas (chpasswd) | `user_account`, `post_install` |
-| `boot-utils.sh` | Detecção UEFI/BIOS, montagem de ESP | `boot`, `install`, `post_install` |
-| `zbm-install.sh` | Instalação e configuração do ZFSBootMenu | `post_install` |
+| Biblioteca       | Responsabilidade                                 | Utilizado em (Exemplos)           |
+|:---------------- |:------------------------------------------------ |:--------------------------------- |
+| `ui-utils.sh`    | Elementos Visuais (Design System v2.0), Spinners | Todas as etapas                   |
+| `core-utils.sh`  | Logging, Sanitização, Saída de erro              | Todas as etapas                   |
+| `state-utils.sh` | Persistência KV (salvar/carregar variáveis)      | Todas as etapas                   |
+| `disk-utils.sh`  | Listagem de discos, wipe, particionamento GPT    | `disk_select`, `install`          |
+| `zfs-utils.sh`   | Criação de pools, datasets, propriedades ZFS     | `zfs_*`, `install`                |
+| `net-utils.sh`   | Configuração DHCP e IP Estático                  | `network`, `post_install`         |
+| `auth-utils.sh`  | Criação de usuários, senhas (chpasswd)           | `user_account`, `post_install`    |
+| `boot-utils.sh`  | Detecção UEFI/BIOS, montagem de ESP              | `boot`, `install`, `post_install` |
+| `zbm-install.sh` | Instalação e configuração do ZFSBootMenu         | `post_install`                    |
 
 ---
 
@@ -93,14 +93,14 @@ As bibliotecas em `libs/` fornecem as funções de baixo nível utilizadas pelos
 
 O estado da instalação é persistido em `/var/run/installer/state.env` (ou localmente em ambiente de teste).
 
-| Chave (Key) | Descrição | Origem (Step) |
-| :--- | :--- | :--- |
-| `install_disk` | Caminho do disco alvo (ex: `/dev/sda`) | `disk_select` |
-| `zfs_pool_name` | Nome do pool ZFS (default: `zroot`) | `zfs_strategy` |
-| `install_net_method` | `dhcp` ou `manual` | `network` |
-| `install_username` | Nome curto do usuário inicial | `user_account` |
+| Chave (Key)            | Descrição                                  | Origem (Step)  |
+|:---------------------- |:------------------------------------------ |:-------------- |
+| `install_disk`         | Caminho do disco alvo (ex: `/dev/sda`)     | `disk_select`  |
+| `zfs_pool_name`        | Nome do pool ZFS (default: `zroot`)        | `zfs_strategy` |
+| `install_net_method`   | `dhcp` ou `manual`                         | `network`      |
+| `install_username`     | Nome curto do usuário inicial              | `user_account` |
 | `install_admin_policy` | `sudo` ou `root` (política de privilégios) | `admin_policy` |
-| `install_part_efi` | Caminho da partição EFI detectada/criada | `install` |
+| `install_part_efi`     | Caminho da partição EFI detectada/criada   | `install`      |
 
 ---
 

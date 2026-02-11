@@ -20,7 +20,7 @@ YOU MUST ALWAYS COMMUNICATE IN BRAZILIAN PORTUGUESE, REGARDLESS OF THE INPUT LAN
 
 ## VISÃO GERAL
 
-Automatização de implantação Debian com ZFS-on-root e ZFSBootMenu, suportando UEFI e BIOS legado.
+Automatização de implantação Debian com ZFS-on-root e ZFSBootMenu, suportando UEFI e BIOS legado. O produto final é um **NAS corporativo** com Samba integrado ao Active Directory, alta disponibilidade ativo/passivo e replicação ZFS.
 
 **Status atual:**
 
@@ -29,6 +29,7 @@ Automatização de implantação Debian com ZFS-on-root e ZFSBootMenu, suportand
 - ✅ Configuração live-build configurada
 - ✅ Suite de testes implementada
 - 🔄 Build ISO em desenvolvimento
+- 🔄 Documentação NAS/Samba/AD/HA integrada
 
 ## ONDE OLHAR
 
@@ -36,10 +37,20 @@ Automatização de implantação Debian com ZFS-on-root e ZFSBootMenu, suportand
 | -------------------- | ----------------------------------- | --------------------------------- |
 | Blueprint completo   | `docs/Architectural Blueprint...md` | Arquitetura detalhada em inglês   |
 | Estrutura projeto    | `docs/PROJECT_STRUCTURE.md`         | Estrutura atualizada em português |
+| **Fonte da Verdade** | `docs/00_SOURCE_OF_TRUTH.md`        | **Arquitetura NAS (decisões fixas)** |
+| **Roadmap unificado**| `docs/ROADMAP.md`                   | **8 fases: ISO + NAS + HA**      |
 | Convenções de código | Ver seção abaixo                    | Shell-only                        |
 | Build/Test           | Ver seção abaixo                    | Docker + KVM                      |
 | Download ZBM         | `scripts/download-zfsbootmenu.sh`   | Script de download de binários    |
 | Referências ZFS      | Ver seção abaixo                    | ZFSBootMenu docs                  |
+| **SMB/Pilha Samba**  | `docs/10_SMB_STACK.md`              | VFS modules, ACLs, multichannel   |
+| **Templates ZFS**    | `docs/20_ZFS_DATASET_TEMPLATES.md`  | Datasets SMB-only, NFS, misto     |
+| **AD/Kerberos**      | `docs/30_AD_JOIN_AND_ALIAS.md`      | SPNs, DNS, validação              |
+| **Runbook SMB**      | `docs/31_RUNBOOK_...md`             | Operação completa do serviço SMB  |
+| **Checklist AD**     | `docs/32_AD_OBJECTS_CHECKLIST.md`   | Gate de prontidão                 |
+| **Failover/HA**      | `docs/40_FAILOVER_REPLICATION.md`   | Syncoid, Pacemaker, fencing       |
+| **Handoff**          | `docs/HANDOFF_PROMPT_NEW_SESSION.md`| Contexto para novas sessões LLM   |
+
 
 ## CONVENÇÕES (QUANDO IMPLEMENTAR)
 
@@ -70,13 +81,50 @@ zroot                          (canmount=off, compression=zstd)
 - Datasets: `xattr=sa`, `atime=off` (workloads)
 - Criptografia: `keyformat=passphrase`, `keylocation=prompt`
 
+### ZFS - NAS Corporativo (Pós-Instalação)
+
+> **Naming:** O instalador ISO usa pool `zroot` (sistema raiz). O NAS em produção
+> usa pool `tank` (dados/shares). São complementares, não conflitantes.
+
+```bash
+tank                           (canmount=off, compression=zstd)
+├── ROOT                       (canmount=off)
+│   └── debian                 (mountpoint=/, Boot Environment)
+├── SYS                        (canmount=off — estado de serviços)
+│   ├── samba                  (/var/lib/samba)
+│   └── ad                     (/etc/krb5.keytab — snapshot-safe)
+└── SHARES                     (canmount=off — dados do usuário)
+    ├── departamento-a         (SMB-only, aclinherit=passthrough)
+    └── departamento-b         (SMB-only, aclinherit=passthrough)
+```
+
+**Artefatos NAS:**
+
+| Artefato | Localização | Propósito |
+| --- | --- | --- |
+| Template smb.conf | `artifacts/templates/smb/smb.conf.smb-only.template` | Samba SMB-only com AD |
+| Validação AD/SMB | `artifacts/scripts/validate_ad_smb.sh` | Checklist pós-join |
+| Precheck AD | `artifacts/scripts/ad_precheck_fileserver.sh` | Wrapper para automação AD |
+| vdev Planner | `artifacts/installer/vdev_planner_spec.json` | Spec para planejador de vdevs |
+| Multichannel | `artifacts/docs/windows_validate_multichannel.md` | Validação SMB multichannel |
+
 ## ANTI-PADRÕES (ESTE PROJETO)
+
+### Instalador / ZFS
 
 - ❌ Nunca hardcode chaves de criptografia
 - ❌ Nunca suponha caminhos de dispositivo (sempre validar)
 - ❌ Nunca opere em disco sem verificação explícita (`--yes-really-destroy`)
 - ❌ Não atualizar pool ZFS sem verificar compatibilidade ZFSBootMenu
 - ❌ Não usar `wipefs` sem `sgdisk --zap-all` (fazer ambos)
+
+### NAS / Samba / AD
+
+- ❌ Nunca habilitar `dedup` (impacto severo em performance e RAM)
+- ❌ Nunca usar NFS e SMB no mesmo dataset (conflito de ACLs)
+- ❌ Nunca hardcode senhas em scripts (usar SSH por chave ou prompt)
+- ❌ Nunca usar `setspn -A` (usar `setspn -S` para evitar duplicação)
+- ❌ Nunca mover objeto computador no AD durante failover (SPNs ficam no alias)
 
 ## COMANDOS (FUTUROS)
 
@@ -176,6 +224,8 @@ make vm-connect-uefi
 - ZFSBootMenu: https://docs.zfsbootmenu.org/
 - Debian Live-Build: https://live-team.pages.debian.net/live-manual/
 - OpenZFS: https://openzfs.github.io/openzfs-docs/
+- Samba Wiki: https://wiki.samba.org/
+- Pacemaker: https://clusterlabs.org/pacemaker/doc/
 
 ## NOTAS
 
@@ -186,14 +236,18 @@ make vm-connect-uefi
 - Build ISO isolado em Docker (debian:trixie-slim)
 - Testes automatizados com KVM em ambas firmwares (UEFI/BIOS)
 
-### Estrutura de Diretórios (Atualizada em 2026-02-04)
+### Estrutura de Diretórios (Atualizada em 2026-02-11)
 
-| Antigo                   | Atual               | Observação   |
-| ------------------------ | ------------------- | ------------ |
-| `config/`                | `config-overrides/` | Renomeado    |
-| `docker/`                | `scripts/docker/`   | Reorganizado |
-| `plans/`                 | `plan/`             | Sem 's'      |
-| `build-iso-in-docker.sh` | `make build-iso`    | Via Makefile |
-| `test-iso.sh`            | `make test-vm-all`  | Via Makefile |
+| Antigo                   | Atual                     | Observação           |
+| ------------------------ | ------------------------- | -------------------- |
+| `config/`                | `config-overrides/`       | Renomeado            |
+| `docker/`                | `scripts/docker/`         | Reorganizado         |
+| `plans/`                 | `plan/`                   | Sem 's'              |
+| `build-iso-in-docker.sh` | `make build-iso`          | Via Makefile         |
+| `test-iso.sh`            | `make test-vm-all`        | Via Makefile         |
+| *(novo)*                 | `artifacts/`              | Artefatos NAS        |
+| *(novo)*                 | `labels/`                 | Labels GitHub        |
+| *(novo)*                 | `.pre-commit-config.yaml` | Hooks de qualidade   |
+| *(novo)*                 | `.editorconfig`           | Padronização formato |
 
-Consulte [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) para detalhes completos.
+Consulte [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) e [`docs/ROADMAP.md`](docs/ROADMAP.md) para detalhes completos.

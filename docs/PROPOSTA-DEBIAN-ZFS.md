@@ -2,8 +2,11 @@
 
 **Versão:** 1.0  
 **Data:** 2026-01-05  
-**Status:** Proposta para Aprovação  
+**Status:** Proposta Aprovada (Referência histórica)  
 **Projeto:** build-iso
+
+> [!WARNING]
+> **Documento histórico.** A estrutura de diretórios (Seção 7.1) e fases de implementação (Seção 7.2) foram substituídas pela organização atual. Consulte [`docs/PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) e [`docs/ROADMAP.md`](ROADMAP.md) para informações vigentes.
 
 ---
 
@@ -460,86 +463,45 @@ main() {
 
 ### 7.1 Estrutura de Diretórios do Projeto
 
+> **Nota:** A estrutura abaixo reflete o planejamento original. Para a estrutura atual,
+> consulte [`docs/PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md).
+
 ```
 build-iso/
-├── AGENTS.md                    # Regras do projeto
-├── README.md                    # Documentação principal
-├── Makefile                     # Automação de build
+├── AGENTS.md                    # Base de conhecimento + convenções
+├── GEMINI.md                    # Contexto para agentes Gemini
+├── Makefile                     # Automação de build/teste/docs
 │
-├── config/                      # Configurações do projeto
-│   ├── live/
-│   │   ├── auto/
-│   │   │   └── config          # Configuração live-build
-│   │   ├── package-lists/
-│   │   │   ├── server.list     # Pacotes servidor
-│   │   │   └── workstation.list # Pacotes workstation
-│   │   └── hooks/
-│   │       ├── live/           # Hooks live-build
-│   │       └── chroot/         # Hooks chroot
-│   ├── installer/
-│   │   ├── config.yaml         # Configuração do installer
-│   │   └── prereq.yaml         # Pré-requisitos
-│   └── systemd/
-│       ├── zfs-override.service
-│       └── zfs-import-cache.service
+├── config-overrides/             # Configuração do live-build
+│   ├── auto/config               # Configuração automática
+│   ├── config/
+│   │   ├── package-lists/        # Pacotes para a ISO
+│   │   ├── hooks/live/           # Hooks de build (ZFS DKMS)
+│   │   └── includes.chroot/      # Arquivos injetados na ISO
+│   └── includes.binary/          # EFI/BOOT + ZBM binários
 │
 ├── scripts/
-│   ├── build-iso.sh            # Build principal
-│   ├── build-iso-docker.sh     # Build via Docker
-│   ├── test-iso.sh             # Testes QEMU
-│   ├── test-install.sh         # Testes de instalação
-│   ├── download-zfsbootmenu.sh # Download ZBM (existe)
-│   ├── zbm-builder.sh          # Build ZBM customizado
-│   ├── installer/
-│   │   ├── main.sh             # Entry point
-│   │   ├── lib/
-│   │   │   ├── logging.sh      # Logging estruturado
-│   │   │   ├── common.sh       # Funções comuns
-│   │   │   ├── zfs.sh          # Operações ZFS
-│   │   │   ├── partition.sh    # Particionamento
-│   │   │   └── boot.sh         # Configuração boot
-│   │   └── installer.d/        # Módulos do installer
-│   │       ├── 01-validate.sh
-│   │       ├── 02-partition.sh
-│   │       ├── 03-zpool.sh
-│   │       ├── 04-datasets.sh
-│   │       ├── 05-debootstrap.sh
-│   │       ├── 06-chroot.sh
-│   │       ├── 07-zfsbootmenu.sh
-│   │       ├── 08-bootloader.sh
-│   │       └── 99-cleanup.sh
-│   └── helper/
-│       ├── create-boot-env.sh  # Criar BE
-│       ├── snapshot-prune.sh   # Limpar snapshots
-│       └── rollback.sh         # Rollback de BE
+│   ├── download-zfsbootmenu.sh   # Download ZBM
+│   ├── download-gum.sh           # Download gum (UI)
+│   ├── extract-docs.sh           # Extração de documentação
+│   ├── docker/                   # Dockerfile + entrypoint
+│   └── vm/                       # Scripts de teste KVM/QEMU
 │
-├── tests/                       # Testes automatizados
-│   ├── unit/
-│   │   ├── common-tests.sh
-│   │   ├── zfs-tests.sh
-│   │   └── partition-tests.sh
-│   ├── integration/
-│   │   ├── test-uefi.sh
-│   │   ├── test-bios.sh
-│   │   └── test-zfs-features.sh
-│   └── test-framework.sh
+├── artifacts/                    # Artefatos NAS/Samba/AD
+│   ├── templates/smb/            # Templates smb.conf
+│   ├── scripts/                  # Scripts validação AD/SMB
+│   ├── installer/                # Specs (vdev planner)
+│   └── docs/                     # Docs auxiliares (multichannel)
 │
-├── docs/                        # Documentação
-│   ├── user-guide.md
-│   ├── admin-guide.md
-│   ├── security-guide.md
-│   └── boot-env-guide.md
-│
-├── plans/                       # Propostas e planos
-│   └── PROPOSTA-DEBIAN-ZFS.md   # Este documento
-│
-├── zbm-binaries/                # Binários ZFSBootMenu (gerado)
-├── output/                      # ISOs geradas (gerado)
-└── .github/
-    └── workflows/
-        ├── build.yml           # CI/CD build
-        ├── test.yml            # CI/CD tests
-        └── release.yml         # CI/CD release
+├── tests/                        # Suite de testes (22 scripts)
+├── docs/                         # Documentação técnica
+├── plan/                         # Blueprints e propostas
+├── labels/                       # Labels GitHub
+├── output/                       # ISOs geradas
+└── .github/workflows/
+    ├── build.yml                 # CI: build ISO
+    ├── lint.yml                  # CI: shellcheck + JSON/YAML + gitleaks
+    └── pr-labeler.yml            # CI: auto-label PRs
 ```
 
 ### 7.2 Fases de Implementação
