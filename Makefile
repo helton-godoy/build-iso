@@ -36,6 +36,8 @@ VM_DISK_PATH_BIOS = scripts/vm/disks/bios/installed-system.qcow2
 .PHONY: test-vm-uefi test-vm-bios test-vm-all vm-connect-uefi vm-connect-bios
 .PHONY: vm-boot-disk-uefi vm-boot-disk-bios
 .PHONY: docs docs-installer docs-dev docs-tests docs-all docs-markdown docs-stats verify-docs
+.PHONY: validate-ad ad-precheck validate-configs lint
+.PHONY: plan-list plan-archive
 
 # -----------------------------------------------------------------------------
 # Targets Principais
@@ -81,6 +83,16 @@ help:
 	@echo "  make docs-markdown    - Gera documentação completa em Markdown"
 	@echo "  make docs-stats       - Estatísticas de cobertura de documentação"
 	@echo "  make verify-docs      - Valida a integridade de todas as tags"
+	@echo ""
+	@echo "🔐 NAS / SAMBA / AD:"
+	@echo "  make validate-ad      - Executa validação AD/SMB (Linux-side)"
+	@echo "  make ad-precheck      - Executa precheck AD no fileserver"
+	@echo "  make validate-configs - Valida JSON/YAML de configuração"
+	@echo "  make lint             - Executa shellcheck em scripts"
+	@echo ""
+	@echo "📋 PLANEJAMENTO:"
+	@echo "  make plan-list        - Lista planos ativos com status"
+	@echo "  make plan-archive     - Arquiva plano concluído (FILE=plan/NNN-*.md)"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════"
 
@@ -217,3 +229,55 @@ verify-docs:
 	@echo "🔍 Validando metadados da documentação..."
 	@chmod +x tests/test-docs.sh
 	@bash tests/test-docs.sh
+
+# -----------------------------------------------------------------------------
+# NAS / Samba / AD Targets
+# -----------------------------------------------------------------------------
+
+ARTIFACTS_DIR = artifacts
+
+validate-ad:
+	@echo "🔐 Executando validação AD/SMB (Linux-side)..."
+	@bash $(ARTIFACTS_DIR)/scripts/validate_ad_smb.sh
+
+ad-precheck:
+	@echo "🔍 Executando precheck AD no fileserver..."
+	@bash $(ARTIFACTS_DIR)/scripts/ad_precheck_fileserver.sh
+
+validate-configs:
+	@echo "📋 Validando configurações (JSON/YAML)..."
+	@python3 -m json.tool $(ARTIFACTS_DIR)/installer/vdev_planner_spec.json > /dev/null && echo "  ✅ vdev_planner_spec.json"
+	@python3 -m json.tool labels/labels.json > /dev/null && echo "  ✅ labels.json"
+	@python3 -c "import yaml; yaml.safe_load(open('.pre-commit-config.yaml'))" && echo "  ✅ .pre-commit-config.yaml"
+	@python3 -c "import yaml; yaml.safe_load(open('.github/workflows/lint.yml'))" && echo "  ✅ lint.yml"
+	@python3 -c "import yaml; yaml.safe_load(open('.github/workflows/pr-labeler.yml'))" && echo "  ✅ pr-labeler.yml"
+	@python3 -c "import yaml; yaml.safe_load(open('.github/workflows/build.yml'))" && echo "  ✅ build.yml"
+	@echo "✅ Todas as configurações válidas!"
+
+lint:
+	@echo "🔍 Executando lint (shellcheck)..."
+	@find scripts/ artifacts/scripts/ -name '*.sh' -exec shellcheck {} +
+	@echo "✅ Lint OK!"
+
+# -----------------------------------------------------------------------------
+# Planejamento
+# -----------------------------------------------------------------------------
+
+plan-list:
+	@echo "📋 Planos ativos:"
+	@echo "────────────────────────────────────────────────────────────────"
+	@for f in plan/*.md; do \
+		name=$$(basename -- "$$f"); \
+		if [ "$$name" = "README.md" ]; then continue; fi; \
+		status=$$(grep -m1 '^\*\*Status:\*\*' "$$f" 2>/dev/null | sed 's/.*\*\* //'); \
+		if [ -z "$$status" ]; then status="(sem status)"; fi; \
+		printf "  %-16s %s\n" "$$status" "$$name"; \
+	done
+	@echo "────────────────────────────────────────────────────────────────"
+
+plan-archive:
+	@test -n "$(FILE)" || (echo "❌ Uso: make plan-archive FILE=plan/NNN-*.md" && exit 1)
+	@test -f "$(FILE)" || (echo "❌ Arquivo não encontrado: $(FILE)" && exit 1)
+	@mkdir -p archived/plan
+	@mv "$(FILE)" archived/plan/
+	@echo "✅ Arquivado: $(FILE) → archived/plan/"
