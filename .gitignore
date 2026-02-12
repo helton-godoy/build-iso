@@ -23,3 +23,4 @@
 *.log
 work/
 *.qcow2
+.continue/

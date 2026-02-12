@@ -117,6 +117,38 @@ disk_list_available() {
 	echo -n "$output" | sed '/^$/d'
 }
 
+# Lista discos disponíveis excluindo uma lista específica (CSV)
+# Uso: disk_list_available_excluding "/dev/sda,/dev/sdb"
+# @INST_FUNC: disk_list_available_excluding
+# @INST_DESC: Lista discos disponíveis filtrando os já selecionados.
+disk_list_available_excluding() {
+	local exclude_csv="${1:-}"
+	local disks
+	disks=$(disk_list_available)
+
+	if [[ -z "$disks" ]]; then
+		return 1
+	fi
+
+	if [[ -z "$exclude_csv" ]]; then
+		echo "$disks"
+		return 0
+	fi
+
+	local output=""
+	while IFS= read -r line; do
+		[[ -z "$line" ]] && continue
+		local dev
+		dev="$(_disk_extract_device "$line")"
+		# Check if dev is in exclude_csv (simple string match wrapper)
+		if [[ ",$exclude_csv," == *",$dev,"* ]]; then
+			continue
+		fi
+		output+="$line"$'\n'
+	done <<<"$disks"
+	echo -n "$output" | sed '/^$/d'
+}
+
 # Retorna número de discos disponíves
 disk_count() {
 	disk_list_available | wc -l

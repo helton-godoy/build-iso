@@ -44,10 +44,48 @@ step_zfs_auto_topology() {
 		"Para produção, prefira mirror/raidz2 conforme quantidade de discos" \
 		"Não houver clareza sobre risco de perda de dados"
 
+	local disks_csv
+	disks_csv="$(plan_get_selected_disks_csv)"
+	if [[ -z "$disks_csv" ]]; then
+		ui_error "Selecione os discos antes da topologia."
+		return 1
+	fi
+
+	local -a disks=()
+	IFS=',' read -r -a disks <<<"$disks_csv"
+	local count="${#disks[@]}"
+
+	local -a options=()
+	options+=("stripe")
+
+	if (( count >= 2 )); then
+		options=("mirror" "${options[@]}")
+	fi
+	if (( count >= 3 )); then
+		options=("raidz1" "${options[@]}")
+	fi
+	if (( count >= 4 )); then
+		options=("raidz2" "${options[@]}")
+	fi
+	if (( count >= 5 )); then
+		options=("raidz3" "${options[@]}")
+	fi
+	# dRAID requires more disks usually, keeping logic simple or explicit
+	if (( count >= 4 )); then
+		options+=("draid1" "draid2")
+	fi
+
+	# Default recommendation
+	local default_topo="stripe"
+	if (( count >= 2 )); then default_topo="mirror"; fi
+	if (( count >= 4 )); then default_topo="raidz2"; fi
+
 	local topo pool
-	topo="$(ui_select "Topologia de dados:" "stripe" "mirror" "raidz1" "raidz2" "raidz3" "draid1" "draid2" "draid3")"
+	# Pass options as separate arguments
+	topo="$(ui_select "Topologia de dados (Recomendado: $default_topo):" "${options[@]}")"
+	
 	topo="$(sanitize_id "$topo")"
-	[[ -z "$topo" ]] && topo="stripe"
+	[[ -z "$topo" ]] && topo="$default_topo"
 
 	pool="$(ui_input "Nome do pool:" "rpool")"
 	pool="$(sanitize_id "$pool")"

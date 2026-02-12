@@ -10,7 +10,15 @@ step_zfs_auto_properties() {
 		"Ajustar comportamento de compressão e memória (ARC)" \
 		"Configurações agressivas podem afetar desempenho e uso de RAM" \
 		"Use zstd e dedup desativado, salvo necessidade comprovada" \
-		"Não houver benchmark/monitoramento para validar impacto"
+		"Hardware detectado: $(free -h | awk '/^Mem:/ {print $2}') RAM"
+
+	local total_ram_kb
+	total_ram_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+	if (( total_ram_kb > 134217728 )); then # > 128GB
+		ui_card "High Memory Detected" \
+			"  Sistema com >128GB RAM." \
+			"  Considere aumentar o ARC Máximo para aproveitar a memória."
+	fi
 
 	local comp dedup arc_mode arc_max
 	comp="$(ui_select "Compressão:" "zstd" "lz4")"

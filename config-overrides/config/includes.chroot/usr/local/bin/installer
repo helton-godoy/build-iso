@@ -258,28 +258,31 @@ register_all_steps() {
     register_step   "zfs_auto_topology"   "11"    "ZFS: Topologia do Pool"   "Stripe/Mirror/RAIDZ conforme discos"   "zfs_strategy"   "zfs_auto_properties"   "zfs-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh"   "zfs_auto_topology.sh"   "step_zfs_auto_topology"
 
 #                 |░ID░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░|
-    register_step   "zfs_auto_properties"   "12"    "ZFS: Propriedades"   "Compressão, dedup, ARC e avançado"   "zfs_auto_topology"   "zfs_auto_datasets"   "zfs-utils.sh,install-plan-utils.sh"   "zfs_auto_properties.sh"   "step_zfs_auto_properties"
+    register_step   "zfs_auto_properties"   "12"    "ZFS: Propriedades"   "Compressão, dedup, ARC e avançado"   "zfs_auto_topology"   "zfs_aux_setup"   "zfs-utils.sh,install-plan-utils.sh"   "zfs_auto_properties.sh"   "step_zfs_auto_properties"
 
-#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
-    register_step   "zfs_auto_datasets"   "13"    "ZFS: Datasets"   "Preset padrão/servidor/custom"   "zfs_auto_properties"   "boot"   "zfs-utils.sh,disk-utils.sh,install-plan-utils.sh"   "zfs_auto_datasets.sh"   "step_zfs_auto_datasets"
+#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░|
+    register_step   "zfs_aux_setup"   "13"    "Discos Auxiliares"   "Cache, Log e Spare"   "zfs_auto_properties"   "zfs_auto_datasets"   "zfs-utils.sh,disk-utils.sh,state-utils.sh"   "zfs_aux_setup.sh"   "step_zfs_aux_setup"
+
+#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
+    register_step   "zfs_auto_datasets"   "14"    "ZFS: Datasets"   "Preset padrão/servidor/custom"   "zfs_aux_setup"   "boot"   "zfs-utils.sh,disk-utils.sh,install-plan-utils.sh"   "zfs_auto_datasets.sh"   "step_zfs_auto_datasets"
 
 #                 |░ID░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░|░MODULE░░░░░░░░░░|░HANDLER░░░░░░░░░░|
-    register_step   "zfs_manual"   "14"    "ZFS: Manual (Avançado)"   "VDEVs, pools, datasets e propriedades"   "zfs_strategy"   "boot"   "zfs-utils.sh"   "zfs_manual.sh"   "step_zfs_manual"
+    register_step   "zfs_manual"   "15"    "ZFS: Manual (Avançado)"   "VDEVs, pools, datasets e propriedades"   "zfs_strategy"   "boot"   "zfs-utils.sh"   "zfs_manual.sh"   "step_zfs_manual"
 
 #                 |░ID░░░░░|░ORDER░|░TITLE░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░|░HANDLER░░░░|
-    register_step   "boot"   "15"    "Boot"   "UEFI/BIOS, bootloader e parâmetros"   "zfs_auto_datasets"   "review"   "boot-utils.sh"   "boot.sh"   "step_boot"
+    register_step   "boot"   "16"    "Boot"   "UEFI/BIOS, bootloader e parâmetros"   "zfs_auto_datasets"   "review"   "boot-utils.sh"   "boot.sh"   "step_boot"
 
 #                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░|░NEXT░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░|░HANDLER░░░░░░|
-    register_step   "review"    "16"    "Revisão"   "Resumo, validações e checkpoint"   "boot"   "install"   "validate-utils.sh,install-plan-utils.sh"   "review.sh"   "step_review"
+    register_step   "review"    "17"    "Revisão"   "Resumo, validações e checkpoint"   "boot"   "install"   "validate-utils.sh,install-plan-utils.sh"   "review.sh"   "step_review"
 
 #                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░|░PREV░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░|░HANDLER░░░░░░░|
-    register_step   "install"   "17"    "Instalação"   "Execução e progresso"   "review"   "post_install"   "install-utils.sh,disk-utils.sh,zfs-utils.sh,boot-utils.sh,validate-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh"   "install.sh"   "step_install"
+    register_step   "install"   "18"    "Instalação"   "Execução e progresso"   "review"   "post_install"   "install-utils.sh,disk-utils.sh,zfs-utils.sh,boot-utils.sh,validate-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh"   "install.sh"   "step_install"
 
 #                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
-    register_step   "post_install"   "18"    "Pós-instalação"   "Ajustes finais: apt, serviços, pacotes"   "install"   "finish"   "post-utils.sh,finalize-chroot.sh,setup-zbm-config.sh"   "post_install.sh"   "step_post_install"
+    register_step   "post_install"   "19"    "Pós-instalação"   "Ajustes finais: apt, serviços, pacotes"   "install"   "finish"   "post-utils.sh,finalize-chroot.sh,setup-zbm-config.sh"   "post_install.sh"   "step_post_install"
 
 #                 |░ID░░░░░░░|░ORDER░|░TITLE░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░|░DEPS░|░MODULE░░░░░░|░HANDLER░░░░░░|
-    register_step   "finish"   "19"    "Concluído"   "Resumo final e reboot"   "post_install"   ""     ""     "finish.sh"   "step_finish"
+    register_step   "finish"   "20"    "Concluído"   "Resumo final e reboot"   "post_install"   ""     ""     "finish.sh"   "step_finish"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
