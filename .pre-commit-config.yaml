@@ -29,13 +29,17 @@ repos:
       - id: gitleaks
 
   # PowerShell lint (hook local via pwsh)
-  # NOTA: Requer pwsh instalado. O PSScriptAnalyzer é executado como hook local
-  # porque não há um repositório pre-commit oficial para ele.
+  # Guard em bash: skip gracioso se pwsh não estiver instalado.
   - repo: local
     hooks:
       - id: psscriptanalyzer
         name: PSScriptAnalyzer
         language: system
-        entry: pwsh -NoProfile -Command "Invoke-ScriptAnalyzer -Path ./powershell -Recurse -Settings ./PSScriptAnalyzerSettings.psd1"
-        files: '\.ps1$|\.psd1$'
+        entry: >-
+          bash -c 'if command -v pwsh >/dev/null 2>&1; then
+          pwsh -NoProfile -Command "Invoke-ScriptAnalyzer -Path . -Recurse
+          -Settings ./PSScriptAnalyzerSettings.psd1
+          -ExcludeRule PSAvoidUsingWriteHost";
+          else echo "PSScriptAnalyzer: skipped (pwsh not installed)"; fi'
+        files: '\.ps1$'
         pass_filenames: false

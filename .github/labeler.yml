@@ -1,0 +1,63 @@
+# Regras de auto-labeling para PRs (usado por actions/labeler@v5)
+# Sintaxe v5: https://github.com/actions/labeler#common-examples
+
+"area:bash":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'scripts/**/*.sh'
+          - 'tests/**/*.sh'
+          - 'config-overrides/**/*.sh'
+
+"area:powershell":
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.ps1'
+          - 'PSScriptAnalyzerSettings.psd1'
+
+"area:zfs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'scripts/download-zfsbootmenu.sh'
+          - 'config-overrides/**/zfs*'
+          - 'docs/20_ZFS_DATASET_TEMPLATES.md'
+
+"area:samba":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'artifacts/templates/smb/**'
+          - 'artifacts/scripts/validate_ad_smb.sh'
+          - 'docs/10_SMB_STACK.md'
+          - 'docs/31_RUNBOOK*'
+
+"area:ha":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/40_FAILOVER*'
+
+"area:installer":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'config-overrides/**'
+          - 'scripts/docker/**'
+          - 'artifacts/installer/**'
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+
+"area:ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - '.pre-commit-config.yaml'
+          - '.editorconfig'
+          - 'Makefile'
+          - 'justfile'
+
+"type:documentation":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '**/*.md'
+          - 'artifacts/docs/**'

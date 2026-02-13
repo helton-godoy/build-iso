@@ -6,7 +6,7 @@ set -o pipefail
 # ──────────────────────────────────────────────────────────────────────────────
 # @INST_FILE: installer (Router Principal)
 # @INST_DESC: Gerencia o fluxo de estados, registro de etapas e navegação do instalador.
-# @INST_FLOW: welcome -> identity -> network -> time -> user_account -> admin_policy -> disk_select -> disk_wipe_confirm -> zfs_strategy -> zfs_auto_topology/zfs_manual -> boot -> review -> install -> post_install -> finish
+# @INST_FLOW: welcome -> prefs_locale -> prefs_keyboard -> identity -> network -> time -> user_account -> admin_policy -> disk_select -> disk_wipe_confirm -> zfs_strategy -> zfs_auto_topology/zfs_manual -> zfs_auto_properties -> zfs_aux_setup -> zfs_auto_datasets -> boot -> review -> install -> post_install -> finish
 # ──────────────────────────────────────────────────────────────────────────────
 
 SCRIPT_NAME="fileserver-installer-router"
@@ -531,6 +531,7 @@ main_loop() {
         log_line "INFO" "Entrando step=$CURRENT_STEP"
         if step_invoke "$CURRENT_STEP"; then
             NEXT_STEP="$(sanitize_id "$(compute_next_step "$CURRENT_STEP")")"
+            log_line "INFO" "Step concluído: step=$CURRENT_STEP next=${NEXT_STEP:-<fim>}"
             if [[ -z "$NEXT_STEP" ]]; then
                 break
             fi
@@ -540,6 +541,7 @@ main_loop() {
         fi
 
         PREV_STEP="$(sanitize_id "$(compute_prev_step "$CURRENT_STEP")")"
+        log_line "WARN" "Step retornou falha: step=$CURRENT_STEP prev=${PREV_STEP:-<none>}"
         if [[ -n "$PREV_STEP" ]]; then
             goto_prev || return 1
             state_load || true

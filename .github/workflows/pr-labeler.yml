@@ -1,6 +1,4 @@
-# 18 - .github/workflows/pr-labeler.yml
-
-name: pr-labeler
+name: PR Labeler
 
 on:
   pull_request_target:

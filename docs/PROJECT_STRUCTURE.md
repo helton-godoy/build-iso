@@ -113,8 +113,10 @@ docs/
 ├── 30_AD_JOIN_AND_ALIAS.md           # AD join, SPNs, DNS
 ├── 31_RUNBOOK_FILESERVICE_...md      # Runbook completo SMB+AD
 ├── 32_AD_OBJECTS_CHECKLIST.md        # Checklist de objetos AD
+├── 34_JUMPBOX_SETUP.md               # Setup base da jump box WS2019
 ├── 35_JUMPBOX_SSH_KEYS.md            # SSH keys para jump box
 ├── 36_POWERSHELL_OVER_SSH_...md      # PowerShell over SSH
+├── 37_JUMPBOX_WS2019_AD_KEYAUTH.md   # Key auth da conta AD de automacao
 ├── 40_FAILOVER_REPLICATION.md        # HA: Syncoid + Pacemaker
 ├── ROADMAP.md                        # Roadmap unificado (8 fases)
 └── HANDOFF_PROMPT_NEW_SESSION.md     # Contexto para novas sessões LLM

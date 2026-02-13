@@ -11,11 +11,17 @@ echo "📦 Configurando permissões do instalador..."
 chmod +x /usr/local/bin/install-zfs-debian 2>/dev/null || true
 chmod +x /usr/local/lib/fileserver-ds.sh 2>/dev/null || true
 chmod +x /usr/local/lib/installer/*.sh 2>/dev/null || true
+chmod +x /usr/local/sbin/nas-firstboot-wizard.sh 2>/dev/null || true
+chmod +x /usr/local/sbin/validate_ad_smb.sh 2>/dev/null || true
+chmod +x /usr/local/sbin/ad_precheck_fileserver.sh 2>/dev/null || true
 
 # Verifica instalação
 echo "✅ Scripts instalados:"
 ls -la /usr/local/bin/install-zfs-debian 2>/dev/null || echo "⚠ install-zfs-debian não encontrado"
 ls -la /usr/local/lib/fileserver-ds.sh 2>/dev/null || echo "⚠ fileserver-ds.sh não encontrado"
 ls -la /usr/local/lib/installer/*.sh 2>/dev/null || echo "⚠ Módulos não encontrados"
+ls -la /usr/local/sbin/nas-firstboot-wizard.sh 2>/dev/null || echo "⚠ nas-firstboot-wizard não encontrado"
+ls -la /usr/local/sbin/validate_ad_smb.sh 2>/dev/null || echo "⚠ validate_ad_smb não encontrado"
+ls -la /usr/local/sbin/ad_precheck_fileserver.sh 2>/dev/null || echo "⚠ ad_precheck_fileserver não encontrado"
 
 echo "✅ Hook concluído"

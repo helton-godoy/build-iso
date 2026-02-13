@@ -53,40 +53,78 @@ export UI_WARN='⚠'
 # COMPONENTES
 # ═══════════════════════════════════════════════════════════
 
+# @INST_FUNC: _ui_get_width
+# @INST_DESC: Calcula a largura do conteúdo principal baseada no terminal.
+_ui_get_width() {
+	local term_width
+	term_width=$(tput cols || echo 80)
+	
+	# Largura padrão (desktop/vm)
+	local content_width=$((term_width - 4))
+	
+	# Limites de legibilidade
+	[[ "$content_width" -lt 40 ]] && content_width=40
+	[[ "$content_width" -gt 100 ]] && content_width=100
+	
+	echo "$content_width"
+}
+
 # @INST_FUNC: ui_hero
 # @INST_DESC: Exibe o cabeçalho principal da aplicação (Hero component).
 ui_hero() {
 	local title="${1:-FILESERVER INSTALLER}"
 	local subtitle="${2:-}"
 	clear
+
+	local width
+	width=$(_ui_get_width)
+
+	# Hero tem margem externa de 2 chars (total 4) e padding interno
+	# Para alinhar com Section (que é full width no content area), 
+	# Hero deve ter a mesma largura visual total.
+	
 	gum style \
 		--foreground "$DS_FILESERVER_PEAK" \
 		--border-foreground "$DS_SLATE" \
 		--border double --align center \
-		--width 60 --margin "1 2" --padding "1 2" \
+		--width "$width" --margin "1 2" --padding "1 2" \
 		"$title" "$subtitle"
 }
 
 ui_section() {
 	local title="$1"
+	
+	local width
+	width=$(_ui_get_width)
+	
 	echo ""
-	gum style --foreground "$DS_MIST" --bold \
-		"$(printf "$UI_H%.0s" {1..60})"
-	gum style --foreground "$DS_SILVER" --bold \
+	gum style --foreground "$DS_MIST" --bold --margin "0 2" \
+		"$(printf "$UI_H%.0s" $(seq 1 "$width"))"
+	gum style --foreground "$DS_SILVER" --bold --margin "0 2" \
 		"  $UI_ARROW $title"
-	gum style --foreground "$DS_MIST" --bold \
-		"$(printf "$UI_H%.0s" {1..60})"
+	gum style --foreground "$DS_MIST" --bold --margin "0 2" \
+		"$(printf "$UI_H%.0s" $(seq 1 "$width"))"
 }
 
 ui_card() {
 	local title="$1"
 	shift
+	
+	local width
+	width=$(_ui_get_width)
+	
+	# Cards have border (2 chars) + padding (4 chars) + margin (4 chars)
+	# gum style --width includes border and padding but NOT margin?
+	# margin "1 2" means 2 spaces left, 2 right.
+	# width should be exactly same as Hero to align borders.
+	
 	gum style \
 		--border-foreground "$DS_WHISPER" \
 		--border normal \
 		--padding "1 2" --margin "1 2" \
+		--width "$width" \
 		"$(gum style --foreground "$DS_SLATE_GLOW" --bold "$title")" \
-		"$(gum style --foreground "$DS_MIST" "$(printf "$UI_H%.0s" {1..30})")" \
+		"$(gum style --foreground "$DS_MIST" "$(printf "$UI_H%.0s" $(seq 1 "$((width - 6))"))")" \
 		"$@"
 }
 
@@ -125,7 +163,7 @@ ui_input() {
 	local label="$1"
 	local placeholder="${2:-}"
 	local hint="${3:-}"
-	gum style --foreground "$DS_CLOUD" "$label:" >&2
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$label:" >&2
 	local value=$(gum input \
 		--placeholder "$placeholder" \
 		--header "" \
@@ -133,7 +171,7 @@ ui_input() {
 		--placeholder.foreground "$DS_FOG" \
 		--cursor.foreground "$DS_FILESERVER_PEAK")
 	[[ -n "$hint" ]] &&
-		gum style --foreground "$DS_FOG" --italic "    $hint" >&2
+		gum style --foreground "$DS_FOG" --italic --margin "0 2" "    $hint" >&2
 	echo "$value"
 }
 
@@ -141,7 +179,7 @@ ui_password() {
 	local label="$1"
 	local placeholder="${2:-Senha}"
 	local hint="${3:-}"
-	gum style --foreground "$DS_CLOUD" "$label:" >&2
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$label:" >&2
 	local value
 	value="$(gum input \
 		--password \
@@ -151,7 +189,7 @@ ui_password() {
 		--placeholder.foreground "$DS_FOG" \
 		--cursor.foreground "$DS_FILESERVER_PEAK")"
 	[[ -n "$hint" ]] &&
-		gum style --foreground "$DS_FOG" --italic "    $hint" >&2
+		gum style --foreground "$DS_FOG" --italic --margin "0 2" "    $hint" >&2
 	echo "$value"
 }
 
@@ -162,8 +200,8 @@ ui_select() {
 	shift
 	local selection
 
-	gum style --foreground "$DS_CLOUD" "$title" >&2
-	gum style --foreground "$DS_FOG" --italic "  $UI_ARROW Use ↑/↓ para navegar e Enter para confirmar" >&2
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
+	gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Use ↑/↓ para navegar e Enter para confirmar" >&2
 	echo "" >&2
 
 	if [[ "$#" -eq 0 ]]; then
@@ -196,8 +234,8 @@ ui_filter_select() {
 	shift
 	local selection
 
-	gum style --foreground "$DS_CLOUD" "$title" >&2
-	gum style --foreground "$DS_FOG" --italic "  $UI_ARROW Digite para filtrar e Enter para selecionar" >&2
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
+	gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Digite para filtrar e Enter para selecionar" >&2
 	echo "" >&2
 
 	if [[ "$#" -eq 0 ]]; then
@@ -234,8 +272,8 @@ ui_multiselect() {
 	shift
 	local selection
 
-	gum style --foreground "$DS_CLOUD" "$title" >&2
-	gum style --foreground "$DS_FOG" --italic "  $UI_ARROW Espaço marca • Enter confirma • Ctrl+C cancela" >&2
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
+	gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Espaço marca • Enter confirma • Ctrl+C cancela" >&2
 	echo "" >&2
 
 	if [[ "$#" -eq 0 ]]; then
@@ -266,8 +304,8 @@ ui_filter_multiselect() {
 	shift
 	local selection
 
-	gum style --foreground "$DS_CLOUD" "$title" >&2
-	gum style --foreground "$DS_FOG" --italic "  $UI_ARROW Digite para filtrar • Espaço marca • Enter confirma" >&2
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
+	gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Digite para filtrar • Tab alterna • Enter confirma" >&2
 	echo "" >&2
 
 	if [[ "$#" -eq 0 ]]; then
@@ -275,7 +313,14 @@ ui_filter_multiselect() {
 		return 1
 	fi
 
-	if ! selection="$(printf '%s\n' "$@" | gum filter \
+	# Pad options with 2 spaces for alignment
+	local -a options_padded
+	local opt
+	for opt in "$@"; do
+		options_padded+=("  $opt")
+	done
+
+	if ! selection="$(printf '%s\n' "${options_padded[@]}" | gum filter \
 		--no-limit \
 		--height 12 \
 		--show-help \
@@ -296,37 +341,48 @@ ui_filter_multiselect() {
 		return 1
 	fi
 
-	printf '%s' "$selection"
+	# Remove the 2-space padding from the result
+	printf '%s\n' "$selection" | sed 's/^  //'
 }
 
 ui_error() {
 	local title="${1:-Erro}"
 	local message="${2:-}"
+	
+	local width
+	width=$(_ui_get_width)
 
 	if [[ -n "$message" ]]; then
 		gum style \
 			--foreground "$DS_ERROR" \
 			--border-foreground "$DS_ERROR" \
 			--border double \
-			--padding "2 3" --margin "2 2" --align center \
+			--padding "1 2" --margin "1 2" --align center \
+			--width "$width" \
 			"$UI_WARN $title" "" "$message"
 	else
 		gum style \
 			--foreground "$DS_ERROR" \
 			--border-foreground "$DS_ERROR" \
 			--border double \
-			--padding "2 3" --margin "2 2" --align center \
+			--padding "1 2" --margin "1 2" --align center \
+			--width "$width" \
 			"$UI_WARN $title"
 	fi
 }
 
 ui_success() {
 	local message="$1"
+	
+	local width
+	width=$(_ui_get_width)
+	
 	gum style \
 		--foreground "$DS_SUCCESS" \
 		--border-foreground "$DS_SUCCESS" \
 		--border double \
-		--padding "2 3" --margin "2 2" --align center \
+		--padding "1 2" --margin "1 2" --align center \
+		--width "$width" \
 		"$UI_CHECK $message"
 }
 

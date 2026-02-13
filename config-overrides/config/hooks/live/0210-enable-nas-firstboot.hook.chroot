@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p /etc/systemd/system/multi-user.target.wants
+ln -sf ../nas-firstboot-wizard.service \
+  /etc/systemd/system/multi-user.target.wants/nas-firstboot-wizard.service

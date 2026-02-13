@@ -93,7 +93,7 @@ Entregas:
 
 - `artifacts/scripts/ad_precheck_fileserver.sh` (wrapper)
 - `artifacts/scripts/ad_setup_fileserver.ps1` (PowerShell AD-side)
-- Docs: `35_JUMPBOX_SSH_KEYS.md`, `36_POWERSHELL_OVER_SSH_SUBSYSTEM.md`
+- Docs: `34_JUMPBOX_SETUP.md`, `35_JUMPBOX_SSH_KEYS.md`, `36_POWERSHELL_OVER_SSH_SUBSYSTEM.md`, `37_JUMPBOX_WS2019_AD_KEYAUTH.md`
 
 Status: ⏳ Wrapper criado, script PowerShell pendente
 

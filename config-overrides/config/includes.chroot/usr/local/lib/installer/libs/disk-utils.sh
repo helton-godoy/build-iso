@@ -187,20 +187,24 @@ disk_select_multi_interactive() {
 
 	local prompt="${1:-Selecione o disco de destino:}"
 
-	# Usar estilo do DS sem contaminar stdout (capturado pelo chamador)
-	gum style --foreground "${DS_CLOUD:-250}" "$prompt" >&2
-	gum style --foreground "${DS_FOG:-245}" --italic "  ${UI_ARROW:-▶} Espaço marca • Enter confirma seleção" >&2
-	echo "" >&2
+	local prompt="${1:-Selecione o disco de destino:}"
 
 	local selected
+	local ret=0
 	if declare -F ui_filter_multiselect >/dev/null 2>&1; then
 		local -a options=()
 		while IFS= read -r line; do
 			[[ -z "$line" ]] && continue
 			options+=("$line")
 		done <<<"$disks"
-		selected="$(ui_filter_multiselect "$prompt" "${options[@]}")"
+		# Capture exit code from ui_filter_multiselect (propagated from gum/logic)
+		selected="$(ui_filter_multiselect "$prompt" "${options[@]}")" || ret=$?
 	else
+		# Usar estilo do DS sem contaminar stdout (capturado pelo chamador)
+		gum style --foreground "${DS_CLOUD:-250}" "$prompt" >&2
+		gum style --foreground "${DS_FOG:-245}" --italic "  ${UI_ARROW:-▶} Espaço marca • Enter confirma seleção" >&2
+		echo "" >&2
+
 		selected=$(echo "$disks" | gum choose \
 			--height 8 \
 			--show-help \
@@ -212,11 +216,17 @@ disk_select_multi_interactive() {
 			--cursor.foreground "${DS_FILESERVER_PEAK:-153}" \
 			--item.foreground "${DS_CLOUD:-250}" \
 			--selected.foreground "${DS_SILVER:-252}" \
-			--selected.background "${DS_ELEVATION:-239}")
+			--selected.background "${DS_ELEVATION:-239}") || ret=$?
+	fi
+
+	# If canceled by user (Esc/Ctrl+C), return 1
+	if [[ "$ret" -ne 0 ]]; then
+		return 1
 	fi
 
 	if [[ -z "$(sanitize_ws "$selected")" ]]; then
-		return 1
+		# Selected nothing but confirmed (Enter) -> Return 2
+		return 2
 	fi
 
 	mapfile -t SELECTED_DISKS < <(
@@ -227,7 +237,7 @@ disk_select_multi_interactive() {
 	)
 
 	if [[ "${#SELECTED_DISKS[@]}" -eq 0 ]]; then
-		return 1
+		return 2
 	fi
 
 	SELECTED_DISK="${SELECTED_DISKS[0]}"

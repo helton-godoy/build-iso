@@ -2,9 +2,9 @@ name: Build Debian ZFS ISO
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master, main-v5]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master, main-v5]
   workflow_dispatch:
 
 jobs:
@@ -13,19 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make
-
-      - name: Download binaries
-        run: make download-deps
+      - name: Download ZFSBootMenu binaries
+        run: make download-zbm
 
       - name: Build ISO
-        run: make build
+        run: make build-iso
 
       - name: Upload ISO
         uses: actions/upload-artifact@v4
         with:
           name: debian-zfs-iso
           path: output/*.iso
+          if-no-files-found: warn
+          retention-days: 14
