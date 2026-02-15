@@ -251,3 +251,25 @@ make vm-connect-uefi
 | *(novo)*                 | `.editorconfig`           | Padronização formato |
 
 Consulte [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) e [`docs/ROADMAP.md`](docs/ROADMAP.md) para detalhes completos.
+
+## Contrato de Comentarios Semanticos (PDS-Bash)
+
+Este projeto adota o contrato versionado em `docs/COMMENT_PROTOCOL_PDS_BASH.md`.
+
+### Regra obrigatoria para novo codigo shell
+
+- Sempre adicionar `@ID` + `@STEP` em blocos logicos novos relevantes para fluxo.
+- Quando houver dependencia de fluxo, adicionar `@REQ`.
+- Quando houver caminho de erro/contingencia, adicionar `@FAIL`.
+- Quando houver I/O relevante (arquivo/rede/estado), adicionar `@DATA`.
+
+### Compatibilidade com tags existentes
+
+- Nao remover nem substituir o sistema atual `@INST_*`, `@DEV_*`, `@TEST_*`.
+- O PDS-Bash complementa o sistema existente para melhorar busca semantica e RAG.
+
+### Gates de qualidade
+
+- `make verify-comment-contract` (ou `just verify-comment-contract`)
+- `make comment-index` para indice `TXT + JSONL`
+- `make comment-graph` para grafo Mermaid

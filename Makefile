@@ -36,6 +36,7 @@ VM_DISK_PATH_BIOS = scripts/vm/disks/bios/installed-system.qcow2
 .PHONY: test-vm-uefi test-vm-bios test-vm-all vm-connect-uefi vm-connect-bios
 .PHONY: vm-boot-disk-uefi vm-boot-disk-bios
 .PHONY: docs docs-installer docs-dev docs-tests docs-all docs-markdown docs-stats verify-docs
+.PHONY: comment-index comment-graph verify-comment-contract
 .PHONY: validate-ad ad-precheck validate-configs lint
 .PHONY: plan-list plan-archive
 
@@ -83,6 +84,9 @@ help:
 	@echo "  make docs-markdown    - Gera documentação completa em Markdown"
 	@echo "  make docs-stats       - Estatísticas de cobertura de documentação"
 	@echo "  make verify-docs      - Valida a integridade de todas as tags"
+	@echo "  make comment-index    - Gera índice semântico (TXT + JSONL) para RAG"
+	@echo "  make comment-graph    - Gera grafo Mermaid do fluxo por comentários"
+	@echo "  make verify-comment-contract - Valida contrato PDS-Bash"
 	@echo ""
 	@echo "🔐 NAS / SAMBA / AD:"
 	@echo "  make validate-ad      - Executa validação AD/SMB (Linux-side)"
@@ -229,6 +233,24 @@ verify-docs:
 	@echo "🔍 Validando metadados da documentação..."
 	@chmod +x tests/test-docs.sh
 	@bash tests/test-docs.sh
+
+comment-index:
+	@mkdir -p $(OUTPUT_DIR)/comment-index
+	@chmod +x scripts/comment-index.sh
+	@ROOT=. OUT_DIR=$(OUTPUT_DIR)/comment-index FORMAT=index bash scripts/comment-index.sh
+	@echo "📄 Índice: $(OUTPUT_DIR)/comment-index/comment-index.txt"
+	@echo "📄 JSONL: $(OUTPUT_DIR)/comment-index/comment-index.jsonl"
+
+comment-graph:
+	@mkdir -p $(OUTPUT_DIR)/comment-index
+	@chmod +x scripts/comment-index.sh
+	@ROOT=. OUT_DIR=$(OUTPUT_DIR)/comment-index FORMAT=graph bash scripts/comment-index.sh
+	@echo "📈 Grafo Mermaid: $(OUTPUT_DIR)/comment-index/comment-flow.mmd"
+
+verify-comment-contract:
+	@echo "🔎 Validando contrato de comentários (PDS-Bash)..."
+	@chmod +x tests/test-comment-contract.sh
+	@bash tests/test-comment-contract.sh
 
 # -----------------------------------------------------------------------------
 # NAS / Samba / AD Targets

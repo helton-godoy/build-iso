@@ -1,5 +1,9 @@
 # Documentação Técnica e Indexação do Instalador
 
+> Contrato oficial atualizado: `docs/COMMENT_PROTOCOL_PDS_BASH.md`.
+> Este documento continua válido como mapa técnico, mas o gate normativo
+> de qualidade semântica está em `tests/test-comment-contract.sh`.
+
 Este plano visa documentar o funcionamento interno do instalador, mapeando o fluxo entre scripts, funções principais e o gerenciamento de estado, utilizando uma estratégia de tags para indexação inteligente.
 
 ## Estratégia de Tags (@INST)
@@ -92,6 +96,9 @@ A documentação foi aplicada em:
 
 - Executar `grep -r "@INST" /usr/local/lib/installer` para validar a cobertura.
 - Validar se o instalador continua funcional após a inserção dos comentários (teste de integridade Bash).
+- Gerar índice semântico: `make comment-index`.
+- Gerar grafo Mermaid: `make comment-graph`.
+- Validar contrato PDS-Bash: `make verify-comment-contract`.
 
 ### Verificação Manual
 

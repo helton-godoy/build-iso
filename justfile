@@ -92,7 +92,7 @@ validate-configs:
   make validate-configs
 
 # Validação completa (pré-push)
-check: lint validate-configs docs-verify
+check: lint validate-configs docs-verify verify-comment-contract
   @echo "✅ Todos os checks passaram!"
 
 # =============================================================================
@@ -105,6 +105,15 @@ docs:
 # Verifica integridade da documentação
 docs-verify:
   make verify-docs
+
+comment-index:
+  make comment-index
+
+comment-graph:
+  make comment-graph
+
+verify-comment-contract:
+  make verify-comment-contract
 
 # =============================================================================
 # Planejamento

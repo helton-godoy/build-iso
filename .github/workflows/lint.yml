@@ -38,6 +38,12 @@ jobs:
           find . -name '*.yml' -o -name '*.yaml' | grep -v '.git/' | \
             xargs -I{} python3 -c "import yaml; yaml.safe_load(open('{}'))"
 
+      - name: Validate docs tags contract
+        run: |
+          chmod +x tests/test-docs.sh tests/test-comment-contract.sh
+          bash tests/test-docs.sh
+          bash tests/test-comment-contract.sh
+
   secrets:
     name: Secret Scanning (gitleaks)
     runs-on: ubuntu-latest

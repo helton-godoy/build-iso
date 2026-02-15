@@ -32,6 +32,12 @@ repos:
   # Guard em bash: skip gracioso se pwsh não estiver instalado.
   - repo: local
     hooks:
+      - id: comment-contract
+        name: Comment Contract (PDS-Bash)
+        language: system
+        entry: bash tests/test-comment-contract.sh
+        pass_filenames: false
+
       - id: psscriptanalyzer
         name: PSScriptAnalyzer
         language: system
