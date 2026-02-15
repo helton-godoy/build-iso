@@ -6,8 +6,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../scripts/lib/installer/partitioning.sh"
-source "${SCRIPT_DIR}/../scripts/lib/installer/disk-detection.sh"
+source "${SCRIPT_DIR}/../config-overrides/config/includes.chroot/usr/local/lib/installer/libs/partitioning.sh"
+source "${SCRIPT_DIR}/../config-overrides/config/includes.chroot/usr/local/lib/installer/libs/disk-utils.sh"
 
 TEST_DISK="${TEST_DISK:-/dev/vda}"
 LOG_FILE="/tmp/test_partitioning.log"
