@@ -1,5 +1,5 @@
 ---
-description: Reviews the last commit made and determines if the plan was executed completely, and documents any drift that occurred during implementation. Provide a plan file in the arguments for the review to analyze. It is strongly advised to run this command within the session of a plan execution, after running commit.
+description: Verifica o último commit, confere se o plano foi totalmente executado e registra eventuais desvios. Use um arquivo de plano como argumento para a análise. Execute este comando dentro da sessão do plano, logo após o commit.
 ---
 
 # Review Plan
@@ -14,12 +14,14 @@ You will be given instructions, followed by a review that will contain user spec
 
 1. **Read the implementation plan** completely
 2. **Identify what should have changed**:
+
    - List all files that should be modified
    - Note all success criteria (automated and manual)
    - Identify key functionality to verify
 
 3. **Spawn parallel research tasks** to discover implementation:
-   ```
+
+   ```markdown
    Task 1 - Verify database changes:
    Research if migration [N] was added and schema changes match plan.
    Check: migration files, schema version, table structure
@@ -41,15 +43,18 @@ You will be given instructions, followed by a review that will contain user spec
 For each phase in the plan:
 
 1. **Check completion status**:
+
    - Look for checkmarks in the plan (- [x])
    - Verify the actual code matches claimed completion
 
 2. **Run automated verification**:
+
    - Execute each command from "Automated Verification"
    - Document pass/fail status
    - If failures, investigate root cause
 
 3. **Assess manual criteria**:
+
    - List what needs manual testing
    - Provide clear steps for user verification
 
@@ -70,11 +75,13 @@ Use the todowrite tool to create a structured task list for the 4 steps above, m
 ## Validation Report: [Plan Name]
 
 ### Implementation Status
+
 ✓ Phase 1: [Name] - Fully implemented
 ✓ Phase 2: [Name] - Fully implemented
 ⚠️ Phase 3: [Name] - Partially implemented (see issues)
 
 ### Automated Verification Results
+
 ✓ Build passes: `turbo build`
 ✓ Tests pass: `turbo test`
 ✗ Linting issues: `turbo check` (3 warnings)
@@ -82,11 +89,13 @@ Use the todowrite tool to create a structured task list for the 4 steps above, m
 ### Code Review Findings
 
 #### Matches Plan:
+
 - Database migration correctly adds [table]
 - API endpoints implement specified methods
 - Error handling follows plan
 
 #### Deviations from Plan:
+
 - Check the plan's "## Deviations from Plan" section (if present)
 - For each deviation noted:
   - **Phase [N]**: [Original plan vs actual implementation]
@@ -97,11 +106,14 @@ Use the todowrite tool to create a structured task list for the 4 steps above, m
   - Added extra validation in [file:line] (improvement)
 
 #### Potential Issues:
+
 - Missing index on foreign key could impact performance
 - No rollback handling in migration
 
 ### Manual Testing Required:
+
 1. UI functionality:
+
    - [ ] Verify [feature] appears correctly
    - [ ] Test error states with invalid input
 
@@ -110,6 +122,7 @@ Use the todowrite tool to create a structured task list for the 4 steps above, m
    - [ ] Check performance with large datasets
 
 ### Recommendations:
+
 - Address linting warnings before merge
 - Consider adding integration test for [scenario]
 - Document new API endpoints
@@ -134,6 +147,7 @@ Use the todowrite tool to create a structured task list for the 4 steps above, m
 ## Validation Checklist
 
 Always verify:
+
 - [ ] All phases marked complete are actually done
 - [ ] Automated tests pass
 - [ ] Code follows existing patterns
@@ -146,7 +160,6 @@ The validation works best after commits are made, as it can analyze the git hist
 
 Remember: Good validation catches issues before they reach production. Be constructive but thorough in identifying gaps or improvements.
 
-**review**
+**review:**
 
 $ARGUMENTS
-

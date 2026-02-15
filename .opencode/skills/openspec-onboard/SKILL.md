@@ -1,6 +1,6 @@
 ---
 name: openspec-onboard
-description: Guided onboarding for OpenSpec - walk through a complete workflow cycle with narration and real codebase work.
+description: Onboarding guiado do OpenSpec - percorre um ciclo completo de workflow com narração e trabalho real na codebase.
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:

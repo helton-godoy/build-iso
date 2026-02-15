@@ -1,6 +1,6 @@
 ---
 name: openspec-ff-change
-description: Fast-forward through OpenSpec artifact creation. Use when the user wants to quickly create all artifacts needed for implementation without stepping through each one individually.
+description: Avanço rápido na criação de artefatos OpenSpec. Use quando o usuário quiser criar rapidamente todos os artefatos necessários para implementação sem percorrer cada um individualmente.
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:

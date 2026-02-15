@@ -1,6 +1,6 @@
 ---
 name: openspec-continue-change
-description: Continue working on an OpenSpec change by creating the next artifact. Use when the user wants to progress their change, create the next artifact, or continue their workflow.
+description: Continua trabalhando em uma mudança OpenSpec criando o próximo artefato. Use quando o usuário quiser progredir sua mudança, criar o próximo artefato ou continuar seu workflow.
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:

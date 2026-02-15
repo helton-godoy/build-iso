@@ -1,0 +1,21 @@
+# Enable kmscon on tty1 and disable getty
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat <<EOF > /etc/systemd/system/getty@tty1.service.d/override.conf
+[Unit]
+ConditionPathExists=/dev/null
+EOF
+
+mkdir -p /etc/systemd/system/kmsconvt@tty1.service.d
+# Ensure proper Environment, Dependencies AND Autologin
+cat <<EOF > /etc/systemd/system/kmsconvt@tty1.service.d/override.conf
+[Service]
+Environment=XKB_DEFAULT_LAYOUT=br
+Environment=XKB_DEFAULT_MODEL=abnt2
+# Clear previous ExecStart to override it
+ExecStart=
+# Start kmscon with autologin for root
+ExecStart=/usr/bin/kmscon --debug --login -- /bin/login -p -f root
+EOF
+
+# kmscon uses a template service kmsconvt@.service
+systemctl enable kmsconvt@tty1.service

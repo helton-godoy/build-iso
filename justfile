@@ -1,10 +1,51 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+# =============================================================================
+# Justfile - Interface Central de Desenvolvimento
+# =============================================================================
+
 default:
   @just --list
 
 help:
   make help
+
+# =============================================================================
+# Workflow de Desenvolvimento (Interativo)
+# =============================================================================
+
+# Realizar um commit semântico interativo
+commit:
+  @if command -v gum >/dev/null; then \
+    TYPE=$(gum choose "feat" "fix" "docs" "style" "refactor" "perf" "test" "chore" "revert" --header "Selecione o tipo de mudança"); \
+    SCOPE=$(gum input --placeholder "Escopo da mudança (opcional)"); \
+    SUMMARY=$(gum input --placeholder "Resumo curto"); \
+    DESCRIPTION=$(gum write --placeholder "Descrição detalhada (opcional)" --width 80); \
+    if [[ -n "$SCOPE" ]]; then \
+      COMMIT_MSG="$TYPE($SCOPE): $SUMMARY"; \
+    else \
+      COMMIT_MSG="$TYPE: $SUMMARY"; \
+    fi; \
+    if [[ -n "$DESCRIPTION" ]]; then \
+      COMMIT_MSG="$COMMIT_MSG\n\n$DESCRIPTION"; \
+    fi; \
+    echo "Commit Message Preview:"; \
+    echo "-----------------------"; \
+    echo -e "$COMMIT_MSG"; \
+    echo "-----------------------"; \
+    if gum confirm "Commitar?"; then \
+      git commit -m "$COMMIT_MSG"; \
+    else \
+      echo "Cancelado."; \
+    fi; \
+  else \
+    echo "Erro: gum não encontrado. Instale o gum para usar este comando."; \
+    exit 1; \
+  fi
+
+# =============================================================================
+# Build & Testes
+# =============================================================================
 
 download-zbm:
   make download-zbm
@@ -21,15 +62,6 @@ clean:
 setup-vm:
   make setup-vm
 
-vm-list:
-  make vm-list
-
-vm-destroy:
-  make vm-destroy
-
-vm-destroy-all:
-  make vm-destroy-all
-
 test-vm-uefi:
   make test-vm-uefi
 
@@ -39,53 +71,44 @@ test-vm-bios:
 test-vm-all:
   make test-vm-all
 
+# =============================================================================
+# Conectividade VM
+# =============================================================================
+
 vm-connect-uefi:
   make vm-connect-uefi
 
 vm-connect-bios:
   make vm-connect-bios
 
-vm-boot-disk-uefi:
-  make vm-boot-disk-uefi
+# =============================================================================
+# Qualidade e Validação
+# =============================================================================
 
-vm-boot-disk-bios:
-  make vm-boot-disk-bios
-
-docs:
-  make docs
-
-docs-installer:
-  make docs-installer
-
-docs-dev:
-  make docs-dev
-
-docs-tests:
-  make docs-tests
-
-docs-all:
-  make docs-all
-
-docs-markdown:
-  make docs-markdown
-
-docs-stats:
-  make docs-stats
-
-verify-docs:
-  make verify-docs
-
-validate-ad:
-  make validate-ad
-
-ad-precheck:
-  make ad-precheck
+lint:
+  make lint
 
 validate-configs:
   make validate-configs
 
-lint:
-  make lint
+# Validação completa (pré-push)
+check: lint validate-configs docs-verify
+  @echo "✅ Todos os checks passaram!"
+
+# =============================================================================
+# Documentação
+# =============================================================================
+
+docs:
+  make docs
+
+# Verifica integridade da documentação
+docs-verify:
+  make verify-docs
+
+# =============================================================================
+# Planejamento
+# =============================================================================
 
 plan-list:
   make plan-list

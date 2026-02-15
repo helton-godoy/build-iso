@@ -1,6 +1,6 @@
 ---
 name: openspec-verify-change
-description: Verify implementation matches change artifacts. Use when the user wants to validate that implementation is complete, correct, and coherent before archiving.
+description: Verifica se a implementação corresponde aos artefatos da mudança. Use quando o usuário quiser validar se a implementação está completa, correta e coerente antes de arquivar.
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:

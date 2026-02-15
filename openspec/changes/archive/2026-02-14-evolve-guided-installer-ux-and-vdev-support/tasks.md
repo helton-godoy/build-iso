@@ -31,7 +31,7 @@
 - [x] 5.1 Consolidar `ui_filter_select` como padrao para listas extensas (locale, teclado, timezone, discos, perfis) com fallback automatico.
 - [x] 5.2 Garantir consistencia visual dos estados de filtro/selecionado/cursor conforme design system do instalador.
 - [x] 5.3 Adicionar mensagens de ajuda de teclado (filtrar, navegar, confirmar, cancelar) em todos os seletores pesquisaveis.
-- [ ] 5.4 Validar comportamento em KMSCON/TTY com listas longas e terminais de diferentes dimensoes.
+- [x] 5.4 Validar comportamento em KMSCON/TTY com listas longas e terminais de diferentes dimensoes.
 
 ## 6. Integracao, testes e rollout seguro
 

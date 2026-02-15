@@ -1,6 +1,6 @@
 ---
 name: openspec-new-change
-description: Start a new OpenSpec change using the experimental artifact workflow. Use when the user wants to create a new feature, fix, or modification with a structured step-by-step approach.
+description: Inicia uma nova mudança OpenSpec usando o workflow experimental de artefatos. Use quando o usuário quiser criar uma nova feature, correção ou modificação com uma abordagem estruturada passo-a-passo.
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:

@@ -1,5 +1,5 @@
 ---
-description: Execute a specific implementation plan. Provide a plan file as the argument to this command. It's very important this command runs in a new session.
+description: Para executar um plano de implementação específico, passe um arquivo de plano como argumento para este comando. **Observação crítica:** Sempre execute este comando em uma nova sessão
 ---
 
 # Implement Plan
@@ -9,6 +9,7 @@ You are tasked with implementing an approved technical plan from `thoughts/plans
 ## Implementation Philosophy
 
 Plans are carefully designed, but reality can be messy. Your job is to:
+
 - Follow the plan's intent while adapting to what you find
 - Implement each phase fully before moving to the next
 - Verify your work makes sense in the broader codebase context
@@ -17,9 +18,11 @@ Plans are carefully designed, but reality can be messy. Your job is to:
 When things don't match the plan exactly, think about why and communicate clearly. The plan is your guide, but your judgment matters too.
 
 If you encounter a mismatch:
+
 - STOP and think deeply about why the plan can't be followed
 - Present the issue clearly:
-  ```
+
+  ```text
   Issue in Phase [N]:
   Expected: [what the plan says]
   Found: [actual situation]
@@ -27,12 +30,14 @@ If you encounter a mismatch:
 
   How should I proceed?
   ```
+
 - **Document deviations in the plan**: If proceeding with a change, update the plan file with a clear record of the deviation using the Edit tool. Add or update a section at the end of the plan:
 
   ```markdown
   ## Deviations from Plan
 
   ### Phase [N]: [Phase Name]
+
   - **Original Plan**: [brief summary of what the plan specified]
   - **Actual Implementation**: [what was actually done]
   - **Reason for Deviation**: [why the change was necessary]
@@ -43,6 +48,7 @@ If you encounter a mismatch:
 ## Verification Approach
 
 After implementing a phase:
+
 - Run the success criteria checks (usually `bun run check` covers everything)
 - Fix any issues before proceeding
 - Update your progress in both the plan and your todos
@@ -53,6 +59,7 @@ Don't let verification interrupt your flow - batch it at natural stopping points
 ## If You Get Stuck
 
 When something isn't working as expected:
+
 - First, make sure you've read and understood all the relevant code
 - Consider if the codebase has evolved since the plan was written
 - Present the mismatch clearly and ask for guidance
@@ -62,6 +69,7 @@ Use sub-tasks sparingly - mainly for targeted debugging or exploring unfamiliar 
 ## Resuming Work
 
 If the plan has existing checkmarks:
+
 - Trust that completed work is done
 - Pick up from the first unchecked item
 - Verify previous work only if something seems off
@@ -88,6 +96,6 @@ Remember: You're implementing a solution, not just checking boxes. Keep the end 
 
 Use the todowrite tool to create a structured task list for the 8 steps above, marking each as pending initially. Note that Step 3 may expand into multiple implementation subtasks derived from the plan.
 
-**plan**
+**plan:**
 
 $ARGUMENTS
