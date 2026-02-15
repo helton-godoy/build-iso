@@ -192,6 +192,11 @@ lazy_source_step() {
 }
 
 lazy_source_deps() {
+    # @ID: INSTALLER_LAZY_SOURCE_DEPS
+    # @STEP: Carrega dependencias declaradas por etapa antes da execucao do handler.
+    # @REQ: INSTALLER_STEP_INVOKE
+    # @FAIL: INSTALLER_DEP_NOT_FOUND
+    # @DATA: IN STEP_DEPS, LIBS_DIR
     local deps; deps="$(sanitize_ws "${1-}")"
     local dep
     if [[ -z "$deps" ]]; then
@@ -209,6 +214,11 @@ lazy_source_deps() {
             # shellcheck disable=SC1090
             source "$dep"
         else
+            # @ID: INSTALLER_DEP_NOT_FOUND
+            # @STEP: Registra dependencia ausente para diagnostico de falha de etapa.
+            # @REQ: INSTALLER_LAZY_SOURCE_DEPS
+            # @FAIL: INSTALLER_STEP_FAILED
+            # @DATA: OUT LOG_FILE
             log_line "WARN" "Dependência não encontrada: $dep"
         fi
     done <<<"$deps"
@@ -339,6 +349,11 @@ compute_prev_step() {
 # @INST_DESC: Executa o handler de uma etapa, carregando suas dependências e módulo.
 # @INST_ARGS: id (ID da etapa)
 step_invoke() {
+    # @ID: INSTALLER_STEP_INVOKE
+    # @STEP: Resolve dependencias, carrega modulo e executa handler da etapa atual.
+    # @REQ: INSTALLER_LAZY_SOURCE_DEPS
+    # @FAIL: INSTALLER_STEP_FAILED
+    # @DATA: IN CURRENT_STEP
     local id; id="$(sanitize_id "${1-}")"
     local handler; handler="$(sanitize_ws "${STEP_HANDLER[$id]-}")"
     local deps; deps="$(sanitize_ws "${STEP_DEPS[$id]-}")"
@@ -513,6 +528,11 @@ parse_args() {
 # ──────────────────────────────────────────────────────────────────────────────
 
 main_loop() {
+    # @ID: INSTALLER_MAIN_LOOP
+    # @STEP: Orquestra navegacao canonica entre steps usando next/prev e estado persistido.
+    # @REQ: INSTALLER_STEP_INVOKE
+    # @FAIL: INSTALLER_STEP_FAILED
+    # @DATA: IN/OUT STATE_FILE
     local safe_guard
     safe_guard=0
 
@@ -541,6 +561,11 @@ main_loop() {
         fi
 
         PREV_STEP="$(sanitize_id "$(compute_prev_step "$CURRENT_STEP")")"
+        # @ID: INSTALLER_STEP_FAILED
+        # @STEP: Trata falha de step retornando ao prev quando disponivel ou abortando fluxo.
+        # @REQ: INSTALLER_MAIN_LOOP
+        # @FAIL: INSTALLER_ABORT
+        # @DATA: OUT LOG_FILE
         log_line "WARN" "Step retornou falha: step=$CURRENT_STEP prev=${PREV_STEP:-<none>}"
         if [[ -n "$PREV_STEP" ]]; then
             goto_prev || return 1
@@ -550,6 +575,10 @@ main_loop() {
         fi
 
         die "Operação cancelada."
+        # @ID: INSTALLER_ABORT
+        # @STEP: Encerra instalacao quando nao ha recuperacao segura no fluxo.
+        # @REQ: INSTALLER_STEP_FAILED
+        # @DATA: OUT LOG_FILE
         return 1
     done
 }

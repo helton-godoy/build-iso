@@ -66,6 +66,18 @@ step_install() {
   [[ -z "$ashift" ]] && ashift="12"
   [[ -z "$bootloader" ]] && bootloader="grub"
 
+  case "$dedup" in
+  1 | on | true)
+    dedup="on"
+    ;;
+  0 | off | false | "")
+    dedup="off"
+    ;;
+  *)
+    dedup="off"
+    ;;
+  esac
+
   local -a selected_disks=()
   if [[ -n "$disks_csv" ]]; then
     IFS=',' read -r -a selected_disks <<<"$disks_csv"

@@ -4,6 +4,11 @@
 # @INST_STATE: install_disk, install_disks, install_plan_selected_disks
 # @INST_TODO: Melhorar validação de discos já em uso por outros pools.
 step_disk_select() {
+  # @ID: STEP_DISK_SELECT_FLOW
+  # @STEP: Seleciona discos de dados e persiste selecao canonica no install-plan.
+  # @REQ: admin_policy
+  # @FAIL: STEP_DISK_SELECT_CANCELLED
+  # @DATA: IN/OUT install_disk, install_disks, install_plan_selected_disks
   ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
   ui_section "Disco de Destino"
   ui_guidance \
@@ -23,6 +28,14 @@ step_disk_select() {
     source "${LIBS_DIR}/install-plan-utils.sh"
   fi
 
+  if declare -F disk_has_available >/dev/null 2>&1; then
+    if ! disk_has_available; then
+      ui_error "Nenhum disco elegível" "Não há discos disponíveis para instalação." "Verifique se os discos atendem ao tamanho mínimo e se foram detectados pelo sistema."
+      log_line "ERROR" "disk_select: nenhum disco elegível encontrado; retornando ao step anterior"
+      return 1
+    fi
+  fi
+
   local raw_disks
   local ret
   local -a selected_disks
@@ -36,9 +49,20 @@ step_disk_select() {
       raw_disks="$(disk_select_multi_interactive "Selecione o(s) disco(s) de DADOS:")" || ret=$?
 
       if [[ "$ret" -eq 1 ]]; then
-        ui_error "Seleção cancelada" "A seleção de discos foi cancelada." "Selecione ao menos um disco para continuar."
-        log_line "WARN" "disk_select: seleção cancelada pelo usuário; repetindo step"
-        continue
+        if ui_confirm "Seleção de discos cancelada. Deseja tentar novamente?" "Tentar novamente" "Voltar"; then
+          log_line "WARN" "disk_select: seleção cancelada pelo usuário; tentando novamente"
+          continue
+        fi
+        # @ID: STEP_DISK_SELECT_CANCELLED
+        # @STEP: Retorna ao step anterior quando operador cancela sem retry.
+        # @REQ: STEP_DISK_SELECT_FLOW
+        # @DATA: OUT LOG_FILE
+        log_line "WARN" "disk_select: seleção cancelada pelo usuário; retornando ao step anterior"
+        return 1
+      elif [[ "$ret" -eq 3 ]]; then
+        ui_error "Nenhum disco elegível" "Não há discos disponíveis para instalação." "Verifique se os discos atendem ao tamanho mínimo e foram detectados."
+        log_line "ERROR" "disk_select: sem discos elegíveis; retornando ao step anterior"
+        return 1
       elif [[ "$ret" -eq 2 ]]; then
         ui_error "Seleção Obrigatória" "Nenhum disco selecionado." "Use a tecla TAB para marcar os discos antes de confirmar."
         log_line "WARN" "disk_select: seleção vazia; repetindo step"
