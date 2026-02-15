@@ -73,3 +73,17 @@ Estrutura recomendada para retrieval inicial:
 3. Expandir para chunks de codigo alvo conforme `file:line`
 
 Isso reduz varredura ampla de contexto e acelera troubleshooting dirigido.
+
+## 6) Perfil do instalador (change: documentar-logica-instalador)
+
+Para o instalador, priorizar `@ID/@STEP` nos seguintes blocos:
+
+- orquestracao do roteador (`main_loop`, `step_invoke`, carregamento de dependencias)
+- persistencia de estado (`state_kv_set`, `state_kv_get`, `state_load`)
+- etapas de risco operacional (`disk_select`, `review`, `install`)
+
+Regras adicionais de rastreabilidade:
+
+- `@REQ` deve apontar para bloco anterior do fluxo normativo
+- `@FAIL` deve apontar para bloco de degradacao/abort controlado
+- `@DATA` deve registrar ao menos uma entrada ou saida relevante (`STATE_FILE`, `LOG_FILE`, chaves de estado)
