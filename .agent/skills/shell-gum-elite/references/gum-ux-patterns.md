@@ -52,6 +52,32 @@ gum confirm "Proceed?" || exit 0
 - Errors: explicit text prefix plus color (`[ERR]`).
 - Keep max 2-3 strong colors on a screen to reduce visual noise.
 
+## Contextual Spinners
+
+Choose the spinner type based on what the operation does:
+
+| Operation | Spinner | Why |
+| --- | --- | --- |
+| Build/compile | `line` or `meter` | Implies sequential progress |
+| Network/download | `globe` or `pulse` | Conveys remote activity |
+| General processing | `dot` (default) | Universal, unobtrusive |
+| Long background task | `moon` | Slow cadence matches long waits |
+| File operations | `minidot` | Subtle, quick feedback |
+| Fun/demo scripts | `monkey` or `hamburger` | Light-hearted tone |
+
+## Timeout Best Practice
+
+All interactive Gum subcommands accept `--timeout`. Use it in automation
+and CI-adjacent scripts to prevent indefinite hangs:
+
+```bash
+# Abort if no input within 30 seconds
+gum input --placeholder "Name" --timeout 30s
+
+# Auto-confirm after 10 seconds (useful for unattended scripts)
+gum confirm "Continue?" --timeout 10s --default yes
+```
+
 ## Operational Caveats
 
 1. Always capture command output from Gum subcommands when used as data.
