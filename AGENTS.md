@@ -273,3 +273,220 @@ Este projeto adota o contrato versionado em `docs/COMMENT_PROTOCOL_PDS_BASH.md`.
 - `make verify-comment-contract` (ou `just verify-comment-contract`)
 - `make comment-index` para indice `TXT + JSONL`
 - `make comment-graph` para grafo Mermaid
+
+### Change OpenSpec: documentar-logica-instalador
+
+Ao trabalhar no instalador, manter alinhamento com:
+
+- `openspec/changes/documentar-logica-instalador/proposal.md`
+- `openspec/changes/documentar-logica-instalador/design.md`
+- `openspec/changes/documentar-logica-instalador/specs/`
+- `docs/MAPA_INSTALLER.md`
+
+Checklist minimo antes de encerrar trabalho documental do instalador:
+
+- Semantica `next/prev/retry` coerente entre codigo e documentacao
+- Ownership das chaves de estado definido e rastreavel
+- Dependencias de step/lib e falhas controladas documentadas
+- Gates executados: `make verify-docs`, `make verify-comment-contract`
+- Evidencias geradas: `make comment-index`, `make comment-graph`
+
+---
+
+## Sistema de Governanca de Codigo
+
+Este projeto implementa um sistema automatizado de governanca de codigo para garantir qualidade,
+consistencia e conformidade com as regras estabelecidas.
+
+### Scripts de Validacao
+
+| Script | Funcao | Localizacao |
+| ------ | ------ | ------------ |
+| `validate-semantic-tags.sh` | Verifica presenca de tags @INST_*, @DEV_*, @TEST_* | `scripts/` |
+| `validate-agents-contract.sh` | Valida conformidade com AGENTS.md | `scripts/` |
+| `validate-state-schema.sh` | Compara chaves de estado com schema oficial | `scripts/` |
+| `validate-step-chain.sh` | Verifica integridade da cadeia de steps | `scripts/` |
+| `check-forbidden-patterns.sh` | Detecta anti-padroes Shell | `scripts/` |
+
+### Executando Validacoes
+
+```bash
+# Todas as validacoes
+make lint
+
+# Validacao individual
+./scripts/validate-semantic-tags.sh -v
+./scripts/validate-agents-contract.sh -v
+./scripts/validate-state-schema.sh -v
+./scripts/validate-step-chain.sh -v
+./scripts/check-forbidden-patterns.sh -v
+```
+
+### GitHub Actions
+
+O workflow `static-analysis.yml` executa validacoes automaticamente em pull requests:
+
+- **Dispara em:** pull_request e workflow_dispatch
+- **Executa:** ShellCheck + todos os scripts de validacao
+- **Resultado:** Comentario automatico no PR com resumo
+
+---
+
+## Dicionario de Estado
+
+### Chaves de Instalar (INST_*)
+
+| Chave | Tipo | Descricao | Exemplo |
+| ------| ---- | ---------- | -------- |
+| INST_DISK_TARGET | string | Disco selecionado | `/dev/sda` |
+| INST_ZFS_POOL | string | Nome do pool ZFS | `zroot` |
+| INST_ZFS_STRATEGY | string | Topologia do pool | `single`, `mirror`, `raidz1` |
+| INST_HOSTNAME | string | Nome da maquina | `nas01` |
+| INST_USER_ADMIN | string | Usuario admin | `admin` |
+| INST_SMB_COMPAT | boolean | Compatibilidade Windows | `true`, `false` |
+| INST_STEP_CURRENT | string | Step atual no workflow | `disk-select` |
+| INST_PARTITION_TABLE | string | Tipo de particao | `gpt`, `msdos` |
+| INST_BOOT_MODE | string | Modo de boot | `uefi`, `bios` |
+| INST_ESP_SIZE | string | Tamanho ESP | `512M` |
+| INST_SWAP_SIZE | string | Tamanho swap | `8G` |
+| INST_TIMEZONE | string | Fuso horario | `America/Sao_Paulo` |
+| INST_KEYBOARD_LAYOUT | string | Layout de teclado | `br-abnt2` |
+| INST_NETWORK_CONFIG | string | Configuracao rede | `dhcp`, `static` |
+| INST_DNS_SERVERS | string | Servidores DNS | `8.8.8.8,8.8.4.4` |
+| INST_NTP_SERVERS | string | Servidores NTP | `pool.ntp.org` |
+| INST_AD_DOMAIN | string | Dominio AD | `corp.local` |
+| INST_AD_JOINED | boolean | Joined ao AD | `true`, `false` |
+| INST_SMB_ENABLED | boolean | SMB habilitado | `true`, `false` |
+| INST_NFS_ENABLED | boolean | NFS habilitado | `true`, `false` |
+
+### Funcoes de Persistencia
+
+Use sempre `state_set` e `state_get` para persistencia de estado:
+
+```bash
+# Salvar estado
+state_set "INST_DISK_TARGET" "/dev/sda"
+
+# Recuperar estado
+disk=$(state_get "INST_DISK_TARGET")
+```
+
+---
+
+## Regras de Ouro (Compliance)
+
+### 1. shebang Obrigatorio
+
+```bash
+#!/usr/bin/env bash  # Para scripts com bashisms
+#!/bin/sh             # Para scripts POSIX
+```
+
+### 2. Trap Basico
+
+```bash
+set -euo pipefail
+
+# Cleanup em caso de erro
+cleanup() {
+  local exit_code=$?
+  # Limpar recursos
+  exit $exit_code
+}
+trap cleanup EXIT
+```
+
+### 3. Variaveis Locais
+
+```bash
+minha_funcao() {
+  local var1="valor1"
+  local var2="valor2"
+  # ...
+}
+```
+
+### 4. Parametros com Defaults
+
+```bash
+: "${VARIAVEL:-default}"
+```
+
+### 5. Condicoes Seguras
+
+```bash
+# Sempre use aspas
+echo "$variavel"
+
+# Sempre use [[ ]] para comparacoes
+if [[ "$var" == "valor" ]]; then
+```
+
+### 6. Error Handling
+
+```bash
+# Use ui_panic para erros fatais
+ui_panic "Mensagem de erro"
+
+# Use ui_warn para avisos
+ui_warn "Mensagem de aviso"
+```
+
+---
+
+## Fluxo de Trabalho para Agentes
+
+### 1. Analise de Tarefa
+
+1. Leia o contexto do projeto em AGENTS.md
+2. Identifique arquivos relevantes
+3. Planeje as mudancas necessarias
+
+### 2. Implementacao
+
+1. Faca alteracoes pequenas e incrementais
+2. Execute validacoes localmente antes de commitar
+3. Use commits atomicos
+
+### 3. Validacao
+
+Execute os scripts de validacao:
+
+```bash
+# Validacao completa
+make lint
+
+# Validacao individual
+./scripts/validate-semantic-tags.sh -v
+./scripts/validate-agents-contract.sh -v
+./scripts/validate-state-schema.sh -v
+./scripts/validate-step-chain.sh -v
+./scripts/check-forbidden-patterns.sh -v
+```
+
+### 4. Correcao
+
+Se validacoes falharem:
+
+1. Leia o relatorio de erros
+2. Use o template `.github/prompts/correction-template.md`
+3. Aplique as correcoes necessarias
+4. Re-execute as validacoes
+
+### 5. Commit
+
+Siga o formato conventional commits:
+
+```
+<tipo>(<escopo>): <descricao>
+
+[corpo opcional]
+
+[rodape opcional]
+```
+
+Exemplos:
+- `fix(installer): corrige validacao de disco`
+- `feat(steps): adiciona novo step de configuracao`
+- `docs(readme): atualiza documentacao`
+- `chore(lint): executa validacoes automaticas`

@@ -1,0 +1,348 @@
+# =============================================================================
+# Static Analysis Workflow
+# =============================================================================
+# Executa validacoes estaticas em pull requests e manualmente
+# Inclui ShellCheck e scripts de validacao customizados
+# Gera comentario no PR com resumo de erros
+# =============================================================================
+
+name: Static Analysis
+
+on:
+  pull_request:
+    branches: [main, develop, blueprint-docs]
+    paths:
+      - 'config-overrides/**'
+      - 'scripts/**'
+      - '**.sh'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target branch or commit'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  shellcheck:
+    name: ShellCheck Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Run ShellCheck
+        run: |
+          # Instala shellcheck se necessario
+          if ! command -v shellcheck &> /dev/null; then
+            apt-get update && apt-get install -y shellcheck
+          fi
+
+          # Executa shellcheck com saida JSON
+          find config-overrides -name "*.sh" -type f -exec shellcheck -f json {} + > shellcheck-results.json || true
+
+      - name: Parse ShellCheck results
+        id: parse
+        run: |
+          # Script para parsear resultados do shellcheck
+          cat << 'PARSE_SCRIPT' > parse-shellcheck.py
+          import json
+          import sys
+
+          try:
+              with open('shellcheck-results.json', 'r') as f:
+                  data = json.load(f)
+
+              if not data:
+                  print("no_issues=true")
+                  sys.exit(0)
+
+              issues = []
+              for file_issues in data:
+                  for issue in file_issues.get('issues', []):
+                      issues.append({
+                          'file': file_issues.get('file', ''),
+                          'line': issue.get('line', 0),
+                          'column': issue.get('column', 0),
+                          'severity': issue.get('severity', ''),
+                          'code': issue.get('code', ''),
+                          'message': issue.get('message', '')[:100]
+                      })
+
+              print(f"total_issues={len(issues)}")
+
+              critical = [i for i in issues if i['severity'] == 'error']
+              warning = [i for i in issues if i['severity'] == 'warning']
+              info = [i for i in issues if i['severity'] == 'info']
+
+              print(f"critical={len(critical)}")
+              print(f"warning={len(warning)}")
+              print(f"info={len(info)}")
+
+              # Gera markdown para comentario
+              md = "### ShellCheck Results\n\n"
+              md += f"- **Total:** {len(issues)} issues\n"
+              md += f"- 🔴 Critical: {len(critical)}\n"
+              md += f"- 🟡 Warning: {len(warning)}\n"
+              md += f"- 🔵 Info: {len(info)}\n\n"
+
+              if critical:
+                  md += "#### 🔴 Critical Issues\n\n"
+                  for i in critical[:10]:
+                      md += f"- `{i['file']}:{i['line']}`: {i['message']}\n"
+                  md += "\n"
+
+              if warning:
+                  md += "#### 🟡 Warnings\n\n"
+                  for i in warning[:10]:
+                      md += f"- `{i['file']}:{i['line']}`: {i['message']}\n"
+                  md += "\n"
+
+              if info:
+                  md += "#### 🔵 Informational\n\n"
+                  for i in info[:5]:
+                      md += f"- `{i['file']}:{i['line']}`: {i['message']}\n"
+
+              with open('shellcheck-summary.md', 'w') as f:
+                  f.write(md)
+
+          except Exception as e:
+              print(f"error={e}")
+              sys.exit(1)
+          PARSE_SCRIPT
+
+          python3 parse-shellcheck.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: shellcheck-results
+          path: |
+            shellcheck-results.json
+            shellcheck-summary.md
+          retention-days: 7
+
+      - name: Post comment to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('shellcheck-summary.md', 'utf8');
+
+            // Remove primeira linha (titulo) para evitar duplicacao
+            const lines = summary.split('\n');
+            const content = lines.slice(1).join('\n');
+
+            // Verifica se ja existe comentario
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const existing = comments.data.find(c =>
+              c.user.type === 'Bot' && c.body.includes('ShellCheck Results')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: summary
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: summary
+              });
+            }
+
+  validate-tags:
+    name: Validate Semantic Tags
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run tag validation
+        run: |
+          chmod +x scripts/validate-semantic-tags.sh
+          ./scripts/validate-semantic-tags.sh -v -f > tags-report.txt 2>&1 || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: tags-report
+          path: tags-report.txt
+          retention-days: 7
+
+  validate-agents:
+    name: Validate Agents Contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run agents contract validation
+        run: |
+          chmod +x scripts/validate-agents-contract.sh
+          ./scripts/validate-agents-contract.sh -v > agents-report.txt 2>&1 || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: agents-report
+          path: agents-report.txt
+          retention-days: 7
+
+  validate-state:
+    name: Validate State Schema
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run state schema validation
+        run: |
+          chmod +x scripts/validate-state-schema.sh
+          ./scripts/validate-state-schema.sh -v > state-report.txt 2>&1 || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: state-report
+          path: state-report.txt
+          retention-days: 7
+
+  validate-step-chain:
+    name: Validate Step Chain
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run step chain validation
+        run: |
+          chmod +x scripts/validate-step-chain.sh
+          ./scripts/validate-step-chain.sh -v > step-chain-report.txt 2>&1 || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: step-chain-report
+          path: step-chain-report.txt
+          retention-days: 7
+
+  validate-forbidden-patterns:
+    name: Check Forbidden Patterns
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run forbidden patterns check
+        run: |
+          chmod +x scripts/check-forbidden-patterns.sh
+          ./scripts/check-forbidden-patterns.sh -v > forbidden-patterns-report.txt 2>&1 || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: forbidden-patterns-report
+          path: forbidden-patterns-report.txt
+          retention-days: 7
+
+  summary:
+    name: Validation Summary
+    needs: [shellcheck, validate-tags, validate-agents, validate-state, validate-step-chain, validate-forbidden-patterns]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+
+      - name: Generate summary
+        run: |
+          echo "### Static Analysis Summary" > summary.md
+          echo "" >> summary.md
+
+          # Processa cada report
+          for dir in reports/*/; do
+            name=$(basename "$dir")
+            echo "#### $name" >> summary.md
+            echo "" >> summary.md
+            if [ -f "${dir}report.txt" ]; then
+              cat "${dir}report.txt" >> summary.md
+            elif [ -f "${dir}summary.md" ]; then
+              cat "${dir}summary.md" >> summary.md
+            fi
+            echo "" >> summary.md
+          done
+
+          # Determina status final
+          if grep -q "Status: FALHA" reports/*/report.txt 2>/dev/null; then
+            echo "❌ **Some validations failed. Please review the reports above.**" >> summary.md
+            echo "::warning::Static analysis found issues that need to be addressed"
+            exit 1
+          else
+            echo "✅ **All validations passed!**" >> summary.md
+          fi
+
+      - name: Post summary to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('summary.md', 'utf8');
+
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const existing = comments.data.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Static Analysis Summary')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: summary
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: summary
+              });
+            }
+
+      - name: Upload summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-summary
+          path: summary.md
+          retention-days: 7
