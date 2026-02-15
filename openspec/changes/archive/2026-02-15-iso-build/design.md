@@ -6,7 +6,7 @@ O projeto **build-iso** gera uma ISO Debian Live com módulos ZFS pré-compilado
 - ISO gerada via `live-build` em container Docker
 - Módulos ZFS DKMS compilados durante build
 - Binários ZFSBootMenu disponíveis em `/zbm/`
-- Placeholder do instalador em `/usr/local/bin/install-zfs-debian`
+- Entrypoint do instalador em `/usr/local/bin/installer`
 - Binário `gum` já incluído na ISO
 
 **Restrições:**
@@ -28,7 +28,7 @@ O projeto **build-iso** gera uma ISO Debian Live com módulos ZFS pré-compilado
 **Non-Goals:**
 - Interface gráfica (GUI) — apenas TTY
 - Configuração avançada de rede (DHCP padrão é suficiente)
-- Suporte a RAID ZFS (mirror, raidz) — apenas single disk nesta versão
+- Criação automática de topologias avançadas sem confirmação explícita do usuário
 - Dual-boot com outros sistemas operacionais
 - Criptografia ZFS nativa (feature futura)
 
@@ -36,7 +36,7 @@ O projeto **build-iso** gera uma ISO Debian Live com módulos ZFS pré-compilado
 
 ### D1: Arquitetura Modular de Scripts
 
-**Decisão:** Separar o instalador em módulos independentes em `scripts/lib/installer/`.
+**Decisão:** Separar o instalador em módulos independentes em `config-overrides/config/includes.chroot/usr/local/lib/installer/`.
 
 **Alternativas consideradas:**
 - **Script monolítico único** — Difícil manutenção e teste
@@ -44,17 +44,17 @@ O projeto **build-iso** gera uma ISO Debian Live com módulos ZFS pré-compilado
 
 **Estrutura:**
 ```
-scripts/
-├── install-zfs-debian           # Entry point principal
-└── lib/
-    ├── fileserver-ds.sh         # Design System v2.0
-    └── installer/
-        ├── disk-detection.sh    # Listagem de discos
-        ├── firmware-detection.sh # Detecção UEFI/BIOS
-        ├── partitioning.sh      # Particionamento GPT
-        ├── zfs-setup.sh         # Pool e datasets
-        ├── system-config.sh     # Configuração de sistema
-        └── zbm-install.sh       # Instalação ZFSBootMenu
+config-overrides/config/includes.chroot/usr/local/
+├── bin/installer                # Entry point principal
+└── lib/installer/
+    ├── libs/                    # Módulos utilitários por capability
+    │   ├── disk-utils.sh
+    │   ├── boot-utils.sh
+    │   ├── partitioning.sh
+    │   ├── zfs-utils.sh
+    │   ├── system-config.sh
+    │   └── zbm-install.sh
+    └── steps/                   # Etapas do wizard
 ```
 
 **Rationale:** Facilita testes unitários por módulo e reutilização de código.
@@ -98,6 +98,7 @@ zroot                           # Pool raiz
 **Propriedades críticas:**
 - `zroot/ROOT`: `canmount=off`, `org.zfsbootmenu:commandline="quiet"`
 - `zroot/ROOT/debian`: `canmount=noauto`, `mountpoint=/`
+- `zroot/ROOT/debian`: `org.zfsbootmenu:commandline` inclui `root=zfs:zroot/ROOT/debian` e `spl.spl_hostid`
 
 **Rationale:** Estrutura compatível com snapshots atômicos e boot environments.
 
@@ -105,15 +106,16 @@ zroot                           # Pool raiz
 
 ### D4: Fluxo de Telas do Instalador
 
-**Decisão:** Wizard linear de 6 etapas.
+**Decisão:** Wizard guiado com fluxo expandido por etapas de coleta, revisão e execução.
 
 ```
-1. Welcome      → Requisitos e confirmação
-2. Disk Select  → Seleção de disco alvo
-3. Config       → Hostname, usuário, timezone
-4. Confirm      → Resumo e confirmação final
-5. Install      → Progresso de instalação
-6. Complete     → Sucesso e opções de reinício
+1. Welcome e Preferências
+2. Identidade, Rede e Tempo
+3. Seleção de discos e estratégia ZFS
+4. Configuração de propriedades e datasets
+5. Revisão final
+6. Instalação e pós-instalação
+7. Tela de conclusão
 ```
 
 **Alternativas consideradas:**
@@ -127,10 +129,20 @@ zroot                           # Pool raiz
 **Decisão:** Copiar scripts para `/usr/local/bin/` via `includes.chroot`.
 
 **Implementação:**
-- `config-overrides/includes.chroot/usr/local/bin/install-zfs-debian` (entry point)
-- `config-overrides/includes.chroot/usr/local/lib/installer/` (módulos)
+- `config-overrides/config/includes.chroot/usr/local/bin/installer` (entry point)
+- `config-overrides/config/includes.chroot/usr/local/lib/installer/` (módulos)
 
 **Rationale:** `includes.chroot` é o mecanismo padrão do live-build para arquivos customizados.
+
+---
+
+### D6: Cmdline do ZFSBootMenu no Dataset Bootável
+
+**Decisão:** Aplicar `org.zfsbootmenu:commandline` diretamente em `zroot/ROOT/debian` com
+`root=zfs:zroot/ROOT/debian` e `spl.spl_hostid=<hostid>` quando disponível.
+
+**Rationale:** Evita ambiguidade de herança entre datasets e alinha explicitamente o artefato de
+especificação com o comportamento de boot esperado.
 
 ## Risks / Trade-offs
 
@@ -144,5 +156,5 @@ zroot                           # Pool raiz
 
 **Trade-offs aceitos:**
 - **Sem dry-run completo** — Particionamento é sempre destrutivo; apenas confirmação verbal
-- **Single disk apenas** — Simplifica V1, mirror/raidz em versão futura
+- **Multi-disco com confirmação** — Fluxo aceita múltiplos discos, exigindo revisão explícita antes da instalação
 - **Sem rollback automático** — Usuário pode rebootar da ISO e tentar novamente

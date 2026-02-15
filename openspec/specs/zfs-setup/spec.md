@@ -1,7 +1,10 @@
-## ADDED Requirements
+# zfs-setup Specification
 
+## Purpose
+TBD - created by archiving change iso-build. Update Purpose after archive.
+## Requirements
 ### Requirement: Criação de Pool Otimizado
-O sistema DEVE criar o pool ZFS `zroot` com propriedades otimizadas para performance e compatibilidade Linux.
+O sistema MUST criar o pool ZFS `zroot` com propriedades otimizadas para performance e compatibilidade Linux.
 
 #### Scenario: Criar zroot
 - **WHEN** o pool é criado na partição 3
@@ -10,7 +13,7 @@ O sistema DEVE criar o pool ZFS `zroot` com propriedades otimizadas para perform
 - **AND** definir `normalization=formD`
 
 ### Requirement: Hierarquia de Datasets ZBM
-O sistema DEVE criar datasets seguindo a estrutura exigida pelo ZFSBootMenu para Boot Environments.
+O sistema MUST criar datasets seguindo a estrutura exigida pelo ZFSBootMenu para Boot Environments.
 
 #### Scenario: Estrutura Base
 - **WHEN** o pool e criado
@@ -23,9 +26,10 @@ O sistema DEVE criar datasets seguindo a estrutura exigida pelo ZFSBootMenu para
 - **AND** definir `mountpoint=/` e `canmount=noauto` para este dataset
 
 ### Requirement: Datasets de Dados
-O sistema DEVE separar dados de usuário e sistema do dataset raiz.
+O sistema MUST separar dados de usuário e sistema do dataset raiz.
 
 #### Scenario: Datasets Separados
 - **WHEN** a hierarquia é montada
 - **THEN** criar `zroot/home` (mountpoint=/home)
 - **AND** criar `zroot/var`, `zroot/var/log`, `zroot/var/tmp` com configurações específicas
+

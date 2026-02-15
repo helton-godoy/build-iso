@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Design System Monocromático
-O sistema DEVE implementar uma interface visual monocromática baseada no tom "Slate Blue" para todas as interações com o usuário.
+O sistema MUST implementar uma interface visual monocromática baseada no tom "Slate Blue" para todas as interações com o usuário.
 
 #### Scenario: Interface Consistente
 - **WHEN** o instalador exibe qualquer tela
@@ -9,7 +9,7 @@ O sistema DEVE implementar uma interface visual monocromática baseada no tom "S
 - **AND** deve exibir o header "FILESERVER INSTALLER" estilizado
 
 ### Requirement: Componentes de UI
-O sistema DEVE fornecer funções reutilizáveis para componentes de interface padrão.
+O sistema MUST fornecer funções reutilizáveis para componentes de interface padrão.
 
 #### Scenario: Uso de Componentes
 - **WHEN** um script precisa solicitar input ou exibir informação
@@ -17,7 +17,7 @@ O sistema DEVE fornecer funções reutilizáveis para componentes de interface p
 - **AND** não deve usar comandos `echo` crus para interação
 
 ### Requirement: Feedback de Progresso
-O sistema DEVE exibir progresso visual para operações demoradas.
+O sistema MUST exibir progresso visual para operações demoradas.
 
 #### Scenario: Operação Longa
 - **WHEN** uma operação leva mais de 2 segundos (ex: criar pool)

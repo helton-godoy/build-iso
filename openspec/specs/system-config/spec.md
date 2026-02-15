@@ -1,7 +1,10 @@
-## ADDED Requirements
+# system-config Specification
 
+## Purpose
+TBD - created by archiving change iso-build. Update Purpose after archive.
+## Requirements
 ### Requirement: Configuração de Hostname
-O sistema DEVE permitir que o usuário defina o hostname da máquina.
+O sistema MUST permitir que o usuário defina o hostname da máquina.
 
 #### Scenario: Definir Hostname
 - **WHEN** solicitado no wizard
@@ -9,7 +12,7 @@ O sistema DEVE permitir que o usuário defina o hostname da máquina.
 - **AND** gravar em `/etc/hostname` e `/etc/hosts` no sistema alvo
 
 ### Requirement: Usuário Inicial
-O sistema DEVE criar um usuário inicial comum com permissões de sudo.
+O sistema MUST criar um usuário inicial comum com permissões de sudo.
 
 #### Scenario: Criar Usuário
 - **WHEN** solicitado usuário e senha
@@ -18,7 +21,7 @@ O sistema DEVE criar um usuário inicial comum com permissões de sudo.
 - **AND** definir senha fornecida
 
 ### Requirement: Configurações Regionais
-O sistema DEVE configurar timezone e locales básicos.
+O sistema MUST configurar timezone e locales básicos.
 
 #### Scenario: Configuração Padrão
 - **WHEN** o sistema é instalado
@@ -26,9 +29,10 @@ O sistema DEVE configurar timezone e locales básicos.
 - **AND** gerar locales `en_US.UTF-8` e `pt_BR.UTF-8`
 
 ### Requirement: Networking Básico
-O sistema DEVE configurar rede via DHCP para a interface principal.
+O sistema MUST configurar rede via DHCP para a interface principal.
 
 #### Scenario: Configurar Rede
 - **WHEN** finalizar instalação
 - **THEN** configurar `/etc/network/interfaces` ou NetworkManager para DHCP automático
 - **AND** garantir resolução de nomes funcional
+

@@ -1,7 +1,10 @@
-## ADDED Requirements
+# partitioning Specification
 
+## Purpose
+TBD - created by archiving change iso-build. Update Purpose after archive.
+## Requirements
 ### Requirement: Particionamento Híbrido
-O sistema DEVE criar uma tabela de partição GPT contendo partições necessárias para ambos os modos de boot (Hybrid Boot).
+O sistema MUST criar uma tabela de partição GPT contendo partições necessárias para ambos os modos de boot (Hybrid Boot).
 
 #### Scenario: Layout de Partição Universal
 - **WHEN** o disco é particionado
@@ -10,7 +13,7 @@ O sistema DEVE criar uma tabela de partição GPT contendo partições necessár
 - **AND** criar partição 3: Solaris Root (tipo `bf00`, restante do disco)
 
 ### Requirement: Limpeza de Disco
-O sistema DEVE limpar assinaturas de sistemas de arquivos e particionamentos anteriores antes de criar novas partições.
+O sistema MUST limpar assinaturas de sistemas de arquivos e particionamentos anteriores antes de criar novas partições.
 
 #### Scenario: Disco Reutilizado
 - **WHEN** o disco alvo contém dados anteriores (ex: ZFS pools antigos, partições Windows)
@@ -18,9 +21,10 @@ O sistema DEVE limpar assinaturas de sistemas de arquivos e particionamentos ant
 - **AND** destruir tabela de partição antiga (gdisk `o`)
 
 ### Requirement: Formatação ESP
-O sistema DEVE formatar a partição EFI como FAT32.
+O sistema MUST formatar a partição EFI como FAT32.
 
 #### Scenario: Preparar ESP
 - **WHEN** a partição 2 é criada
 - **THEN** formatar com `mkfs.vfat -F32`
 - **AND** definir label como "EFI"
+
