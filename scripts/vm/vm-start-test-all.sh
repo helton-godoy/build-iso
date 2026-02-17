@@ -18,22 +18,22 @@ echo "📂 Logs desta sessão: $LOG_DIR"
 
 # @DEV_FUNC: run_test - Inicia VM e captura log de boot inicial
 run_test() {
-  local MODE=$1
-  local started ended elapsed
-  started=$(date +%s)
-  echo "⚙️  Preparando instância $MODE..."
+	local MODE=$1
+	local started ended elapsed
+	started=$(date +%s)
+	echo "⚙️  Preparando instância $MODE..."
 
-  # Inicia a VM (o script já faz a limpeza interna)
-  "$SCRIPT_DIR/vm-start-test-boot-iso.sh" "$MODE" >"$LOG_DIR/start-$MODE.log" 2>&1
+	# Inicia a VM (o script já faz a limpeza interna)
+	"$SCRIPT_DIR/vm-start-test-boot-iso.sh" "$MODE" >"$LOG_DIR/start-$MODE.log" 2>&1
 
-  # Captura os primeiros 30 segundos de boot via socket para o Agente
-  echo "📡 Capturando log de boot inicial ($MODE)..."
-  timeout 30s "$SCRIPT_DIR/vm-connect-agent-llm.sh" "$MODE" >"$LOG_DIR/boot-$MODE.log" 2>&1 || true
-  ended=$(date +%s)
-  elapsed=$((ended - started))
-  printf '{"mode":"%s","boot_capture_seconds":%s}\n' "$MODE" "$elapsed" >"$LOG_DIR/metrics-$MODE.json"
+	# Captura os primeiros 30 segundos de boot via socket para o Agente
+	echo "📡 Capturando log de boot inicial ($MODE)..."
+	timeout 30s "$SCRIPT_DIR/vm-connect-agent-llm.sh" "$MODE" >"$LOG_DIR/boot-$MODE.log" 2>&1 || true
+	ended=$(date +%s)
+	elapsed=$((ended - started))
+	printf '{"mode":"%s","boot_capture_seconds":%s}\n' "$MODE" "$elapsed" >"$LOG_DIR/metrics-$MODE.json"
 
-  echo "✅ Instância $MODE pronta."
+	echo "✅ Instância $MODE pronta."
 }
 
 # Dispara as duas VMs em paralelo
