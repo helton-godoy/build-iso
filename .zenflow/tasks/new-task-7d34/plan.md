@@ -99,7 +99,8 @@ shellcheck config-overrides/config/includes.chroot/usr/local/lib/installer/libs/
 grep -c "ui_confirm\|ui_select\|ui_input\|ui_password" config-overrides/config/includes.chroot/usr/local/lib/installer/libs/ui-utils.sh
 ```
 
-### [ ] Step: Adicionar Novos Wrappers Gum em ui-utils.sh
+### [x] Step: Adicionar Novos Wrappers Gum em ui-utils.sh
+<!-- chat-id: 13a428f5-4df1-46ea-8e89-415a78ffad4e -->
 **Arquivo**: `config-overrides/config/includes.chroot/usr/local/lib/installer/libs/ui-utils.sh`
 **Funções a adicionar**:
 - `ui_choose()` - Seleção única/múltipla com gum choose

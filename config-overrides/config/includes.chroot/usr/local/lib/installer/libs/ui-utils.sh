@@ -9,6 +9,12 @@
 # - ui_input(): Entrada de texto com validação opcional via callback
 # - ui_password(): Entrada de senha com validação opcional via callback
 #
+# WRAPPERS API SIMPLIFICADA (Novos):
+# - ui_choose(): Seleção única/múltipla com gum choose
+# - ui_filter(): Seleção com busca incremental usando gum filter
+# - ui_spin(): Indicador de progresso para operações longas
+# - ui_table(): Exibição de dados em formato tabular
+#
 # INTEGRAÇÃO COM VALIDAÇÃO:
 # Os wrappers ui_input() e ui_password() suportam callbacks de validação
 # opcionais. Para usar, passe o nome da função validadora como último argumento.
@@ -768,6 +774,145 @@ ui_process_step() {
         fi
         $cmd
     "
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Novos Wrappers Gum (API Simplificada)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# @INST_FUNC: ui_choose
+# @INST_DESC: Seleção única ou múltipla com gum choose (API simplificada).
+# @INST_ARGS: $1 = title, $2 = multi (0=single, 1=multiple), $3-$N = opções
+# @INST_RETURN: Opção(ões) selecionada(s)
+ui_choose() {
+	local title="$1"
+	local multi="${2:-0}"
+	shift 2
+	
+	# Valida que há pelo menos uma opção
+	if [[ "$#" -eq 0 ]]; then
+		ui_error "Opções inválidas" "Nenhuma opção foi fornecida para seleção."
+		return 1
+	fi
+	
+	if [[ "$multi" -eq 1 ]]; then
+		ui_multiselect "$title" "$@"
+	else
+		ui_select "$title" "$@"
+	fi
+}
+
+# @INST_FUNC: ui_filter
+# @INST_DESC: Seleção com busca incremental usando gum filter (API simplificada).
+# @INST_ARGS: $1 = title, $2 = multi (0=single, 1=multiple, opcional), $3-$N = opções
+# @INST_RETURN: Opção(ões) selecionada(s)
+ui_filter() {
+	local title="$1"
+	local multi="${2:-0}"
+	
+	# Se segundo argumento for numérico (0 ou 1), é flag multi
+	if [[ "$2" =~ ^[01]$ ]]; then
+		shift 2
+	else
+		# Segundo argumento não é flag, é opção
+		multi=0
+		shift 1
+	fi
+	
+	# Valida que há pelo menos uma opção
+	if [[ "$#" -eq 0 ]]; then
+		ui_error "Opções inválidas" "Nenhuma opção foi fornecida para filtro."
+		return 1
+	fi
+	
+	if [[ "$multi" -eq 1 ]]; then
+		ui_filter_multiselect "$title" "$@"
+	else
+		ui_filter_select "$title" "$@"
+	fi
+}
+
+# @INST_FUNC: ui_spin
+# @INST_DESC: Indicador de progresso para operações longas (API simplificada).
+# @INST_ARGS: $1 = title/mensagem, $2-$N = comando a executar
+# @INST_RETURN: Código de retorno do comando
+ui_spin() {
+	local title="$1"
+	shift
+	
+	if [[ "$#" -eq 0 ]]; then
+		ui_error "Comando inválido" "Nenhum comando foi fornecido para execução."
+		return 1
+	fi
+	
+	ui_process_step "$title" "$@"
+}
+
+# @INST_FUNC: ui_table
+# @INST_DESC: Exibição de dados em formato tabular usando gum table.
+# @INST_ARGS: $1 = header (string CSV: "Col1,Col2,Col3"), $2-$N = rows (strings CSV)
+# @INST_RETURN: 0 se sucesso
+ui_table() {
+	local header="$1"
+	shift
+	
+	if [[ -z "$header" ]]; then
+		ui_error "Header inválido" "É necessário fornecer um header para a tabela."
+		return 1
+	fi
+	
+	if [[ "$#" -eq 0 ]]; then
+		ui_error "Dados inválidos" "Nenhuma linha de dados foi fornecida para a tabela."
+		return 1
+	fi
+	
+	if _ui_plain_mode; then
+		# Plain UI fallback - tabela simples em texto
+		local width
+		width=$(_ui_get_width)
+		
+		# Imprimir header
+		echo "" >&2
+		echo "$header" | tr ',' '\t' >&2
+		printf '%*s\n' "$width" '' | tr ' ' '-' >&2
+		
+		# Imprimir rows
+		local row
+		for row in "$@"; do
+			echo "$row" | tr ',' '\t' >&2
+		done
+		echo "" >&2
+		
+		return 0
+	fi
+	
+	# Gum UI - usando gum table
+	# Criar arquivo temporário com dados CSV
+	local tmpfile
+	tmpfile=$(mktemp)
+	
+	# Escrever header
+	echo "$header" > "$tmpfile"
+	
+	# Escrever rows
+	local row
+	for row in "$@"; do
+		echo "$row" >> "$tmpfile"
+	done
+	
+	# Exibir tabela com gum
+	gum table < "$tmpfile" \
+		--border rounded \
+		--border.foreground "$DS_WHISPER" \
+		--columns "$header" \
+		--height 15 \
+		--widths "20,20,20,20,20" \
+		--print >&2
+	
+	# Limpar arquivo temporário
+	rm -f "$tmpfile"
+	
+	return 0
 }
 
 ui_require() {
