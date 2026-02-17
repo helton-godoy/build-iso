@@ -77,36 +77,35 @@ firmware_info() {
 # ============================================================================
 
 bootutils_is_uefi() {
-    if [[ -z "$FIRMWARE_MODE" ]]; then
-        firmware_detect
-    fi
-    "$IS_EFI"
+	if [[ -z "$FIRMWARE_MODE" ]]; then
+		firmware_detect
+	fi
+	"$IS_EFI"
 }
 
 # @INST_FUNC: bootutils_ensure_boot_dirs
 # @INST_DESC: Garante que os diretórios de boot necessários existam.
 # @INST_ARGS: target
 bootutils_ensure_boot_dirs() {
-    local target="${1:-/mnt}"
-    mkdir -p "$target/boot/efi"
-    mkdir -p "$target/boot/grub"
+	local target="${1:-/mnt}"
+	mkdir -p "$target/boot/efi"
+	mkdir -p "$target/boot/grub"
 }
 
 # @INST_FUNC: bootutils_mount_esp
 # @INST_DESC: Monta a partição ESP (EFI System Partition) em um ponto de montagem.
 # @INST_ARGS: esp_dev, mount_point
 bootutils_mount_esp() {
-    local esp_dev="$1"
-    local mount_point="$2"
-    
-    if [[ -z "$esp_dev" || -z "$mount_point" ]]; then
-        return 1
-    fi
-    
-    mkdir -p "$mount_point"
-    mount "$esp_dev" "$mount_point"
-}
+	local esp_dev="$1"
+	local mount_point="$2"
 
+	if [[ -z "$esp_dev" || -z "$mount_point" ]]; then
+		return 1
+	fi
+
+	mkdir -p "$mount_point"
+	mount "$esp_dev" "$mount_point"
+}
 
 # ============================================================================
 # TESTE UNITÁRIO (quando executado diretamente)

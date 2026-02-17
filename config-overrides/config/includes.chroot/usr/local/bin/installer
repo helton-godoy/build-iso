@@ -76,45 +76,45 @@ declare -a STEP_IDS=()
 source "${LIBS_DIR}/core-utils.sh"
 source "${LIBS_DIR}/state-utils.sh"
 
-# As traps são mantidas aqui ou movidas? trap_cleanup depende de log_line (agora em core-utils)  
-# Vamos manter as traps aqui para controle do loop principal, mas elas usam log_line que é importado.  
+# As traps são mantidas aqui ou movidas? trap_cleanup depende de log_line (agora em core-utils)
+# Vamos manter as traps aqui para controle do loop principal, mas elas usam log_line que é importado.
 
 trap_cleanup() {
-    local code; code="${1-0}"
-    local msg
-    msg="Encerrando de forma segura ($code)."
-    log_line "INFO" "$msg"
+	local code
+	code="${1-0}"
+	local msg
+	msg="Encerrando de forma segura ($code)."
+	log_line "INFO" "$msg"
 
-    if declare -F state_kv_set >/dev/null 2>&1; then
-        state_kv_set "installer_cancelled" "1" || true
-        state_kv_set "installer_cancelled_step" "${CURRENT_STEP:-unknown}" || true
-    fi
+	if declare -F state_kv_set >/dev/null 2>&1; then
+		state_kv_set "installer_cancelled" "1" || true
+		state_kv_set "installer_cancelled_step" "${CURRENT_STEP:-unknown}" || true
+	fi
 
-    if declare -F ui_error >/dev/null 2>&1; then
-        ui_error "Instalação cancelada" "Cancelamento solicitado pelo usuário (Ctrl+C). Nenhuma etapa crítica em andamento foi forçada." || true
-    else
-        stderr "Instalação cancelada com segurança (Ctrl+C)."
-    fi
+	if declare -F ui_error >/dev/null 2>&1; then
+		ui_error "Instalação cancelada" "Cancelamento solicitado pelo usuário (Ctrl+C). Nenhuma etapa crítica em andamento foi forçada." || true
+	else
+		stderr "Instalação cancelada com segurança (Ctrl+C)."
+	fi
 
-    exit "$code"
+	exit "$code"
 }
 
 on_sigint() { trap_cleanup 130; }
 on_sigterm() { trap_cleanup 143; }
 
 setup_traps() {
-    trap 'on_sigint' INT
-    trap 'on_sigterm' TERM
+	trap 'on_sigint' INT
+	trap 'on_sigterm' TERM
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Gum UI Components (DS v2.0 aligned) — Delegated to ui-utils.sh
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Functions ui_require, ui_clear, ui_hero, ui_section, ui_card, ui_error, 
-# ui_success, ui_confirm, ui_select, ui_input, ui_password are now loaded 
+# Functions ui_require, ui_clear, ui_hero, ui_section, ui_card, ui_error,
+# ui_success, ui_confirm, ui_select, ui_input, ui_password are now loaded
 # from ui-utils.sh.
-
 
 # State I/O handled by state-utils.sh (sourced above)
 
@@ -126,114 +126,127 @@ setup_traps() {
 # @INST_DESC: Registra uma nova etapa no mapa do instalador para carregamento preguiçoso.
 # @INST_ARGS: id, order, title, desc, prev, next, deps, module, handler
 register_step() {
-    local id; id="$(sanitize_id "${1-}")"
-    local order; order="$(sanitize_ws "${2-}")"
-    local title; title="$(sanitize_ws "${3-}")"
-    local desc; desc="$(sanitize_ws "${4-}")"
-    local prev; prev="$(sanitize_id "${5-}")"
-    local next; next="$(sanitize_id "${6-}")"
-    local deps; deps="$(sanitize_ws "${7-}")"
-    local module; module="$(sanitize_ws "${8-}")"
-    local handler; handler="$(sanitize_ws "${9-}")"
+	local id
+	id="$(sanitize_id "${1-}")"
+	local order
+	order="$(sanitize_ws "${2-}")"
+	local title
+	title="$(sanitize_ws "${3-}")"
+	local desc
+	desc="$(sanitize_ws "${4-}")"
+	local prev
+	prev="$(sanitize_id "${5-}")"
+	local next
+	next="$(sanitize_id "${6-}")"
+	local deps
+	deps="$(sanitize_ws "${7-}")"
+	local module
+	module="$(sanitize_ws "${8-}")"
+	local handler
+	handler="$(sanitize_ws "${9-}")"
 
-    if [[ -z "$id" || -z "$order" || -z "$title" || -z "$handler" ]]; then
-        stderr "Erro: register_step parâmetros inválidos (id/order/title/handler obrigatórios)."
-        return 1
-    fi
+	if [[ -z "$id" || -z "$order" || -z "$title" || -z "$handler" ]]; then
+		stderr "Erro: register_step parâmetros inválidos (id/order/title/handler obrigatórios)."
+		return 1
+	fi
 
-    STEP_TITLE["$id"]="$title"
-    STEP_DESC["$id"]="$desc"
-    STEP_ORDER["$id"]="$order"
-    STEP_PREV["$id"]="$prev"
-    STEP_NEXT["$id"]="$next"
-    STEP_DEPS["$id"]="$deps"
-    STEP_MODULE["$id"]="$module"
-    STEP_HANDLER["$id"]="$handler"
-    STEP_IDS+=("$id")
+	STEP_TITLE["$id"]="$title"
+	STEP_DESC["$id"]="$desc"
+	STEP_ORDER["$id"]="$order"
+	STEP_PREV["$id"]="$prev"
+	STEP_NEXT["$id"]="$next"
+	STEP_DEPS["$id"]="$deps"
+	STEP_MODULE["$id"]="$module"
+	STEP_HANDLER["$id"]="$handler"
+	STEP_IDS+=("$id")
 }
 
 step_exists() {
-    local id; id="$(sanitize_id "${1-}")"
-    [[ -n "$id" && -n "${STEP_TITLE[$id]-}" ]]
+	local id
+	id="$(sanitize_id "${1-}")"
+	[[ -n "$id" && -n "${STEP_TITLE[$id]-}" ]]
 }
 
 step_module_path() {
-    local id; id="$(sanitize_id "${1-}")"
-    local module; module="$(sanitize_ws "${STEP_MODULE[$id]-}")"
-    if [[ -z "$module" ]]; then
-        printf '%s' ""
-        return
-    fi
-    if [[ "$module" == /* ]]; then
-        printf '%s' "$module"
-        return
-    fi
-    printf '%s' "$STEPS_DIR/$module"
+	local id
+	id="$(sanitize_id "${1-}")"
+	local module
+	module="$(sanitize_ws "${STEP_MODULE[$id]-}")"
+	if [[ -z "$module" ]]; then
+		printf '%s' ""
+		return
+	fi
+	if [[ "$module" == /* ]]; then
+		printf '%s' "$module"
+		return
+	fi
+	printf '%s' "$STEPS_DIR/$module"
 }
 
 # @INST_FUNC: lazy_source_step
 # @INST_DESC: Carrega o arquivo de módulo (.sh) associado a uma etapa sob demanda.
 # @INST_ARGS: id (ID da etapa)
 lazy_source_step() {
-    local id; id="$(sanitize_id "${1-}")"
-    local path
-    path="$(sanitize_ws "$(step_module_path "$id")")"
+	local id
+	id="$(sanitize_id "${1-}")"
+	local path
+	path="$(sanitize_ws "$(step_module_path "$id")")"
 
-    if [[ -z "$path" ]]; then
-        return 0
-    fi
-    if [[ ! -f "$path" ]]; then
-        log_line "WARN" "Módulo ausente para step '$id': $path (usando handler interno)"
-        return 0
-    fi
+	if [[ -z "$path" ]]; then
+		return 0
+	fi
+	if [[ ! -f "$path" ]]; then
+		log_line "WARN" "Módulo ausente para step '$id': $path (usando handler interno)"
+		return 0
+	fi
 
-    # shellcheck disable=SC1090
-    source "$path"
+	# shellcheck disable=SC1090
+	source "$path"
 }
 
 lazy_source_deps() {
-    # @ID: INSTALLER_LAZY_SOURCE_DEPS
-    # @STEP: Carrega dependencias declaradas por etapa antes da execucao do handler.
-    # @REQ: INSTALLER_STEP_INVOKE
-    # @FAIL: INSTALLER_DEP_NOT_FOUND
-    # @DATA: IN STEP_DEPS, LIBS_DIR
-    local deps_raw
-    local deps
-    local dep
+	# @ID: INSTALLER_LAZY_SOURCE_DEPS
+	# @STEP: Carrega dependencias declaradas por etapa antes da execucao do handler.
+	# @REQ: INSTALLER_STEP_INVOKE
+	# @FAIL: INSTALLER_DEP_NOT_FOUND
+	# @DATA: IN STEP_DEPS, LIBS_DIR
+	local deps_raw
+	local deps
+	local dep
 
-    deps_raw="$(sanitize_ws "${1-}")"
-    if [[ -z "$deps_raw" ]]; then
-        return 0
-    fi
+	deps_raw="$(sanitize_ws "${1-}")"
+	if [[ -z "$deps_raw" ]]; then
+		return 0
+	fi
 
-    # @ID: INSTALLER_DEPS_NORMALIZE
-    # @STEP: Normaliza lista de dependencias aceitando separacao por espaco ou virgula.
-    # @REQ: INSTALLER_LAZY_SOURCE_DEPS
-    # @FAIL: INSTALLER_DEP_NOT_FOUND
-    # @DATA: IN deps_raw
-    deps="${deps_raw//,/ }"
+	# @ID: INSTALLER_DEPS_NORMALIZE
+	# @STEP: Normaliza lista de dependencias aceitando separacao por espaco ou virgula.
+	# @REQ: INSTALLER_LAZY_SOURCE_DEPS
+	# @FAIL: INSTALLER_DEP_NOT_FOUND
+	# @DATA: IN deps_raw
+	deps="${deps_raw//,/ }"
 
-    for dep in $deps; do
-        dep="$(sanitize_ws "$dep")"
-        [[ -z "$dep" ]] && continue
+	for dep in $deps; do
+		dep="$(sanitize_ws "$dep")"
+		[[ -z "$dep" ]] && continue
 
-        if [[ "$dep" != /* ]]; then
-            dep="$LIBS_DIR/$dep"
-        fi
+		if [[ "$dep" != /* ]]; then
+			dep="$LIBS_DIR/$dep"
+		fi
 
-        if [[ -f "$dep" ]]; then
-            # shellcheck disable=SC1090
-            source "$dep"
-        else
-            # @ID: INSTALLER_DEP_NOT_FOUND
-            # @STEP: Registra dependencia ausente para diagnostico de falha de etapa.
-            # @REQ: INSTALLER_LAZY_SOURCE_DEPS
-            # @FAIL: INSTALLER_STEP_FAILED
-            # @DATA: OUT LOG_FILE
-            log_line "ERROR" "Dependência não encontrada: $dep"
-            return 1
-        fi
-    done
+		if [[ -f "$dep" ]]; then
+			# shellcheck disable=SC1090
+			source "$dep"
+		else
+			# @ID: INSTALLER_DEP_NOT_FOUND
+			# @STEP: Registra dependencia ausente para diagnostico de falha de etapa.
+			# @REQ: INSTALLER_LAZY_SOURCE_DEPS
+			# @FAIL: INSTALLER_STEP_FAILED
+			# @DATA: OUT LOG_FILE
+			log_line "ERROR" "Dependência não encontrada: $dep"
+			return 1
+		fi
+	done
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -243,68 +256,68 @@ lazy_source_deps() {
 # @INST_FLOW_MAP: Registro completo da sequência do instalador.
 # @INST_STATE: current_step (Ponto atual no fluxo)
 register_all_steps() {
-#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░|░NEXT░░░░░░░░░░░░░░░░░░░░░|░DEPS░|░MODULE░░░░░░░|░HANDLER░░░░░░░░|
-    register_step   "welcome"   "00"    "Boas-vindas"   "Contexto, requisitos e início"   ""     "installer_prefs_locale"   ""     "welcome.sh"   "step_welcome"
+	#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░|░NEXT░░░░░░░░░░░░░░░░░░░░░|░DEPS░|░MODULE░░░░░░░|░HANDLER░░░░░░░░|
+	register_step "welcome" "00" "Boas-vindas" "Contexto, requisitos e início" "" "installer_prefs_locale" "" "welcome.sh" "step_welcome"
 
-#                 |░ID░░░░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░░░░░░░░░░░░░░░░░░░|░DEPS░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░░░░░|
-    register_step   "installer_prefs_locale"   "01"    "Idioma e Localidade"   "Idioma, região e codificação"   "welcome"   "installer_prefs_keyboard"   ""     "prefs_locale.sh"   "step_installer_prefs_locale"
+	#                 |░ID░░░░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░░░░░░░░░░░░░░░░░░░|░DEPS░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░░░░░|
+	register_step "installer_prefs_locale" "01" "Idioma e Localidade" "Idioma, região e codificação" "welcome" "installer_prefs_keyboard" "" "prefs_locale.sh" "step_installer_prefs_locale"
 
-#                 |░ID░░░░░░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░░░░░░|░NEXT░░░░░░░|░DEPS░|░MODULE░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░░░░░░|
-    register_step   "installer_prefs_keyboard"   "02"    "Teclado"   "Layout, variante e teste"   "installer_prefs_locale"   "identity"   ""     "prefs_keyboard.sh"   "step_installer_prefs_keyboard"
+	#                 |░ID░░░░░░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░░░░░░|░NEXT░░░░░░░|░DEPS░|░MODULE░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░░░░░░|
+	register_step "installer_prefs_keyboard" "02" "Teclado" "Layout, variante e teste" "installer_prefs_locale" "identity" "" "prefs_keyboard.sh" "step_installer_prefs_keyboard"
 
-#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░░░░░░░░|░NEXT░░░░░░|░DEPS░|░MODULE░░░░░░░░|░HANDLER░░░░░░░░|
-    register_step "identity"    "03"    "Identidade do Sistema"   "Hostname e domínio opcional"   "installer_prefs_keyboard"   "network"   ""     "identity.sh"   "step_identity"
+	#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░░░░░░░░|░NEXT░░░░░░|░DEPS░|░MODULE░░░░░░░░|░HANDLER░░░░░░░░|
+	register_step "identity" "03" "Identidade do Sistema" "Hostname e domínio opcional" "installer_prefs_keyboard" "network" "" "identity.sh" "step_identity"
 
-#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░|░MODULE░░░░░░░|░HANDLER░░░░░░░░|
-    register_step   "network"   "04"    "Rede"   "Interface, DHCP/Manual, DNS e proxy"   "identity"   "time"   "net-utils.sh"   "network.sh"   "step_network"
+	#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░|░MODULE░░░░░░░|░HANDLER░░░░░░░░|
+	register_step "network" "04" "Rede" "Interface, DHCP/Manual, DNS e proxy" "identity" "time" "net-utils.sh" "network.sh" "step_network"
 
-#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░|░HANDLER░░░░░|
-    register_step   "time"      "05"    "Data e Hora"   "Fuso horário e NTP"   "network"   "user_account"   "time-utils.sh"   "time.sh"   "step_time"
+	#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░|░HANDLER░░░░░|
+	register_step "time" "05" "Data e Hora" "Fuso horário e NTP" "network" "user_account" "time-utils.sh" "time.sh" "step_time"
 
-#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░|░PREV░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
-    register_step   "user_account"   "06"    "Conta do Usuário"   "Nome, usuário e senha"   "time"   "admin_policy"   "auth-utils.sh"   "user_account.sh"   "step_user_account"
+	#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░|░PREV░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
+	register_step "user_account" "06" "Conta do Usuário" "Nome, usuário e senha" "time" "admin_policy" "auth-utils.sh" "user_account.sh" "step_user_account"
 
-#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
-    register_step   "admin_policy"   "07"    "Administração (Root/Sudo)"   "Política de root e senha root opcional"   "user_account"   "disk_select"   "auth-utils.sh"   "admin_policy.sh"   "step_admin_policy"
+	#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
+	register_step "admin_policy" "07" "Administração (Root/Sudo)" "Política de root e senha root opcional" "user_account" "disk_select" "auth-utils.sh" "admin_policy.sh" "step_admin_policy"
 
-#                 |░ID░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░|░HANDLER░░░░░░░░░░░|
-  register_step   "disk_select"   "08"    "Disco de Destino"   "Detectar e selecionar o disco alvo"   "admin_policy"   "disk_wipe_confirm"   "disk-utils.sh install-plan-utils.sh"   "disk_select.sh"   "step_disk_select"
+	#                 |░ID░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░|░HANDLER░░░░░░░░░░░|
+	register_step "disk_select" "08" "Disco de Destino" "Detectar e selecionar o disco alvo" "admin_policy" "disk_wipe_confirm" "disk-utils.sh install-plan-utils.sh" "disk_select.sh" "step_disk_select"
 
-#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
-  register_step   "disk_wipe_confirm"   "09"    "Confirmação de Wipe"   "Confirmação forte para apagar dados"   "disk_select"   "zfs_strategy"   "disk-utils.sh install-plan-utils.sh"   "disk_wipe_confirm.sh"   "step_disk_wipe_confirm"
+	#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
+	register_step "disk_wipe_confirm" "09" "Confirmação de Wipe" "Confirmação forte para apagar dados" "disk_select" "zfs_strategy" "disk-utils.sh install-plan-utils.sh" "disk_wipe_confirm.sh" "step_disk_wipe_confirm"
 
-#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
-  register_step   "zfs_strategy"   "10"    "Estratégia ZFS"   "Automático (recomendado) ou Avançado"   "disk_wipe_confirm"   "zfs_auto_topology"   "zfs-utils.sh install-plan-utils.sh"   "zfs_strategy.sh"   "step_zfs_strategy"
+	#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
+	register_step "zfs_strategy" "10" "Estratégia ZFS" "Automático (recomendado) ou Avançado" "disk_wipe_confirm" "zfs_auto_topology" "zfs-utils.sh install-plan-utils.sh" "zfs_strategy.sh" "step_zfs_strategy"
 
-#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
-  register_step   "zfs_auto_topology"   "11"    "ZFS: Topologia do Pool"   "Stripe/Mirror/RAIDZ conforme discos"   "zfs_strategy"   "zfs_auto_properties"   "zfs-utils.sh disks-identify-suporte-types.sh install-plan-utils.sh"   "zfs_auto_topology.sh"   "step_zfs_auto_topology"
+	#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
+	register_step "zfs_auto_topology" "11" "ZFS: Topologia do Pool" "Stripe/Mirror/RAIDZ conforme discos" "zfs_strategy" "zfs_auto_properties" "zfs-utils.sh disks-identify-suporte-types.sh install-plan-utils.sh" "zfs_auto_topology.sh" "step_zfs_auto_topology"
 
-#                 |░ID░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░|
-  register_step   "zfs_auto_properties"   "12"    "ZFS: Propriedades"   "Compressão, dedup, ARC e avançado"   "zfs_auto_topology"   "zfs_aux_setup"   "zfs-utils.sh install-plan-utils.sh"   "zfs_auto_properties.sh"   "step_zfs_auto_properties"
+	#                 |░ID░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░|
+	register_step "zfs_auto_properties" "12" "ZFS: Propriedades" "Compressão, dedup, ARC e avançado" "zfs_auto_topology" "zfs_aux_setup" "zfs-utils.sh install-plan-utils.sh" "zfs_auto_properties.sh" "step_zfs_auto_properties"
 
-#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░|
-  register_step   "zfs_aux_setup"   "13"    "Discos Auxiliares"   "Cache, Log e Spare"   "zfs_auto_properties"   "zfs_auto_datasets"   "zfs-utils.sh disk-utils.sh state-utils.sh"   "zfs_aux_setup.sh"   "step_zfs_aux_setup"
+	#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░|
+	register_step "zfs_aux_setup" "13" "Discos Auxiliares" "Cache, Log e Spare" "zfs_auto_properties" "zfs_auto_datasets" "zfs-utils.sh disk-utils.sh state-utils.sh" "zfs_aux_setup.sh" "step_zfs_aux_setup"
 
-#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
-  register_step   "zfs_auto_datasets"   "14"    "ZFS: Datasets"   "Preset padrão/servidor/custom"   "zfs_aux_setup"   "boot"   "zfs-utils.sh disk-utils.sh install-plan-utils.sh"   "zfs_auto_datasets.sh"   "step_zfs_auto_datasets"
+	#                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
+	register_step "zfs_auto_datasets" "14" "ZFS: Datasets" "Preset padrão/servidor/custom" "zfs_aux_setup" "boot" "zfs-utils.sh disk-utils.sh install-plan-utils.sh" "zfs_auto_datasets.sh" "step_zfs_auto_datasets"
 
-#                 |░ID░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░|░MODULE░░░░░░░░░░|░HANDLER░░░░░░░░░░|
-    register_step   "zfs_manual"   "15"    "ZFS: Manual (Avançado)"   "VDEVs, pools, datasets e propriedades"   "zfs_strategy"   "boot"   "zfs-utils.sh"   "zfs_manual.sh"   "step_zfs_manual"
+	#                 |░ID░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░|░MODULE░░░░░░░░░░|░HANDLER░░░░░░░░░░|
+	register_step "zfs_manual" "15" "ZFS: Manual (Avançado)" "VDEVs, pools, datasets e propriedades" "zfs_strategy" "boot" "zfs-utils.sh" "zfs_manual.sh" "step_zfs_manual"
 
-#                 |░ID░░░░░|░ORDER░|░TITLE░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░|░HANDLER░░░░|
-    register_step   "boot"   "16"    "Boot"   "UEFI/BIOS, bootloader e parâmetros"   "zfs_auto_datasets"   "review"   "boot-utils.sh"   "boot.sh"   "step_boot"
+	#                 |░ID░░░░░|░ORDER░|░TITLE░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░|░DEPS░░░░░░░░░░░░|░MODULE░░░░|░HANDLER░░░░|
+	register_step "boot" "16" "Boot" "UEFI/BIOS, bootloader e parâmetros" "zfs_auto_datasets" "review" "boot-utils.sh" "boot.sh" "step_boot"
 
-#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░|░NEXT░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░|░HANDLER░░░░░░|
-  register_step   "review"    "17"    "Revisão"   "Resumo, validações e checkpoint"   "boot"   "install"   "validate-utils.sh install-plan-utils.sh"   "review.sh"   "step_review"
+	#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░|░NEXT░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░|░HANDLER░░░░░░|
+	register_step "review" "17" "Revisão" "Resumo, validações e checkpoint" "boot" "install" "validate-utils.sh install-plan-utils.sh" "review.sh" "step_review"
 
-#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░|░PREV░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░|░HANDLER░░░░░░░|
-  register_step   "install"   "18"    "Instalação"   "Execução e progresso"   "review"   "post_install"   "install-utils.sh disk-utils.sh zfs-utils.sh boot-utils.sh validate-utils.sh disks-identify-suporte-types.sh install-plan-utils.sh"   "install.sh"   "step_install"
+	#                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░|░PREV░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░|░HANDLER░░░░░░░|
+	register_step "install" "18" "Instalação" "Execução e progresso" "review" "post_install" "install-utils.sh disk-utils.sh zfs-utils.sh boot-utils.sh validate-utils.sh disks-identify-suporte-types.sh install-plan-utils.sh" "install.sh" "step_install"
 
-#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
-  register_step   "post_install"   "19"    "Pós-instalação"   "Ajustes finais: apt, serviços, pacotes"   "install"   "finish"   "post-utils.sh finalize-chroot.sh setup-zbm-config.sh"   "post_install.sh"   "step_post_install"
+	#                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
+	register_step "post_install" "19" "Pós-instalação" "Ajustes finais: apt, serviços, pacotes" "install" "finish" "post-utils.sh finalize-chroot.sh setup-zbm-config.sh" "post_install.sh" "step_post_install"
 
-#                 |░ID░░░░░░░|░ORDER░|░TITLE░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░|░DEPS░|░MODULE░░░░░░|░HANDLER░░░░░░|
-    register_step   "finish"   "20"    "Concluído"   "Resumo final e reboot"   "post_install"   ""     ""     "finish.sh"   "step_finish"
+	#                 |░ID░░░░░░░|░ORDER░|░TITLE░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░|░DEPS░|░MODULE░░░░░░|░HANDLER░░░░░░|
+	register_step "finish" "20" "Concluído" "Resumo final e reboot" "post_install" "" "" "finish.sh" "step_finish"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -312,112 +325,120 @@ register_all_steps() {
 # ──────────────────────────────────────────────────────────────────────────────
 
 compute_next_step() {
-    local id; id="$(sanitize_id "${1-}")"
-    local next; next="$(sanitize_id "${STEP_NEXT[$id]-}")"
-    local strategy
-    strategy="$(sanitize_id "$(state_kv_get install_zfs_strategy)")"
+	local id
+	id="$(sanitize_id "${1-}")"
+	local next
+	next="$(sanitize_id "${STEP_NEXT[$id]-}")"
+	local strategy
+	strategy="$(sanitize_id "$(state_kv_get install_zfs_strategy)")"
 
-    # Router rule: if strategy == manual, jump to zfs_manual
-    if [[ "$id" == "zfs_strategy" ]]; then
-        if [[ "$(sanitize_id "$strategy")" == "manual" ]]; then
-            printf '%s' "zfs_manual"
-            return
-        fi
-        printf '%s' "zfs_auto_topology"
-        return
-    fi
+	# Router rule: if strategy == manual, jump to zfs_manual
+	if [[ "$id" == "zfs_strategy" ]]; then
+		if [[ "$(sanitize_id "$strategy")" == "manual" ]]; then
+			printf '%s' "zfs_manual"
+			return
+		fi
+		printf '%s' "zfs_auto_topology"
+		return
+	fi
 
-    # Router rule: boot prev depends on which ZFS flow was used
-    if [[ "$id" == "boot" ]]; then
-        printf '%s' "$next"
-        return
-    fi
+	# Router rule: boot prev depends on which ZFS flow was used
+	if [[ "$id" == "boot" ]]; then
+		printf '%s' "$next"
+		return
+	fi
 
-    printf '%s' "$next"
+	printf '%s' "$next"
 }
 
 compute_prev_step() {
-    local id; id="$(sanitize_id "${1-}")"
-    local prev; prev="$(sanitize_id "${STEP_PREV[$id]-}")"
-    local strategy
-    strategy="$(sanitize_id "$(state_kv_get install_zfs_strategy)")"
+	local id
+	id="$(sanitize_id "${1-}")"
+	local prev
+	prev="$(sanitize_id "${STEP_PREV[$id]-}")"
+	local strategy
+	strategy="$(sanitize_id "$(state_kv_get install_zfs_strategy)")"
 
-    if [[ "$id" == "boot" ]]; then
-        if [[ "$(sanitize_id "$strategy")" == "manual" ]]; then
-            printf '%s' "zfs_manual"
-            return
-        fi
-        printf '%s' "zfs_auto_datasets"
-        return
-    fi
+	if [[ "$id" == "boot" ]]; then
+		if [[ "$(sanitize_id "$strategy")" == "manual" ]]; then
+			printf '%s' "zfs_manual"
+			return
+		fi
+		printf '%s' "zfs_auto_datasets"
+		return
+	fi
 
-    if [[ "$id" == "zfs_auto_topology" || "$id" == "zfs_manual" ]]; then
-        printf '%s' "zfs_strategy"
-        return
-    fi
+	if [[ "$id" == "zfs_auto_topology" || "$id" == "zfs_manual" ]]; then
+		printf '%s' "zfs_strategy"
+		return
+	fi
 
-    printf '%s' "$prev"
+	printf '%s' "$prev"
 }
 
 # @INST_FUNC: step_invoke
 # @INST_DESC: Executa o handler de uma etapa, carregando suas dependências e módulo.
 # @INST_ARGS: id (ID da etapa)
 step_invoke() {
-    # @ID: INSTALLER_STEP_INVOKE
-    # @STEP: Resolve dependencias, carrega modulo e executa handler da etapa atual.
-    # @REQ: INSTALLER_LAZY_SOURCE_DEPS
-    # @FAIL: INSTALLER_STEP_FAILED
-    # @DATA: IN CURRENT_STEP
-    local id; id="$(sanitize_id "${1-}")"
-    local handler; handler="$(sanitize_ws "${STEP_HANDLER[$id]-}")"
-    local deps; deps="$(sanitize_ws "${STEP_DEPS[$id]-}")"
+	# @ID: INSTALLER_STEP_INVOKE
+	# @STEP: Resolve dependencias, carrega modulo e executa handler da etapa atual.
+	# @REQ: INSTALLER_LAZY_SOURCE_DEPS
+	# @FAIL: INSTALLER_STEP_FAILED
+	# @DATA: IN CURRENT_STEP
+	local id
+	id="$(sanitize_id "${1-}")"
+	local handler
+	handler="$(sanitize_ws "${STEP_HANDLER[$id]-}")"
+	local deps
+	deps="$(sanitize_ws "${STEP_DEPS[$id]-}")"
 
-    if [[ -z "$id" || -z "$handler" ]]; then
-        stderr "Erro: step_invoke id/handler inválidos."
-        return 1
-    fi
+	if [[ -z "$id" || -z "$handler" ]]; then
+		stderr "Erro: step_invoke id/handler inválidos."
+		return 1
+	fi
 
-    lazy_source_deps "$deps" || return 1
-    lazy_source_step "$id" || return 1
+	lazy_source_deps "$deps" || return 1
+	lazy_source_step "$id" || return 1
 
-    if ! declare -F "$handler" >/dev/null 2>&1; then
-        stderr "Erro: handler não encontrado: $handler (step: $id)"
-        return 1
-    fi
+	if ! declare -F "$handler" >/dev/null 2>&1; then
+		stderr "Erro: handler não encontrado: $handler (step: $id)"
+		return 1
+	fi
 
-    "$handler"
+	"$handler"
 }
 
 goto_step() {
-    local id; id="$(sanitize_id "${1-}")"
-    if [[ -z "$id" ]]; then
-        stderr "Erro: goto_step recebeu id vazio."
-        return 1
-    fi
-    if ! step_exists "$id"; then
-        stderr "Erro: step inexistente: $id"
-        return 1
-    fi
-    CURRENT_STEP="$id"
-    state_kv_set "current_step" "$CURRENT_STEP" || return 1
+	local id
+	id="$(sanitize_id "${1-}")"
+	if [[ -z "$id" ]]; then
+		stderr "Erro: goto_step recebeu id vazio."
+		return 1
+	fi
+	if ! step_exists "$id"; then
+		stderr "Erro: step inexistente: $id"
+		return 1
+	fi
+	CURRENT_STEP="$id"
+	state_kv_set "current_step" "$CURRENT_STEP" || return 1
 }
 
 goto_next() {
-    local next
-    next="$(sanitize_id "$(compute_next_step "$CURRENT_STEP")")"
-    if [[ -z "$next" ]]; then
-        return 0
-    fi
-    goto_step "$next"
+	local next
+	next="$(sanitize_id "$(compute_next_step "$CURRENT_STEP")")"
+	if [[ -z "$next" ]]; then
+		return 0
+	fi
+	goto_step "$next"
 }
 
 goto_prev() {
-    local prev
-    prev="$(sanitize_id "$(compute_prev_step "$CURRENT_STEP")")"
-    if [[ -z "$prev" ]]; then
-        return 0
-    fi
-    goto_step "$prev"
+	local prev
+	prev="$(sanitize_id "$(compute_prev_step "$CURRENT_STEP")")"
+	if [[ -z "$prev" ]]; then
+		return 0
+	fi
+	goto_step "$prev"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -425,43 +446,43 @@ goto_prev() {
 # ──────────────────────────────────────────────────────────────────────────────
 
 print_steps_table() {
-    local id
-    printf '%-22s %-6s %-22s %-16s %-16s\n' "STEP_ID" "ORDER" "TITLE" "PREV" "NEXT"
-    printf '%s\n' "$(printf '=%.0s' {1..86})"
-    for id in "${STEP_IDS[@]}"; do
-        printf '%-22s %-6s %-22s %-16s %-16s\n' \
-            "$id" \
-            "${STEP_ORDER[$id]}" \
-            "$(printf '%.22s' "${STEP_TITLE[$id]}")" \
-            "${STEP_PREV[$id]}" \
-            "${STEP_NEXT[$id]}"
-    done
+	local id
+	printf '%-22s %-6s %-22s %-16s %-16s\n' "STEP_ID" "ORDER" "TITLE" "PREV" "NEXT"
+	printf '%s\n' "$(printf '=%.0s' {1..86})"
+	for id in "${STEP_IDS[@]}"; do
+		printf '%-22s %-6s %-22s %-16s %-16s\n' \
+			"$id" \
+			"${STEP_ORDER[$id]}" \
+			"$(printf '%.22s' "${STEP_TITLE[$id]}")" \
+			"${STEP_PREV[$id]}" \
+			"${STEP_NEXT[$id]}"
+	done
 }
 
 print_steps_json() {
-    local id
-    printf '{\n  "name": "%s",\n  "version": "%s",\n  "default_step": "%s",\n  "steps": [\n' \
-        "$SCRIPT_NAME" "$SCRIPT_VERSION" "$DEFAULT_STEP"
-    local first="1"
-    for id in "${STEP_IDS[@]}"; do
-        if [[ "$first" == "1" ]]; then
-            first="0"
-        else
-            printf ',\n'
-        fi
-        printf '    {\n'
-        printf '      "id": "%s",\n' "$id"
-        printf '      "order": "%s",\n' "${STEP_ORDER[$id]}"
-        printf '      "title": "%s",\n' "$(printf '%s' "${STEP_TITLE[$id]}" | sed -E 's/"/\\"/g')"
-        printf '      "description": "%s",\n' "$(printf '%s' "${STEP_DESC[$id]}" | sed -E 's/"/\\"/g')"
-        printf '      "prev": "%s",\n' "${STEP_PREV[$id]}"
-        printf '      "next": "%s",\n' "${STEP_NEXT[$id]}"
-        printf '      "deps": "%s",\n' "$(printf '%s' "${STEP_DEPS[$id]}" | sed -E 's/"/\\"/g')"
-        printf '      "module": "%s",\n' "$(printf '%s' "${STEP_MODULE[$id]}" | sed -E 's/"/\\"/g')"
-        printf '      "handler": "%s"\n' "$(printf '%s' "${STEP_HANDLER[$id]}" | sed -E 's/"/\\"/g')"
-        printf '    }'
-    done
-    printf '\n  ]\n}\n'
+	local id
+	printf '{\n  "name": "%s",\n  "version": "%s",\n  "default_step": "%s",\n  "steps": [\n' \
+		"$SCRIPT_NAME" "$SCRIPT_VERSION" "$DEFAULT_STEP"
+	local first="1"
+	for id in "${STEP_IDS[@]}"; do
+		if [[ "$first" == "1" ]]; then
+			first="0"
+		else
+			printf ',\n'
+		fi
+		printf '    {\n'
+		printf '      "id": "%s",\n' "$id"
+		printf '      "order": "%s",\n' "${STEP_ORDER[$id]}"
+		printf '      "title": "%s",\n' "$(printf '%s' "${STEP_TITLE[$id]}" | sed -E 's/"/\\"/g')"
+		printf '      "description": "%s",\n' "$(printf '%s' "${STEP_DESC[$id]}" | sed -E 's/"/\\"/g')"
+		printf '      "prev": "%s",\n' "${STEP_PREV[$id]}"
+		printf '      "next": "%s",\n' "${STEP_NEXT[$id]}"
+		printf '      "deps": "%s",\n' "$(printf '%s' "${STEP_DEPS[$id]}" | sed -E 's/"/\\"/g')"
+		printf '      "module": "%s",\n' "$(printf '%s' "${STEP_MODULE[$id]}" | sed -E 's/"/\\"/g')"
+		printf '      "handler": "%s"\n' "$(printf '%s' "${STEP_HANDLER[$id]}" | sed -E 's/"/\\"/g')"
+		printf '    }'
+	done
+	printf '\n  ]\n}\n'
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -474,67 +495,70 @@ print_steps_json() {
 # O router utiliza lazy_source_step() para carregar o código sob demanda.
 #
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Argument Parsing
 # ──────────────────────────────────────────────────────────────────────────────
 
 parse_args() {
-    local arg
-    while [[ $# -gt 0 ]]; do
-        arg="$(sanitize_ws "${1-}")"
-        shift || true
-        case "$arg" in
-            --state-dir)
-                STATE_DIR="$(sanitize_ws "${1-}")"; shift || true
-                if [[ -z "$STATE_DIR" ]]; then
-                    STATE_DIR="$STATE_DIR_DEFAULT"
-                fi
-                STATE_FILE="$STATE_DIR/state.env"
-                ;;
-            --steps-dir)
-                STEPS_DIR="$(sanitize_ws "${1-}")"; shift || true
-                if [[ -z "$STEPS_DIR" ]]; then
-                    STEPS_DIR="$STEPS_DIR_DEFAULT"
-                fi
-                ;;
-            --libs-dir)
-                LIBS_DIR="$(sanitize_ws "${1-}")"; shift || true
-                if [[ -z "$LIBS_DIR" ]]; then
-                    LIBS_DIR="$LIBS_DIR_DEFAULT"
-                fi
-                ;;
-            --start)
-                CURRENT_STEP="$(sanitize_id "${1-}")"; shift || true
-                if [[ -z "$CURRENT_STEP" ]]; then
-                    CURRENT_STEP="$DEFAULT_STEP"
-                fi
-                ;;
-            --resume)
-                RESUME_SESSION="1"
-                ;;
-            --print-map)
-                state_prepare || return 1
-                register_all_steps || return 1
-                print_steps_table
-                return 2
-                ;;
-            --print-json)
-                state_prepare || return 1
-                register_all_steps || return 1
-                print_steps_json
-                return 2
-                ;;
-            --version)
-                printf '%s %s\n' "$SCRIPT_NAME" "$SCRIPT_VERSION"
-                return 2
-                ;;
-            *)
-                stderr "Argumento inválido: $arg"
-                return 1
-                ;;
-        esac
-    done
+	local arg
+	while [[ $# -gt 0 ]]; do
+		arg="$(sanitize_ws "${1-}")"
+		shift || true
+		case "$arg" in
+		--state-dir)
+			STATE_DIR="$(sanitize_ws "${1-}")"
+			shift || true
+			if [[ -z "$STATE_DIR" ]]; then
+				STATE_DIR="$STATE_DIR_DEFAULT"
+			fi
+			STATE_FILE="$STATE_DIR/state.env"
+			;;
+		--steps-dir)
+			STEPS_DIR="$(sanitize_ws "${1-}")"
+			shift || true
+			if [[ -z "$STEPS_DIR" ]]; then
+				STEPS_DIR="$STEPS_DIR_DEFAULT"
+			fi
+			;;
+		--libs-dir)
+			LIBS_DIR="$(sanitize_ws "${1-}")"
+			shift || true
+			if [[ -z "$LIBS_DIR" ]]; then
+				LIBS_DIR="$LIBS_DIR_DEFAULT"
+			fi
+			;;
+		--start)
+			CURRENT_STEP="$(sanitize_id "${1-}")"
+			shift || true
+			if [[ -z "$CURRENT_STEP" ]]; then
+				CURRENT_STEP="$DEFAULT_STEP"
+			fi
+			;;
+		--resume)
+			RESUME_SESSION="1"
+			;;
+		--print-map)
+			state_prepare || return 1
+			register_all_steps || return 1
+			print_steps_table
+			return 2
+			;;
+		--print-json)
+			state_prepare || return 1
+			register_all_steps || return 1
+			print_steps_json
+			return 2
+			;;
+		--version)
+			printf '%s %s\n' "$SCRIPT_NAME" "$SCRIPT_VERSION"
+			return 2
+			;;
+		*)
+			stderr "Argumento inválido: $arg"
+			return 1
+			;;
+		esac
+	done
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -542,109 +566,109 @@ parse_args() {
 # ──────────────────────────────────────────────────────────────────────────────
 
 main_loop() {
-    # @ID: INSTALLER_MAIN_LOOP
-    # @STEP: Orquestra navegacao canonica entre steps usando next/prev e estado persistido.
-    # @REQ: INSTALLER_STEP_INVOKE
-    # @FAIL: INSTALLER_STEP_FAILED
-    # @DATA: IN/OUT STATE_FILE
-    local safe_guard
-    safe_guard=0
+	# @ID: INSTALLER_MAIN_LOOP
+	# @STEP: Orquestra navegacao canonica entre steps usando next/prev e estado persistido.
+	# @REQ: INSTALLER_STEP_INVOKE
+	# @FAIL: INSTALLER_STEP_FAILED
+	# @DATA: IN/OUT STATE_FILE
+	local safe_guard
+	safe_guard=0
 
-    while true; do
-        safe_guard=$((safe_guard + 1))
-        if (( safe_guard > 200 )); then
-            die "Loop de navegação excedeu limite de segurança."
-            return 1
-        fi
+	while true; do
+		safe_guard=$((safe_guard + 1))
+		if ((safe_guard > 200)); then
+			die "Loop de navegação excedeu limite de segurança."
+			return 1
+		fi
 
-        if ! step_exists "$CURRENT_STEP"; then
-            die "Step inválido no estado atual: $CURRENT_STEP"
-            return 1
-        fi
+		if ! step_exists "$CURRENT_STEP"; then
+			die "Step inválido no estado atual: $CURRENT_STEP"
+			return 1
+		fi
 
-        log_line "INFO" "Entrando step=$CURRENT_STEP"
-        if step_invoke "$CURRENT_STEP"; then
-            NEXT_STEP="$(sanitize_id "$(compute_next_step "$CURRENT_STEP")")"
-            log_line "INFO" "Step concluído: step=$CURRENT_STEP next=${NEXT_STEP:-<fim>}"
-            if [[ -z "$NEXT_STEP" ]]; then
-                break
-            fi
-            goto_next || return 1
-            state_load || true
-            continue
-        fi
+		log_line "INFO" "Entrando step=$CURRENT_STEP"
+		if step_invoke "$CURRENT_STEP"; then
+			NEXT_STEP="$(sanitize_id "$(compute_next_step "$CURRENT_STEP")")"
+			log_line "INFO" "Step concluído: step=$CURRENT_STEP next=${NEXT_STEP:-<fim>}"
+			if [[ -z "$NEXT_STEP" ]]; then
+				break
+			fi
+			goto_next || return 1
+			state_load || true
+			continue
+		fi
 
-        PREV_STEP="$(sanitize_id "$(compute_prev_step "$CURRENT_STEP")")"
-        # @ID: INSTALLER_STEP_FAILED
-        # @STEP: Trata falha de step retornando ao prev quando disponivel ou abortando fluxo.
-        # @REQ: INSTALLER_MAIN_LOOP
-        # @FAIL: INSTALLER_ABORT
-        # @DATA: OUT LOG_FILE
-        log_line "WARN" "Step retornou falha: step=$CURRENT_STEP prev=${PREV_STEP:-<none>}"
-        if [[ -n "$PREV_STEP" ]]; then
-            goto_prev || return 1
-            state_load || true
-            sleep 0.5
-            continue
-        fi
+		PREV_STEP="$(sanitize_id "$(compute_prev_step "$CURRENT_STEP")")"
+		# @ID: INSTALLER_STEP_FAILED
+		# @STEP: Trata falha de step retornando ao prev quando disponivel ou abortando fluxo.
+		# @REQ: INSTALLER_MAIN_LOOP
+		# @FAIL: INSTALLER_ABORT
+		# @DATA: OUT LOG_FILE
+		log_line "WARN" "Step retornou falha: step=$CURRENT_STEP prev=${PREV_STEP:-<none>}"
+		if [[ -n "$PREV_STEP" ]]; then
+			goto_prev || return 1
+			state_load || true
+			sleep 0.5
+			continue
+		fi
 
-        die "Operação cancelada."
-        # @ID: INSTALLER_ABORT
-        # @STEP: Encerra instalacao quando nao ha recuperacao segura no fluxo.
-        # @REQ: INSTALLER_STEP_FAILED
-        # @DATA: OUT LOG_FILE
-        return 1
-    done
+		die "Operação cancelada."
+		# @ID: INSTALLER_ABORT
+		# @STEP: Encerra instalacao quando nao ha recuperacao segura no fluxo.
+		# @REQ: INSTALLER_STEP_FAILED
+		# @DATA: OUT LOG_FILE
+		return 1
+	done
 }
 
 main() {
-    setup_traps
-    log_init
-    ui_require || return 1
-    state_prepare || return 1
+	setup_traps
+	log_init
+	ui_require || return 1
+	state_prepare || return 1
 
-    local parse_rc=0
-    if parse_args "$@"; then
-        parse_rc=0
-    else
-        parse_rc=$?
-    fi
+	local parse_rc=0
+	if parse_args "$@"; then
+		parse_rc=0
+	else
+		parse_rc=$?
+	fi
 
-    if [[ "$parse_rc" == "1" ]]; then
-        return 1
-    fi
+	if [[ "$parse_rc" == "1" ]]; then
+		return 1
+	fi
 
-    if [[ "$parse_rc" == "2" ]]; then
-        return 0
-    fi
+	if [[ "$parse_rc" == "2" ]]; then
+		return 0
+	fi
 
-    register_all_steps || return 1
-    state_load || true
+	register_all_steps || return 1
+	state_load || true
 
-    local cs=""
-    if [[ "$RESUME_SESSION" == "1" ]]; then
-        cs="$(sanitize_id "${current_step-}")"
-    fi
+	local cs=""
+	if [[ "$RESUME_SESSION" == "1" ]]; then
+		cs="$(sanitize_id "${current_step-}")"
+	fi
 
-    if [[ -n "$cs" ]]; then
-        CURRENT_STEP="$cs"
-    else
-        CURRENT_STEP="$DEFAULT_STEP"
-        state_kv_set "current_step" "$CURRENT_STEP" || return 1
-    fi
-    if [[ -z "$CURRENT_STEP" ]]; then
-        CURRENT_STEP="$DEFAULT_STEP"
-    fi
-    if ! step_exists "$CURRENT_STEP"; then
-        CURRENT_STEP="$DEFAULT_STEP"
-    fi
+	if [[ -n "$cs" ]]; then
+		CURRENT_STEP="$cs"
+	else
+		CURRENT_STEP="$DEFAULT_STEP"
+		state_kv_set "current_step" "$CURRENT_STEP" || return 1
+	fi
+	if [[ -z "$CURRENT_STEP" ]]; then
+		CURRENT_STEP="$DEFAULT_STEP"
+	fi
+	if ! step_exists "$CURRENT_STEP"; then
+		CURRENT_STEP="$DEFAULT_STEP"
+	fi
 
-    # Demonstration (example arguments usage):
-    #   ./installer-router.sh --print-map
-    #   ./installer-router.sh --print-json
-    #   ./installer-router.sh --start network
+	# Demonstration (example arguments usage):
+	#   ./installer-router.sh --print-map
+	#   ./installer-router.sh --print-json
+	#   ./installer-router.sh --start network
 
-    main_loop
+	main_loop
 }
 
 main "$@"
