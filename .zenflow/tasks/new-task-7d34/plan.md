@@ -81,7 +81,8 @@ shellcheck config-overrides/config/includes.chroot/usr/local/lib/installer/libs/
 grep -q "@INST_FILE" config-overrides/config/includes.chroot/usr/local/lib/installer/libs/ui-validation.sh
 ```
 
-### [ ] Step: Refatorar ui-utils.sh - Consolidar Wrappers Existentes
+### [x] Step: Refatorar ui-utils.sh - Consolidar Wrappers Existentes
+<!-- chat-id: 9d56a06b-945f-4e8b-b02e-0dfa6c114707 -->
 **Arquivo**: `config-overrides/config/includes.chroot/usr/local/lib/installer/libs/ui-utils.sh`
 **Atividades**:
 1. Mover wrappers de `ui-gum.sh` para `ui-utils.sh`:

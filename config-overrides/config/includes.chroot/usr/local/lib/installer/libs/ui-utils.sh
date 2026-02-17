@@ -1,7 +1,21 @@
 #!/usr/bin/env bash
 # @INST_LIB_NAME: ui-utils
 # @INST_DESC: FILESERVER Design System v2.0 - Componentes visuais baseados no 'gum'.
-# @INST_DEP: gum
+# @INST_DEP: gum, ui-validation (opcional)
+#
+# WRAPPERS CONSOLIDADOS:
+# - ui_confirm(): Confirmação Sim/Não com fallback plain UI
+# - ui_select(): Seleção única com fallback plain UI
+# - ui_input(): Entrada de texto com validação opcional via callback
+# - ui_password(): Entrada de senha com validação opcional via callback
+#
+# INTEGRAÇÃO COM VALIDAÇÃO:
+# Os wrappers ui_input() e ui_password() suportam callbacks de validação
+# opcionais. Para usar, passe o nome da função validadora como último argumento.
+# Exemplo: ui_input "Hostname" "servidor" "" "validate_hostname"
+# As funções validadoras devem seguir o padrão da ui-validation.sh:
+# - Retornar 0 se válido, 1 se inválido
+# - Imprimir mensagem de erro via stderr
 
 # ═══════════════════════════════════════════════════════════
 # PALETA DE CORES
@@ -270,87 +284,173 @@ ui_progress() {
 }
 
 # @INST_FUNC: ui_input
-# @INST_DESC: Solicita entrada de texto do usuário via 'gum input'.
+# @INST_DESC: Solicita entrada de texto do usuário via 'gum input' com validação opcional.
+# @INST_ARGS: $1 = label, $2 = placeholder (opcional), $3 = default (opcional), $4 = validation_callback (opcional)
+# @INST_RETURN: Valor validado inserido pelo usuário
 ui_input() {
 	local label="$1"
 	local placeholder="${2:-}"
-	local hint="${3:-}"
+	local default="${3:-}"
+	local validation_callback="${4:-}"
+	local value
+	local hint=""
 
-	if _ui_plain_mode; then
-		local value
-		if [[ -n "$placeholder" ]]; then
-			printf '%s [%s]: ' "$label" "$placeholder" >&2
-		else
-			printf '%s: ' "$label" >&2
-		fi
-		IFS= read -r value
-		[[ -n "$hint" ]] && printf '  %s\n' "$hint" >&2
-		echo "$value"
-		return 0
+	# Se há callback de validação, adiciona hint
+	if [[ -n "$validation_callback" ]]; then
+		hint="Validação ativa"
 	fi
 
-	gum style --foreground "$DS_CLOUD" --margin "0 2" "$label:" >&2
-	local value
-	value=$(gum input \
-		--placeholder "$placeholder" \
-		--header "" \
-		--prompt.foreground "$DS_SLATE" \
-		--placeholder.foreground "$DS_FOG" \
-		--cursor.foreground "$DS_FILESERVER_PEAK")
-	[[ -n "$hint" ]] &&
-		gum style --foreground "$DS_FOG" --italic --margin "0 2" "    $hint" >&2
+	while true; do
+		if _ui_plain_mode; then
+			# Plain UI fallback
+			if [[ -n "$placeholder" ]]; then
+				printf '%s [%s]: ' "$label" "$placeholder" >&2
+			elif [[ -n "$default" ]]; then
+				printf '%s [padrão: %s]: ' "$label" "$default" >&2
+			else
+				printf '%s: ' "$label" >&2
+			fi
+			IFS= read -r value
+			
+			# Usa default se vazio
+			[[ -z "$value" && -n "$default" ]] && value="$default"
+			
+			[[ -n "$hint" ]] && printf '  %s\n' "$hint" >&2
+		else
+			# Gum UI
+			gum style --foreground "$DS_CLOUD" --margin "0 2" "$label:" >&2
+			
+			local input_value="${default}"
+			value=$(gum input \
+				--placeholder "$placeholder" \
+				--value "$input_value" \
+				--header "" \
+				--prompt.foreground "$DS_SLATE" \
+				--placeholder.foreground "$DS_FOG" \
+				--cursor.foreground "$DS_FILESERVER_PEAK")
+			
+			[[ -n "$hint" ]] &&
+				gum style --foreground "$DS_FOG" --italic --margin "0 2" "    $hint" >&2
+		fi
+
+		# Validação se callback foi fornecido
+		if [[ -n "$validation_callback" ]]; then
+			if command -v "$validation_callback" >/dev/null 2>&1; then
+				local error_msg
+				if error_msg=$("$validation_callback" "$value" 2>&1); then
+					# Validação passou
+					break
+				else
+					# Validação falhou
+					ui_error "Entrada inválida" "$error_msg"
+					continue
+				fi
+			else
+				# Callback não existe, apenas retorna valor
+				break
+			fi
+		else
+			# Sem validação, aceita qualquer valor
+			break
+		fi
+	done
+
 	echo "$value"
 }
 
+# @INST_FUNC: ui_password
+# @INST_DESC: Solicita entrada de senha do usuário (oculta digitação) com validação opcional.
+# @INST_ARGS: $1 = label, $2 = placeholder (opcional), $3 = validation_callback (opcional)
+# @INST_RETURN: Senha validada inserida pelo usuário
 ui_password() {
 	local label="$1"
 	local placeholder="${2:-Senha}"
-	local hint="${3:-}"
+	local validation_callback="${3:-}"
+	local value
+	local hint=""
 
-	if _ui_plain_mode; then
-		local value
-		printf '%s [%s]: ' "$label" "$placeholder" >&2
-		IFS= read -r -s value
-		printf '\n' >&2
-		[[ -n "$hint" ]] && printf '  %s\n' "$hint" >&2
-		echo "$value"
-		return 0
+	# Se há callback de validação, adiciona hint
+	if [[ -n "$validation_callback" ]]; then
+		hint="Validação ativa"
 	fi
 
-	gum style --foreground "$DS_CLOUD" --margin "0 2" "$label:" >&2
-	local value
-	value="$(gum input \
-		--password \
-		--placeholder "$placeholder" \
-		--header "" \
-		--prompt.foreground "$DS_SLATE" \
-		--placeholder.foreground "$DS_FOG" \
-		--cursor.foreground "$DS_FILESERVER_PEAK")"
-	[[ -n "$hint" ]] &&
-		gum style --foreground "$DS_FOG" --italic --margin "0 2" "    $hint" >&2
+	while true; do
+		if _ui_plain_mode; then
+			# Plain UI fallback
+			printf '%s [%s]: ' "$label" "$placeholder" >&2
+			IFS= read -r -s value
+			printf '\n' >&2
+			[[ -n "$hint" ]] && printf '  %s\n' "$hint" >&2
+		else
+			# Gum UI
+			gum style --foreground "$DS_CLOUD" --margin "0 2" "$label:" >&2
+			value="$(gum input \
+				--password \
+				--placeholder "$placeholder" \
+				--header "" \
+				--prompt.foreground "$DS_SLATE" \
+				--placeholder.foreground "$DS_FOG" \
+				--cursor.foreground "$DS_FILESERVER_PEAK")"
+			[[ -n "$hint" ]] &&
+				gum style --foreground "$DS_FOG" --italic --margin "0 2" "    $hint" >&2
+		fi
+
+		# Validação se callback foi fornecido
+		if [[ -n "$validation_callback" ]]; then
+			if command -v "$validation_callback" >/dev/null 2>&1; then
+				local error_msg
+				if error_msg=$("$validation_callback" "$value" 2>&1); then
+					# Validação passou
+					break
+				else
+					# Validação falhou
+					ui_error "Senha inválida" "$error_msg"
+					continue
+				fi
+			else
+				# Callback não existe, apenas retorna valor
+				break
+			fi
+		else
+			# Sem validação, aceita qualquer valor
+			break
+		fi
+	done
+
 	echo "$value"
 }
 
 # @INST_FUNC: ui_select
-# @INST_DESC: Menu de seleção única via 'gum choose'.
+# @INST_DESC: Menu de seleção única via 'gum choose' com fallback plain UI robusto.
+# @INST_ARGS: $1 = title, $2-$N = opções
+# @INST_RETURN: Opção selecionada
 ui_select() {
 	local title="$1"
 	shift
 	local selection
 
-	if _ui_plain_mode; then
-		_ui_plain_pick_one "$title" "$@"
-		return $?
-	fi
-
-	gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
-	gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Use ↑/↓ para navegar e Enter para confirmar" >&2
-	echo "" >&2
-
+	# Valida que há pelo menos uma opção
 	if [[ "$#" -eq 0 ]]; then
 		ui_error "Opções inválidas" "Nenhuma opção foi fornecida para seleção."
 		return 1
 	fi
+
+	if _ui_plain_mode; then
+		# Plain UI fallback robusto
+		selection=$(_ui_plain_pick_one "$title" "$@")
+		local ret=$?
+		if [[ $ret -eq 0 && -n "$selection" ]]; then
+			printf '%s' "$selection"
+			return 0
+		else
+			return 1
+		fi
+	fi
+
+	# Gum UI
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
+	gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Use ↑/↓ para navegar e Enter para confirmar" >&2
+	echo "" >&2
 
 	if ! selection="$(gum choose "$@" \
 		--height 8 \
@@ -365,6 +465,7 @@ ui_select() {
 		return 1
 	fi
 
+	# Se seleção vazia (cancelamento), usa primeira opção como default
 	if [[ -z "$selection" ]]; then
 		selection="${1:-}"
 	fi
@@ -576,26 +677,54 @@ ui_warn() {
 }
 
 # @INST_FUNC: ui_confirm
-# @INST_DESC: Diálogo de confirmação sim/não.
+# @INST_DESC: Diálogo de confirmação sim/não com fallback plain UI robusto.
+# @INST_ARGS: $1 = title/pergunta, $2 = default ("y"|"n", opcional, padrão "y")
+# @INST_RETURN: 0 se confirmado, 1 se negado
 ui_confirm() {
 	local title="$1"
-	local affirmative="${2:-Sim}"
-	local negative="${3:-Não}"
+	local default="${2:-y}"
+	local affirmative="Sim"
+	local negative="Não"
 
 	if _ui_plain_mode; then
+		# Plain UI fallback robusto
 		local ans
-		printf '%s [%s/%s] (padrão: %s): ' "$title" "$affirmative" "$negative" "$affirmative" >&2
+		local default_label
+		
+		# Define label do padrão
+		if [[ "${default,,}" == "y" ]]; then
+			default_label="$affirmative"
+		else
+			default_label="$negative"
+		fi
+		
+		printf '%s [%s/%s] (padrão: %s): ' "$title" "$affirmative" "$negative" "$default_label" >&2
 		IFS= read -r ans
-		ans="${ans:-$affirmative}"
-		case "$ans" in
-		s | S | y | Y | sim | SIM | yes | YES | "$affirmative") return 0 ;;
+		
+		# Se vazio, usa default
+		if [[ -z "$ans" ]]; then
+			ans="$default_label"
+		fi
+		
+		# Aceita várias formas de "sim"
+		case "${ans,,}" in
+		s | y | sim | yes | "$affirmative") return 0 ;;
 		*) return 1 ;;
 		esac
+	fi
+
+	# Gum UI
+	local gum_default
+	if [[ "${default,,}" == "y" ]]; then
+		gum_default="Yes"
+	else
+		gum_default="No"
 	fi
 
 	gum confirm "$title" \
 		--affirmative "$affirmative" \
 		--negative "$negative" \
+		--default="$gum_default" \
 		--show-help \
 		--padding "0 0" \
 		--prompt.foreground "$DS_SLATE" \
