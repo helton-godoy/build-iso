@@ -24,7 +24,6 @@ As funções fundamentais incluem:
 - `virsh define /path/to/config.xml`: Cria uma nova VM a partir de arquivo XML[^1_6]
 - `virsh domifaddr --source agent <nome-vm>`: Obtém endereço IP da VM via qemu-guest-agent[^1_7]
 
-
 ### Execução de Comandos Dentro da VM
 
 Para executar comandos dentro do sistema operacional da VM, você precisa do **qemu-guest-agent** instalado na VM. Use o comando:[^1_8][^1_7]
@@ -38,7 +37,6 @@ Para recuperar o resultado, use o PID retornado:
 ```python
 virsh qemu-agent-command <nome-vm> '{"execute": "guest-exec-status", "arguments": {"pid": 12345}}'
 ```
-
 
 ## Exemplo de Implementação
 
@@ -87,7 +85,7 @@ def execute_virsh_command(function_name, args):
             cmd.append("--all")
         result = subprocess.run(cmd, capture_output=True, text=True)
         return result.stdout
-    
+
     elif function_name == "virsh_exec_command":
         qmp_command = {
             "execute": "guest-exec",
@@ -101,7 +99,6 @@ def execute_virsh_command(function_name, args):
         result = subprocess.run(cmd, capture_output=True, text=True)
         return result.stdout
 ```
-
 
 ## Considerações de Segurança Críticas
 
@@ -121,7 +118,6 @@ def execute_virsh_command(function_name, args):
 - **Princípio do menor privilégio**: Conceda apenas permissões mínimas necessárias[^1_9]
 - **Kill switch**: Implemente capacidade de terminação instantânea se o agente se comportar de forma inesperada[^1_10]
 - **Auditoria e logging**: Registre todas as operações realizadas pelo LLM
-
 
 ### Alternativa Mais Segura
 
@@ -169,7 +165,6 @@ Considere restringir as operações a um conjunto limitado de ações pré-aprov
 [^1_19]: https://habr.com/ru/articles/700196/
 
 [^1_20]: https://www.reddit.com/r/learnpython/comments/1ilhdww/seeking_secure_python_code_execution_solutions/
-
 
 ---
 
@@ -251,7 +246,6 @@ virsh qemu-agent-command vm01 '{
 }'
 ```
 
-
 ## Consideração de Segurança
 
 Ferramentas como `expect` e `pexpect` que automatizam interações com comandos privilegiados representam riscos adicionais, pois podem expor credenciais em texto plano nos scripts. Certifique-se de:[^2_5][^2_4]
@@ -259,7 +253,7 @@ Ferramentas como `expect` e `pexpect` que automatizam interações com comandos 
 - Nunca armazenar senhas diretamente em scripts expect
 - Usar cofres de credenciais (Vault, secrets managers)
 - Auditar todos os scripts gerados pelo LLM antes da execução
-<span style="display:none">[^2_10][^2_11][^2_12][^2_13][^2_14][^2_15][^2_16][^2_17][^2_18][^2_19][^2_20][^2_6][^2_7][^2_8][^2_9]</span>
+  <span style="display:none">[^2_10][^2_11][^2_12][^2_13][^2_14][^2_15][^2_16][^2_17][^2_18][^2_19][^2_20][^2_6][^2_7][^2_8][^2_9]</span>
 
 <div align="center">⁂</div>
 
@@ -303,7 +297,6 @@ Ferramentas como `expect` e `pexpect` que automatizam interações com comandos 
 
 [^2_20]: https://technekey.com/simplifying-vm-management-executing-commands-in-guest-vms-using-virsh/
 
-
 ---
 
 # seria possível com esses recursos o agente avançar o menu do grub se não tiver tempo para iniciar automático?
@@ -325,7 +318,6 @@ virsh send-key nome-da-vm KEY_UP    # Subir no menu
 # Enviar tecla 'e' para editar entrada do GRUB
 virsh send-key nome-da-vm KEY_E
 ```
-
 
 ### Implementação para o Agente LLM
 
@@ -380,7 +372,6 @@ update-grub  # Debian/Ubuntu
 grub2-mkconfig -o /boot/grub2/grub.cfg  # RHEL/CentOS
 ```
 
-
 ### Após configuração, use:
 
 ```python
@@ -390,7 +381,6 @@ virsh console nome-da-vm
 # Enviar comandos interativamente
 # O LLM pode usar pexpect para automatizar
 ```
-
 
 ## Limitações e Considerações
 
@@ -430,4 +420,3 @@ Para um agente LLM autônomo, **virsh send-key é a melhor escolha** pois funcio
 [^3_9]: https://www.gnu.org/software/grub/manual/grub/html_node/sendkey.html
 
 [^3_10]: https://www.gnu.org/software/grub/manual/grub/html_node/Platform-limitations.html
-
