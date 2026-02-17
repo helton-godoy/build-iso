@@ -4,7 +4,7 @@
 # Usage:
 #   expect scripts/vm/expect-install-bios.exp <vm-ip>
 
-set timeout 14400
+set timeout 300
 
 if {[llength $argv] < 1} {
   puts stderr "Usage: expect $argv0 <vm-ip>"
@@ -21,6 +21,7 @@ set timezone [expr {[info exists env(INSTALL_TIMEZONE)] ? $env(INSTALL_TIMEZONE)
 
 log_user 1
 exp_internal 0
+match_max -d 100000
 
 spawn ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${vm_user}@${vm_ip}
 
@@ -42,6 +43,7 @@ proc expect_step {pattern response} {
   expect {
     -re $pattern {
       send -- "$response\r"
+      after 120
     }
     timeout {
       puts stderr "[ERR] Timeout aguardando prompt: $pattern"
@@ -62,15 +64,48 @@ expect_step {Escolha \[1\]:} "pt_BR.UTF-8"
 expect_step {Selecione o layout do teclado:} ""
 expect_step {Escolha \[1\]:} ""
 
+expect {
+  -re {Hostname:.*Dom.nio \(opcional\):.*:} {
+    send -- "$hostname\r"
+    after 120
+    send -- "\r"
+  }
+  timeout {
+    puts stderr {[ERR] Timeout aguardando prompts combinados de identidade}
+    exit 124
+  }
+  eof {
+    puts stderr {[ERR] EOF inesperado em identidade}
+    exit 6
+  }
+}
+
 expect_step {Hostname:.*:} "$hostname"
 expect_step {Dom.nio \(opcional\):.*:} ""
 
 expect_step {M.todo de configura..o:} ""
-expect_step {Escolha \[1\]:} ""
-expect_step {Proxy \(opcional\):.*:} ""
+expect {
+  -re {Escolha \[1\]:.*Proxy \(opcional\):.*:} {
+    send -- "\r\r"
+    after 120
+  }
+  -re {Escolha \[1\]:} {
+    send -- "\r"
+    after 120
+    expect_step {Proxy \(opcional\):.*:} ""
+  }
+  timeout {
+    puts stderr {[ERR] Timeout aguardando seleção de rede/proxy}
+    exit 124
+  }
+  eof {
+    puts stderr {[ERR] EOF inesperado em seleção de rede/proxy}
+    exit 6
+  }
+}
 
-expect_step {Selecione o fuso hor.rio:} "$timezone"
-expect_step {Escolha \[1\]:} "$timezone"
+expect_step {---- Fuso hor.rio ----} ""
+expect_step {Escolha \[1\]:} "1"
 expect_step {Ativar NTP\?.*\(padr.o: .*\):} ""
 expect_step {Servidor NTP \(opcional\):.*:} ""
 
@@ -83,9 +118,9 @@ expect_step {Usar pol.tica padr.o com sudo\?.*\(padr.o: .*\):} ""
 expect_step {Usar a mesma senha do usu.rio para root\?.*\(padr.o: .*\):} ""
 
 expect_step {Selecione o\(s\) disco\(s\) de DADOS:} ""
-expect_step {Escolhas \(ex: 1,3\) \[1\]:} "1"
+expect_step {Escolhas .*\[1\]:} "1"
 
-expect_step {Confirmar: \[APAGAR\]:} "APAGAR"
+expect_step {Digite APAGAR para confirmar\.} "APAGAR"
 
 expect_step {Modo:} ""
 expect_step {Escolha \[1\]:} ""
