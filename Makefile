@@ -17,6 +17,15 @@ LOGS_DIR       = logs
 OUTPUT_DIR     = output
 CONFIG_OVERRIDES = config-overrides
 
+SQUASHFS_COMPRESSION_TYPE ?= zstd
+SQUASHFS_COMPRESSION_LEVEL ?= 15
+ISO_COMPRESSION_TYPE ?= xz
+
+MAX_ISO_SIZE_GROWTH_PCT ?= 10
+MAX_BUILD_TIME_REGRESSION_PCT ?= 15
+MAX_BOOT_TIME_REGRESSION_PCT ?= 15
+MAX_INSTALL_TIME_REGRESSION_PCT ?= 15
+
 # Nome da imagem Docker
 DOCKER_IMAGE_NAME = zbm-iso-builder
 
@@ -27,6 +36,7 @@ VM_SOCKET_UEFI = /tmp/$(VM_NAME_UEFI).sock
 VM_SOCKET_BIOS = /tmp/$(VM_NAME_BIOS).sock
 VM_DISK_PATH_UEFI = scripts/vm/disks/uefi/installed-system.qcow2
 VM_DISK_PATH_BIOS = scripts/vm/disks/bios/installed-system.qcow2
+VM_LIVE_BOOT_WAIT ?= 30
 
 # -----------------------------------------------------------------------------
 # Targets Phony (sempre executados)
@@ -37,6 +47,7 @@ VM_DISK_PATH_BIOS = scripts/vm/disks/bios/installed-system.qcow2
 .PHONY: vm-boot-disk-uefi vm-boot-disk-bios
 .PHONY: docs docs-installer docs-dev docs-tests docs-all docs-markdown docs-stats verify-docs
 .PHONY: comment-index comment-graph verify-comment-contract
+.PHONY: iso-metrics-baseline iso-metrics-current verify-squashfs-profile verify-iso-performance verify-firmware-compat verify-iso-gates
 .PHONY: validate-ad ad-precheck validate-configs lint
 .PHONY: plan-list plan-archive
 
@@ -70,8 +81,9 @@ help:
 	@echo "  make vm-boot-disk-bios - Inicia VM a partir de disco (BIOS)"
 	@echo ""
 	@echo "🔌 VM CONEXÃO:"
-	@echo "  make vm-connect-uefi  - Conecta ao console serial UEFI"
-	@echo "  make vm-connect-bios  - Conecta ao console serial BIOS"
+	@echo "  make vm-connect-uefi CMD=\"<cmd>\" - Executa análise remota na VM UEFI"
+	@echo "  make vm-connect-bios CMD=\"<cmd>\" - Executa análise remota na VM BIOS"
+	@echo "  make vm-show-ip     - Exibe IPs em cache das VMs (UEFI/BIOS)"
 	@echo ""
 	@echo "🧹 LIMPEZA:"
 	@echo "  make clean            - Remove artefatos de build e VMs"
@@ -87,6 +99,12 @@ help:
 	@echo "  make comment-index    - Gera índice semântico (TXT + JSONL) para RAG"
 	@echo "  make comment-graph    - Gera grafo Mermaid do fluxo por comentários"
 	@echo "  make verify-comment-contract - Valida contrato PDS-Bash"
+	@echo "  make iso-metrics-baseline - Coleta baseline versionado de métricas ISO"
+	@echo "  make iso-metrics-current - Coleta métricas correntes da ISO"
+	@echo "  make verify-squashfs-profile - Valida compressor do filesystem.squashfs"
+	@echo "  make verify-iso-performance - Aplica gate de regressão das métricas"
+	@echo "  make verify-firmware-compat - Executa validação UEFI+BIOS"
+	@echo "  make verify-iso-gates - Executa perfil, regressão e firmware"
 	@echo ""
 	@echo "🔐 NAS / SAMBA / AD:"
 	@echo "  make validate-ad      - Executa validação AD/SMB (Linux-side)"
@@ -119,6 +137,9 @@ setup-docker:
 build-iso: download-zbm setup-docker
 	@echo "🔨 Iniciando build da ISO..."
 	@docker run --rm --privileged \
+		-e SQUASHFS_COMPRESSION_TYPE="$(SQUASHFS_COMPRESSION_TYPE)" \
+		-e SQUASHFS_COMPRESSION_LEVEL="$(SQUASHFS_COMPRESSION_LEVEL)" \
+		-e ISO_COMPRESSION_TYPE="$(ISO_COMPRESSION_TYPE)" \
 		-v "$(CURDIR):/build" \
 		$(DOCKER_IMAGE_NAME)
 
@@ -166,6 +187,38 @@ test-vm-all:
 	@bash $(VM_DIR)/vm-start-test-all.sh
 
 # -----------------------------------------------------------------------------
+iso-metrics-baseline: ## Coleta baseline versionado de métricas da ISO
+	@echo "📊 Coletando baseline de métricas da ISO..."
+	@bash scripts/collect-iso-metrics.sh --mode baseline --firmware all --label baseline
+	@bash scripts/collect-iso-metrics.sh --mode baseline --firmware uefi --label baseline-uefi
+	@bash scripts/collect-iso-metrics.sh --mode baseline --firmware bios --label baseline-bios
+
+iso-metrics-current: ## Coleta métricas correntes da ISO
+	@echo "📊 Coletando métricas correntes da ISO..."
+	@bash scripts/collect-iso-metrics.sh --mode current --firmware all --label current
+	@bash scripts/collect-iso-metrics.sh --mode current --firmware uefi --label current-uefi
+	@bash scripts/collect-iso-metrics.sh --mode current --firmware bios --label current-bios
+
+verify-squashfs-profile: ## Valida perfil de compressão do filesystem.squashfs
+	@echo "🧩 Validando perfil de compressão SquashFS..."
+	@EXPECTED_SQUASHFS_COMPRESSION_TYPE="$(SQUASHFS_COMPRESSION_TYPE)" \
+	bash scripts/verify-squashfs-profile.sh
+
+verify-iso-performance: ## Aplica gate de regressão nas métricas de ISO
+	@echo "🚦 Validando gate de performance da ISO..."
+	@MAX_ISO_SIZE_GROWTH_PCT="$(MAX_ISO_SIZE_GROWTH_PCT)" \
+	MAX_BUILD_TIME_REGRESSION_PCT="$(MAX_BUILD_TIME_REGRESSION_PCT)" \
+	MAX_BOOT_TIME_REGRESSION_PCT="$(MAX_BOOT_TIME_REGRESSION_PCT)" \
+	MAX_INSTALL_TIME_REGRESSION_PCT="$(MAX_INSTALL_TIME_REGRESSION_PCT)" \
+	bash scripts/verify-iso-performance-gate.sh
+
+verify-firmware-compat: ## Executa validação obrigatória em UEFI+BIOS
+	@echo "🧪 Validando compatibilidade de firmware (UEFI+BIOS)..."
+	@$(MAKE) test-vm-all
+
+verify-iso-gates: verify-squashfs-profile verify-iso-performance verify-firmware-compat ## Executa gates completos de promoção da ISO
+	@echo "✅ Gates de ISO concluídos"
+
 # VM Boot Disk Targets
 # -----------------------------------------------------------------------------
 
@@ -184,14 +237,25 @@ vm-boot-disk-bios:
 # -----------------------------------------------------------------------------
 
 vm-connect-uefi:
-	@echo "🔌 Conectando ao console serial (UEFI)..."
+	@echo "🔌 Executando análise remota na VM UEFI..."
 	@chmod +x $(VM_DIR)/vm-connect-agent-llm.sh
-	@VM_CMD="$(VM_CMD)" VM_IP="$(VM_IP)" bash $(VM_DIR)/vm-connect-agent-llm.sh uefi
+	@VM_CMD="$(CMD)" VM_IP="$(VM_IP)" VM_LIVE_BOOT_WAIT="$(VM_LIVE_BOOT_WAIT)" bash $(VM_DIR)/vm-connect-agent-llm.sh uefi
 
 vm-connect-bios:
-	@echo "🔌 Conectando ao console serial (BIOS)..."
+	@echo "🔌 Executando análise remota na VM BIOS..."
 	@chmod +x $(VM_DIR)/vm-connect-agent-llm.sh
-	@VM_CMD="$(VM_CMD)" VM_IP="$(VM_IP)" bash $(VM_DIR)/vm-connect-agent-llm.sh bios
+	@VM_CMD="$(CMD)" VM_IP="$(VM_IP)" VM_LIVE_BOOT_WAIT="$(VM_LIVE_BOOT_WAIT)" bash $(VM_DIR)/vm-connect-agent-llm.sh bios
+
+vm-show-ip:
+	@echo "📡 IPs em cache das VMs:"
+	@STATE_FILE="$(VM_DIR)/.cache/vm-ips.env"; \
+	if [ -f "$$STATE_FILE" ]; then \
+	  grep -E '^VM_IP_(UEFI|BIOS)=' "$$STATE_FILE" || echo "Nenhum IP de VM encontrado no cache."; \
+	  echo "Arquivo de estado: $$STATE_FILE"; \
+	else \
+	  echo "Cache ainda não existe. Execute vm-connect-uefi/bios com CMD para popular."; \
+	  echo "Arquivo esperado: $$STATE_FILE"; \
+	fi
 
 # -----------------------------------------------------------------------------
 # Cleanup Targets

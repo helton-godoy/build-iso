@@ -17,13 +17,15 @@ set -euo pipefail
 MODE="${1:-uefi}"
 VM_NAME="nas-test-${MODE}"
 SOCKET_PATH="/tmp/${VM_NAME}.sock"
-TIMEOUT=5
-DHCP_TIMEOUT=30
-SSH_USER="root"
+TIMEOUT="${VM_SERIAL_TIMEOUT:-3}"
+DHCP_TIMEOUT="${VM_DHCP_TIMEOUT:-12}"
+IP_DETECT_ATTEMPTS="${VM_IP_DETECT_ATTEMPTS:-6}"
+IP_DETECT_INTERVAL="${VM_IP_DETECT_INTERVAL:-1}"
+SSH_USER="${SSH_USER:-root}"
 
 is_vm_running() {
-	local vm_name="$1"
-	virsh list --state-running --name 2>/dev/null | grep -Fxq "$vm_name"
+  local vm_name="$1"
+  virsh list --state-running --name 2>/dev/null | grep -Fxq "$vm_name"
 }
 
 # -----------------------------------------------------------------------------
@@ -34,90 +36,85 @@ is_vm_running() {
 # Argumentos: $1 - nome da VM
 # Retorna: string com nome da rede ou erro
 detect_vm_network() {
-	local vm_name="$1"
-	local network=""
+  local vm_name="$1"
+  local network=""
 
-	# Obtém lista de interfaces da VM
-	local interfaces
-	interfaces=$(virsh domiflist "$vm_name" 2>/dev/null) || {
-		echo "❌ Erro: Não foi possível listar interfaces da VM '$vm_name'" >&2
-		return 1
-	}
+  # Obtém lista de interfaces da VM
+  local interfaces
+  interfaces=$(virsh domiflist "$vm_name" 2>/dev/null) || {
+    echo "❌ Erro: Não foi possível listar interfaces da VM '$vm_name'" >&2
+    return 1
+  }
 
-	# Parse robusto independente de locale.
-	# Linha válida esperada: <iface> network <nome-da-rede> <modelo> <mac>
-	network="$(printf '%s\n' "$interfaces" | awk '$2=="network" && $3!="--" {print $3; exit}')"
+  # Parse robusto independente de locale.
+  # Linha válida esperada: <iface> network <nome-da-rede> <modelo> <mac>
+  network="$(printf '%s\n' "$interfaces" | awk '$2=="network" && $3!="--" {print $3; exit}')"
 
-	if [[ -z "$network" ]]; then
-		echo "❌ Erro: Nenhuma rede encontrada para VM '$vm_name'" >&2
-		return 1
-	fi
+  if [[ -z "$network" ]]; then
+    echo "❌ Erro: Nenhuma rede encontrada para VM '$vm_name'" >&2
+    return 1
+  fi
 
-	echo "$network"
+  echo "$network"
 }
 
 # Obtém o IP da VM a partir do lease DHCP
 # Argumentos: $1 - nome da VM, $2 - nome da rede
 # Retorna: IP sem máscara ou erro
 get_vm_ip() {
-	local vm_name="$1"
-	local network="$2"
-	local ip=""
+  local vm_name="$1"
+  local network="$2"
+  local ip=""
+  local attempts=1
 
-	# Aguarda lease DHCP com timeout
-	local elapsed=0
-	while [[ $elapsed -lt $DHCP_TIMEOUT ]]; do
-		# Obtém leases DHCP da rede
-		local leases
-		leases=$(virsh net-dhcp-leases "$network" 2>/dev/null) || {
-			echo "⚠️  Erro ao obter leases DHCP da rede '$network'" >&2
-			sleep 2
-			elapsed=$((elapsed + 2))
-			continue
-		}
+  while [[ $attempts -le $IP_DETECT_ATTEMPTS ]]; do
+    ip="$(virsh domifaddr "$vm_name" 2>/dev/null | awk '$3=="ipv4" {sub(/\/.*/, "", $4); print $4; exit}')"
+    if [[ -n "$ip" ]]; then
+      echo "$ip"
+      return 0
+    fi
 
-		# Encontra IP correspondente ao MAC da VM
-		local vm_mac
-		vm_mac=$(virsh domiflist "$vm_name" 2>/dev/null | grep -E "vnet|[0-9a-f]" | head -1 | awk '{print $4}')
-		vm_mac=$(echo "$vm_mac" | tr '[:upper:]' '[:lower:]')
+    attempts=$((attempts + 1))
+    sleep "$IP_DETECT_INTERVAL"
+  done
 
-		if [[ -z "$vm_mac" ]]; then
-			echo "⚠️  Erro: Não foi possível obter MAC da VM '$vm_name'" >&2
-			sleep 2
-			elapsed=$((elapsed + 2))
-			continue
-		fi
+  # Aguarda lease DHCP com timeout
+  local elapsed=0
+  while [[ $elapsed -lt $DHCP_TIMEOUT ]]; do
+    # Obtém leases DHCP da rede
+    local leases
+    leases=$(virsh net-dhcp-leases "$network" 2>/dev/null) || {
+      echo "⚠️  Erro ao obter leases DHCP da rede '$network'" >&2
+      sleep 2
+      elapsed=$((elapsed + 2))
+      continue
+    }
 
-		# Parseia leases para encontrar IP
-		while IFS= read -r line; do
-			# Ignora linhas de cabeçalho e vazias
-			[[ "$line" =~ ^(Expiry|MAC|---|$) ]] && continue
+    # Encontra IP correspondente ao MAC da VM
+    local vm_mac
+    vm_mac=$(virsh domiflist "$vm_name" 2>/dev/null | awk '$2=="network" && $5!="" {print tolower($5); exit}')
 
-			# Extrai MAC e IP da linha
-			local lease_mac lease_ip
-			lease_mac=$(echo "$line" | awk '{print $2}' | tr '[:upper:]' '[:lower:]')
-			lease_ip=$(echo "$line" | awk '{print $4}')
+    if [[ -z "$vm_mac" ]]; then
+      echo "⚠️  Erro: Não foi possível obter MAC da VM '$vm_name'" >&2
+      sleep 2
+      elapsed=$((elapsed + 2))
+      continue
+    fi
 
-			# Remove máscara do IP (ex: 192.168.100.241/24 -> 192.168.100.241)
-			lease_ip="${lease_ip%%/*}"
+    ip="$(printf '%s\n' "$leases" | awk -v mac="$vm_mac" 'tolower($2)==mac {sub(/\/.*/, "", $5); print $5; exit}')"
+    if [[ -n "$ip" ]]; then
+      echo "$ip"
+      return 0
+    fi
 
-			if [[ "$lease_mac" == "$vm_mac" && -n "$lease_ip" ]]; then
-				ip="$lease_ip"
-				break 2
-			fi
-		done <<<"$leases"
+    sleep "$IP_DETECT_INTERVAL"
+    elapsed=$((elapsed + IP_DETECT_INTERVAL))
+  done
 
-		echo "⏳ Aguardando lease DHCP... ($elapsed/$DHCP_TIMEOUT s)"
-		sleep 2
-		elapsed=$((elapsed + 2))
-	done
-
-	if [[ -z "$ip" ]]; then
-		echo "❌ Erro: IP não encontrado para VM '$vm_name' (timeout: ${DHCP_TIMEOUT}s)" >&2
-		return 1
-	fi
-
-	echo "$ip"
+  if [[ -z "$ip" ]]; then
+    echo "❌ Erro: IP não encontrado para VM '$vm_name' (timeout: ${DHCP_TIMEOUT}s)" >&2
+    return 1
+  fi
 }
 
 # -----------------------------------------------------------------------------
@@ -128,59 +125,59 @@ get_vm_ip() {
 # Argumentos: $1 - IP, $2 - usuário
 # Retorna: 0 se disponível, 1 caso contrário
 check_ssh_available() {
-	local ip="$1"
-	local user="${2:-$SSH_USER}"
+  local ip="$1"
+  local user="${2:-$SSH_USER}"
 
-	# Tenta conexão SSH rápida para verificar disponibilidade
-	timeout 5 ssh -o "BatchMode=yes" \
-		-o "StrictHostKeyChecking=no" \
-		-o "ConnectTimeout=3" \
-		"${user}@${ip}" "exit" 2>/dev/null
+  # Tenta conexão SSH rápida para verificar disponibilidade
+  timeout 5 ssh -o "BatchMode=yes" \
+    -o "StrictHostKeyChecking=no" \
+    -o "ConnectTimeout=3" \
+    "${user}@${ip}" "exit" 2>/dev/null
 }
 
 # Copia chave SSH para a VM
 # Argumentos: $1 - IP, $2 - usuário
 # Retorna: 0 se sucesso, 1 caso contrário
 copy_ssh_key() {
-	local ip="$1"
-	local user="${2:-$SSH_USER}"
+  local ip="$1"
+  local user="${2:-$SSH_USER}"
 
-	echo "🔐 Copiando chave SSH para ${user}@${ip}..."
+  echo "🔐 Copiando chave SSH para ${user}@${ip}..."
 
-	# Verifica se já existe chave pública
-	if [[ ! -f ~/.ssh/id_rsa.pub ]]; then
-		if [[ ! -f ~/.ssh/id_rsa ]]; then
-			echo "📝 Gerando nova chave SSH..."
-			ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa -q
-		else
-			echo "📝 Usando chave existente..."
-			ssh-keygen -y -f ~/.ssh/id_rsa >~/.ssh/id_rsa.pub 2>/dev/null || true
-		fi
-	fi
+  # Verifica se já existe chave pública
+  if [[ ! -f ~/.ssh/id_rsa.pub ]]; then
+    if [[ ! -f ~/.ssh/id_rsa ]]; then
+      echo "📝 Gerando nova chave SSH..."
+      ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa -q
+    else
+      echo "📝 Usando chave existente..."
+      ssh-keygen -y -f ~/.ssh/id_rsa >~/.ssh/id_rsa.pub 2>/dev/null || true
+    fi
+  fi
 
-	# Copia a chave
-	ssh-copy-id -o "StrictHostKeyChecking=no" \
-		-o "BatchMode=yes" \
-		"${user}@${ip}" 2>&1 || {
-		echo "❌ Erro ao copiar chave SSH" >&2
-		return 1
-	}
+  # Copia a chave
+  ssh-copy-id -o "StrictHostKeyChecking=no" \
+    -o "BatchMode=yes" \
+    "${user}@${ip}" 2>&1 || {
+    echo "❌ Erro ao copiar chave SSH" >&2
+    return 1
+  }
 
-	echo "✅ Chave SSH copiada com sucesso!"
-	return 0
+  echo "✅ Chave SSH copiada com sucesso!"
+  return 0
 }
 
 # Conecta via SSH à VM
 # Argumentos: $1 - IP, $2 - usuário
 # Retorna: executa conexão SSH interativa
 ssh_connect() {
-	local ip="$1"
-	local user="${2:-$SSH_USER}"
+  local ip="$1"
+  local user="${2:-$SSH_USER}"
 
-	echo "🔌 Conectando via SSH: ${user}@${ip}"
-	ssh -o "StrictHostKeyChecking=no" \
-		-o "ServerAliveInterval=60" \
-		"${user}@${ip}"
+  echo "🔌 Conectando via SSH: ${user}@${ip}"
+  ssh -o "StrictHostKeyChecking=no" \
+    -o "ServerAliveInterval=60" \
+    "${user}@${ip}"
 }
 
 # -----------------------------------------------------------------------------
@@ -189,21 +186,21 @@ ssh_connect() {
 
 # Verifica se socket serial existe
 check_socket() {
-	[[ -S "$SOCKET_PATH" ]]
+  [[ -S "$SOCKET_PATH" ]]
 }
 
 # Conecta via socket serial (fallback)
 connect_serial() {
-	local command="${1:-}"
+  local command="${1:-}"
 
-	if [[ -n "$command" ]]; then
-		echo "📡 Enviando comando via serial: $command"
-		# Ctrl+U limpa a linha corrente no shell remoto e evita comandos corrompidos.
-		printf '\025%s\n' "$command" | nc -U -w "$TIMEOUT" "$SOCKET_PATH"
-	else
-		echo "📡 Conectando ao console serial (Ctrl+C para sair)..."
-		nc -U "$SOCKET_PATH"
-	fi
+  if [[ -n "$command" ]]; then
+    echo "📡 Enviando comando via serial: $command"
+    # Ctrl+U limpa a linha corrente no shell remoto e evita comandos corrompidos.
+    printf '\025%s\n' "$command" | nc -U -w "$TIMEOUT" "$SOCKET_PATH"
+  else
+    echo "📡 Conectando ao console serial (Ctrl+C para sair)..."
+    nc -U "$SOCKET_PATH"
+  fi
 }
 
 # -----------------------------------------------------------------------------
@@ -212,144 +209,144 @@ connect_serial() {
 
 # Fluxo principal que tenta SSH primeiro, fallback para serial
 main_with_ssh() {
-	local use_ssh="${USE_SSH:-false}"
+  local use_ssh="${USE_SSH:-false}"
 
-	# Se modo SSH explícito ou argumentos fornecidos
-	if [[ "$use_ssh" == "true" || -n "${1:-}" ]]; then
-		execute_ssh_flow "$@"
-	else
-		# Modo padrão: tenta socket primeiro
-		execute_default_flow "$@"
-	fi
+  # Se modo SSH explícito ou argumentos fornecidos
+  if [[ "$use_ssh" == "true" || -n "${1:-}" ]]; then
+    execute_ssh_flow "$@"
+  else
+    # Modo padrão: tenta socket primeiro
+    execute_default_flow "$@"
+  fi
 }
 
 # Executa fluxo SSH
 execute_ssh_flow() {
-	local command="${1:-}"
-	local ip="${VM_IP:-}"
+  local command="${1:-}"
+  local ip="${VM_IP:-}"
 
-	if [[ -n "$ip" ]]; then
-		echo "🌐 Usando VM_IP informado: $ip"
-	else
-		# 1. Verifica se VM está rodando
-		echo "🔍 Verificando VM '$VM_NAME'..."
-		if ! is_vm_running "$VM_NAME"; then
-			echo "❌ VM '$VM_NAME' não está rodando"
-			echo "   Inicie a VM primeiro com: ./vm-start-test-${MODE}.sh"
-			exit 1
-		fi
+  if [[ -n "$ip" ]]; then
+    echo "🌐 Usando VM_IP informado: $ip"
+  else
+    # 1. Verifica se VM está rodando
+    echo "🔍 Verificando VM '$VM_NAME'..."
+    if ! is_vm_running "$VM_NAME"; then
+      echo "❌ VM '$VM_NAME' não está rodando"
+      echo "   Inicie a VM primeiro com: ./vm-start-test-${MODE}.sh"
+      exit 1
+    fi
 
-		# 2. Detecta rede
-		echo "🌐 Detectando rede da VM..."
-		local network
-		network=$(detect_vm_network "$VM_NAME") || exit 1
-		echo "   Rede: $network"
+    # 2. Detecta rede
+    echo "🌐 Detectando rede da VM..."
+    local network
+    network=$(detect_vm_network "$VM_NAME") || exit 1
+    echo "   Rede: $network"
 
-		# 3. Obtém IP
-		echo "📡 Obtendo IP da VM..."
-		ip=$(get_vm_ip "$VM_NAME" "$network") || {
-			echo "⚠️  IP não obtido, usando fallback serial..."
-			connect_serial "$command"
-			return
-		}
-		echo "   IP: $ip"
-	fi
+    # 3. Obtém IP
+    echo "📡 Obtendo IP da VM..."
+    ip=$(get_vm_ip "$VM_NAME" "$network") || {
+      echo "⚠️  IP não obtido, usando fallback serial..."
+      connect_serial "$command"
+      return
+    }
+    echo "   IP: $ip"
+  fi
 
-	# 4. Verifica disponibilidade SSH
-	if ! check_ssh_available "$ip"; then
-		echo "⚠️  SSH não disponível em ${ip}"
-		echo "   O serviço SSH pode não estar rodando na VM"
+  # 4. Verifica disponibilidade SSH
+  if ! check_ssh_available "$ip"; then
+    echo "⚠️  SSH não disponível em ${ip}"
+    echo "   O serviço SSH pode não estar rodando na VM"
 
-		# Oferece copiar chave ou usar serial
-		if [[ -t 0 ]]; then
-			echo -n "   Deseja tentar copiar chave SSH? [s/N]: "
-			read -r resposta
-			if [[ "$resposta" =~ ^[Ss]$ ]]; then
-				copy_ssh_key "$ip" || {
-					echo "❌ Falha ao copiar chave SSH"
-					connect_serial "$command"
-					return
-				}
+    # Oferece copiar chave ou usar serial
+    if [[ -t 0 ]]; then
+      echo -n "   Deseja tentar copiar chave SSH? [s/N]: "
+      read -r resposta
+      if [[ "$resposta" =~ ^[Ss]$ ]]; then
+        copy_ssh_key "$ip" || {
+          echo "❌ Falha ao copiar chave SSH"
+          connect_serial "$command"
+          return
+        }
 
-				# Tenta conectar novamente
-				if ! check_ssh_available "$ip"; then
-					echo "❌ SSH ainda não disponível após cópia de chave"
-					connect_serial "$command"
-					return
-				fi
-			else
-				connect_serial "$command"
-				return
-			fi
-		else
-			connect_serial "$command"
-			return
-		fi
-	fi
+        # Tenta conectar novamente
+        if ! check_ssh_available "$ip"; then
+          echo "❌ SSH ainda não disponível após cópia de chave"
+          connect_serial "$command"
+          return
+        fi
+      else
+        connect_serial "$command"
+        return
+      fi
+    else
+      connect_serial "$command"
+      return
+    fi
+  fi
 
-	# 5. Copia chave se necessário
-	if [[ -n "${FORCE_SSH_KEY:-}" ]] || ! ssh -o "BatchMode=yes" "${SSH_USER}@${ip}" "exit" 2>/dev/null; then
-		copy_ssh_key "$ip" || echo "⚠️  Falha ao copiar chave (pode já estar instalada)"
-	fi
+  # 5. Copia chave se necessário
+  if [[ -n "${FORCE_SSH_KEY:-}" ]] || ! ssh -o "BatchMode=yes" "${SSH_USER}@${ip}" "exit" 2>/dev/null; then
+    copy_ssh_key "$ip" || echo "⚠️  Falha ao copiar chave (pode já estar instalada)"
+  fi
 
-	# 6. Conecta ou executa comando
-	if [[ -n "$command" ]]; then
-		echo "🤖 Executando comando em ${SSH_USER}@${ip}: $command"
-		ssh -o "StrictHostKeyChecking=no" "${SSH_USER}@${ip}" "$command"
-	else
-		ssh_connect "$ip"
-	fi
+  # 6. Conecta ou executa comando
+  if [[ -n "$command" ]]; then
+    echo "🤖 Executando comando em ${SSH_USER}@${ip}: $command"
+    ssh -o "StrictHostKeyChecking=no" "${SSH_USER}@${ip}" "$command"
+  else
+    ssh_connect "$ip"
+  fi
 }
 
 # Fluxo padrão (socket primeiro)
 execute_default_flow() {
-	local command="${1:-}"
+  local command="${1:-}"
 
-	if [[ -n "${VM_IP:-}" ]]; then
-		execute_ssh_flow "$command"
-		return
-	fi
+  if [[ -n "${VM_IP:-}" ]]; then
+    execute_ssh_flow "$command"
+    return
+  fi
 
-	# Tenta socket primeiro
-	if check_socket; then
-		connect_serial "$command"
-		return
-	fi
+  # Tenta socket primeiro
+  if check_socket; then
+    connect_serial "$command"
+    return
+  fi
 
-	# Socket não existe, tenta SSH como fallback
-	echo "⚠️  Socket não encontrado em $SOCKET_PATH"
-	echo "   Tentando conexão SSH..."
+  # Socket não existe, tenta SSH como fallback
+  echo "⚠️  Socket não encontrado em $SOCKET_PATH"
+  echo "   Tentando conexão SSH..."
 
-	# Verifica se VM está rodando
-	if ! is_vm_running "$VM_NAME"; then
-		echo "❌ VM '$VM_NAME' não está rodando"
-		echo "   Inicie a VM primeiro com: ./vm-start-test-${MODE}.sh"
-		exit 1
-	fi
+  # Verifica se VM está rodando
+  if ! is_vm_running "$VM_NAME"; then
+    echo "❌ VM '$VM_NAME' não está rodando"
+    echo "   Inicie a VM primeiro com: ./vm-start-test-${MODE}.sh"
+    exit 1
+  fi
 
-	# Tenta obter IP e conectar via SSH
-	local network
-	network=$(detect_vm_network "$VM_NAME") || {
-		echo "❌ Não foi possível detectar rede"
-		exit 1
-	}
+  # Tenta obter IP e conectar via SSH
+  local network
+  network=$(detect_vm_network "$VM_NAME") || {
+    echo "❌ Não foi possível detectar rede"
+    exit 1
+  }
 
-	local ip
-	ip=$(get_vm_ip "$VM_NAME" "$network") || {
-		echo "❌ Não foi possível obter IP da VM"
-		exit 1
-	}
+  local ip
+  ip=$(get_vm_ip "$VM_NAME" "$network") || {
+    echo "❌ Não foi possível obter IP da VM"
+    exit 1
+  }
 
-	# Verifica/copia chave e conecta
-	if ! check_ssh_available "$ip"; then
-		copy_ssh_key "$ip" || echo "⚠️  Não foi possível copiar chave SSH"
-	fi
+  # Verifica/copia chave e conecta
+  if ! check_ssh_available "$ip"; then
+    copy_ssh_key "$ip" || echo "⚠️  Não foi possível copiar chave SSH"
+  fi
 
-	if [[ -n "$command" ]]; then
-		ssh -o "StrictHostKeyChecking=no" "${SSH_USER}@${ip}" "$command"
-	else
-		ssh_connect "$ip"
-	fi
+  if [[ -n "$command" ]]; then
+    ssh -o "StrictHostKeyChecking=no" "${SSH_USER}@${ip}" "$command"
+  else
+    ssh_connect "$ip"
+  fi
 }
 
 # -----------------------------------------------------------------------------
@@ -357,7 +354,7 @@ execute_default_flow() {
 # -----------------------------------------------------------------------------
 
 show_help() {
-	cat <<EOF
+  cat <<EOF
 Uso: $0 [mode] [command]
 
 Conecta a VMs de teste via SSH ou console serial.
@@ -399,15 +396,15 @@ EOF
 # Parseia argumentos
 case "${1:-}" in
 --help | -h)
-	show_help
-	exit 0
-	;;
+  show_help
+  exit 0
+  ;;
 uefi | bios)
-	MODE="$1"
-	VM_NAME="nas-test-${MODE}"
-	SOCKET_PATH="/tmp/${VM_NAME}.sock"
-	shift
-	;;
+  MODE="$1"
+  VM_NAME="nas-test-${MODE}"
+  SOCKET_PATH="/tmp/${VM_NAME}.sock"
+  shift
+  ;;
 esac
 
 # Executa fluxo principal

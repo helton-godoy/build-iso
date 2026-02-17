@@ -21,8 +21,8 @@ Use quando o foco for **build, boot de VM, conexao e validacao tecnica**.
 - `make test-vm-uefi`
 - `make test-vm-bios`
 - `make test-vm-all`
-- `make vm-connect-uefi`
-- `make vm-connect-bios`
+- `make vm-connect-uefi CMD="<comando>"`
+- `make vm-connect-bios CMD="<comando>"`
 - `make validate-ad`
 - `make ad-precheck`
 - `make validate-configs`
@@ -190,7 +190,7 @@ flowchart TD
 
 ## Fluxo de Conectividade para Agentes LLM (Nao Interativo)
 
-O alvo `make vm-connect-bios` e `make vm-connect-uefi` usa `vm-connect-agent-llm.sh` como gateway.
+Os alvos `make vm-connect-bios` e `make vm-connect-uefi` usam `vm-connect-agent-llm.sh` como gateway.
 
 Esse gateway automatiza:
 
@@ -203,11 +203,13 @@ Esse gateway automatiza:
    - define senha root como `x` (ambiente live/lab);
    - reinicia `ssh`.
 4. Tentativa de `ssh-copy-id` com `sshpass` (se instalado).
-5. Execucao por SSH; se indisponivel, fallback serial automatizado.
+5. Persistencia de IP em cache local por firmware (`VM_IP_UEFI`, `VM_IP_BIOS`).
+6. Hostname live dinamico por contexto: `debian-trixie-zbm-<tipo>-<uefi|bios>`.
+7. Execucao por SSH com `CMD` obrigatorio; sem `CMD`, exibe ajuda + IP detectado.
 
 ```mermaid
 flowchart TD
-    A[make vm-connect-<mode>] --> B[vm-connect-agent-llm.sh]
+    A[make vm-connect-<mode> CMD="..."] --> B[vm-connect-agent-llm.sh]
     B --> C{Chave local existe?}
     C -->|Nao| D[Gerar id_ed25519]
     C -->|Sim| E[Continuar]
@@ -222,10 +224,13 @@ flowchart TD
     I -->|Sim| J[Executar comando via SSH]
     I -->|Nao| K[Bootstrap SSH via socket serial]
     K --> L[Tentar ssh-copy-id com sshpass]
-    L --> M{SSH pronto?}
-    M -->|Sim| J
-    M -->|Nao| N[Fallback: enviar comando via serial]
+    L --> M[Definir hostname live dinamico por contexto]
+    M --> N{SSH pronto?}
+    N -->|Sim| J
+    N -->|Nao| O[Fallback: enviar comando via serial]
 ```
+
+> Nota: para refletir mudança de hostname, gere uma nova ISO e reinicie a VM de teste.
 
 ---
 
@@ -255,28 +260,28 @@ make test-vm-all
 Com IP explicito (mais estavel para automacao):
 
 ```bash
-make vm-connect-bios VM_IP=192.168.100.207 VM_CMD="uname -a && lsblk -f"
+make vm-connect-bios VM_IP=192.168.100.207 CMD="uname -a && lsblk -f"
 ```
 
 Sem IP explicito (autodescoberta via `virsh`):
 
 ```bash
-make vm-connect-bios VM_CMD="journalctl -p 3 -n 80"
+make vm-connect-bios CMD="journalctl -p 3 -n 80"
 ```
 
 ### Exemplo de checks padrao de bugfix
 
 ```bash
-make vm-connect-bios VM_IP=192.168.100.207 VM_CMD="bash -n /usr/local/bin/installer"
-make vm-connect-bios VM_IP=192.168.100.207 VM_CMD="/usr/local/bin/installer --print-map"
-make vm-connect-bios VM_IP=192.168.100.207 VM_CMD="ip -4 -o addr show"
+make vm-connect-bios VM_IP=192.168.100.207 CMD="bash -n /usr/local/bin/installer"
+make vm-connect-bios VM_IP=192.168.100.207 CMD="/usr/local/bin/installer --print-map"
+make vm-connect-bios VM_IP=192.168.100.207 CMD="ip -4 -o addr show"
 ```
 
 ---
 
 ## Como Manter o Workflow Eficiente
 
-1. Sempre prefira comandos nao interativos (`VM_CMD=...`, `BatchMode=yes`, scripts idempotentes).
+1. Sempre prefira comandos nao interativos (`CMD=...`, `BatchMode=yes`, scripts idempotentes).
 2. Use `VM_IP` explicito em CI/local quando possivel para reduzir ambiguidades de rede.
 3. Separe ciclo em tres fases curtas:
    - especificacao (AI/spec-driven),
@@ -318,7 +323,7 @@ make test-vm-bios
 3. Reforce bootstrap de conectividade para agente:
 
 ```bash
-make vm-connect-bios VM_CMD="echo ready && hostname"
+make vm-connect-bios CMD="echo ready && hostname"
 ```
 
 ---
@@ -329,7 +334,7 @@ make vm-connect-bios VM_CMD="echo ready && hostname"
 - Para ambientes mais sensiveis, apos validacao, reverta para acesso por chave:
 
 ```bash
-make vm-connect-bios VM_CMD="sed -i 's/^PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && systemctl restart ssh"
+make vm-connect-bios CMD="sed -i 's/^PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && systemctl restart ssh"
 ```
 
 ---

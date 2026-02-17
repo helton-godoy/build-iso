@@ -1,0 +1,76 @@
+#!/bin/sh
+
+set -eu
+
+# @ID: LIVE-HOSTNAME-DETECT-CONTEXT
+# @STEP: Detectar contexto para gerar hostname dinâmico no ambiente live
+# @DATA: Firmware (uefi|bios), tipo de máquina (virt ou physical)
+detect_context() {
+  fw_type="bios"
+  machine_type="physical"
+
+  if [ -d "/sys/firmware/efi" ]; then
+    fw_type="uefi"
+  fi
+
+  if command -v systemd-detect-virt >/dev/null 2>&1; then
+    virt_type="$(systemd-detect-virt 2>/dev/null || true)"
+    if [ -n "$virt_type" ] && [ "$virt_type" != "none" ]; then
+      machine_type="$virt_type"
+    fi
+  fi
+}
+
+sanitize_label() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-'
+}
+
+truncate_label() {
+  # Limite de hostname Linux: 63 caracteres
+  printf '%s' "$1" | cut -c1-63
+}
+
+set_live_hostname() {
+  current_hostname="$(hostname 2>/dev/null || echo debian-trixie-zbm)"
+  base_hostname="$(sanitize_label "$current_hostname")"
+  clean_machine="$(sanitize_label "$machine_type")"
+  clean_fw="$(sanitize_label "$fw_type")"
+
+  # @ID: LIVE-HOSTNAME-BUILD
+  # @STEP: Construir hostname final de forma determinística por contexto
+  # @REQ: LIVE-HOSTNAME-DETECT-CONTEXT
+  target_hostname="$(truncate_label "${base_hostname}-${clean_machine}-${clean_fw}")"
+
+  if [ -z "$target_hostname" ]; then
+    target_hostname="debian-trixie-zbm-${clean_fw}"
+  fi
+
+  if [ "$current_hostname" = "$target_hostname" ]; then
+    return 0
+  fi
+
+  printf '%s\n' "$target_hostname" >/etc/hostname
+  hostname "$target_hostname"
+
+  if [ -f /etc/hosts ]; then
+    if grep -q '^127\.0\.1\.1[[:space:]]' /etc/hosts; then
+      sed -i "s/^127\.0\.1\.1[[:space:]].*/127.0.1.1\t${target_hostname}/" /etc/hosts
+    else
+      printf '127.0.1.1\t%s\n' "$target_hostname" >>/etc/hosts
+    fi
+  fi
+}
+
+main() {
+  # @ID: LIVE-HOSTNAME-MAIN
+  # @STEP: Aplicar hostname dinâmico apenas no boot live
+  # @REQ: LIVE-HOSTNAME-BUILD
+  if ! grep -q 'boot=live' /proc/cmdline 2>/dev/null; then
+    exit 0
+  fi
+
+  detect_context
+  set_live_hostname
+}
+
+main "$@"

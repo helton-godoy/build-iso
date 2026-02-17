@@ -75,11 +75,14 @@ test-vm-all:
 # Conectividade VM
 # =============================================================================
 
-vm-connect-uefi:
-  make vm-connect-uefi
+vm-connect-uefi cmd="":
+  make vm-connect-uefi CMD="{{cmd}}"
 
-vm-connect-bios:
-  make vm-connect-bios
+vm-connect-bios cmd="":
+  make vm-connect-bios CMD="{{cmd}}"
+
+vm-show-ip:
+  make vm-show-ip
 
 # =============================================================================
 # Qualidade e Validação

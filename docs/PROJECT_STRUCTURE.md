@@ -62,7 +62,7 @@ scripts/
     ├── vm-start-test-all.sh          # Testa BIOS + UEFI simultaneamente
     ├── vm-start-test-boot-disk.sh    # Testa boot com disco
     ├── vm-start-test-boot-iso.sh     # Testa boot via ISO
-    ├── vm-connect-agent-llm.sh        # Gateway serial para agentes LLM
+    ├── vm-connect-agent-llm.sh        # Gateway SSH para agentes LLM (CMD obrigatorio)
     ├── vm-setup.sh                   # Setup de dependências KVM
     └── disks/
 ```
@@ -232,7 +232,7 @@ O projeto oferece uma interface unificada via [`Makefile`](Makefile):
 | **Build**         | `make download-zbm`, `make setup-docker`, `make build-iso`   |
 | **VM Setup**      | `make setup-vm`                                              |
 | **VM Testes**     | `make test-vm-uefi`, `make test-vm-bios`, `make test-vm-all` |
-| **VM Conexão**    | `make vm-connect-uefi`, `make vm-connect-bios`               |
+| **VM Conexão**    | `make vm-connect-uefi CMD="<cmd>"`, `make vm-connect-bios CMD="<cmd>"` |
 | **Gerenciamento** | `make vm-list`, `make vm-destroy`, `make clean`              |
 | **NAS / AD**      | `make validate-ad`, `make ad-precheck`, `make validate-configs`, `make lint` |
 | **Documentação** | `make docs`, `make verify-docs`, `make docs-markdown`         |

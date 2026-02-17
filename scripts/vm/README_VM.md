@@ -23,8 +23,8 @@ make test-vm-bios           # Inicia VM em modo BIOS
 make test-vm-all            # Inicia ambas as VMs simultaneamente
 
 # Conexão
-make vm-connect-uefi        # Conecta ao console serial UEFI
-make vm-connect-bios        # Conecta ao console serial BIOS
+make vm-connect-uefi CMD="<comando>"  # Executa comando remoto na VM UEFI
+make vm-connect-bios CMD="<comando>"  # Executa comando remoto na VM BIOS
 
 # Gerenciamento
 make vm-list                # Lista VMs em execução
@@ -63,10 +63,10 @@ make build-iso
 # 3. Testar em ambos os firmwares
 make test-vm-all
 
-# 4. Em outro terminal, conectar ao console
-make vm-connect-uefi
+# 4. Em outro terminal, executar análises remotas
+make vm-connect-uefi CMD="lsblk -f"
 # ou
-make vm-connect-bios
+make vm-connect-bios CMD="journalctl -p 3 -n 50"
 ```
 
 ---
@@ -168,35 +168,65 @@ A VM expõe console serial via **Unix Domain Socket**, eliminando necessidade de
 1. **Verificação de Boot:**
 
    ```bash
-   make vm-connect-uefi
+   make vm-connect-uefi CMD="echo boot-ok && hostname"
    ```
 
 2. **Inspeção de Armazenamento:**
 
    ```bash
-   # Dentro do console ou via comando único
-   make vm-connect-uefi VM_CMD="lsblk -f"
+   # Via comando único remoto
+   make vm-connect-uefi CMD="lsblk -f"
    ```
 
 3. **Logs de Sistema:**
 
    ```bash
-   make vm-connect-uefi VM_CMD="journalctl -p 3 -n 50"
+   make vm-connect-uefi CMD="journalctl -p 3 -n 50"
    ```
 
 4. **Finalização:**
    ```bash
-   make vm-connect-uefi VM_CMD="poweroff"
+   make vm-connect-uefi CMD="poweroff"
    ```
 
 ### Envio de Comandos via Makefile
 
-O Makefile suporta envio de comandos através da variável `VM_CMD`:
+Os alvos de conexão aceitam comandos pela variável `CMD`:
 
 ```bash
-make vm-connect-uefi VM_CMD="uname -a"
-make vm-connect-bios VM_CMD="cat /proc/mdstat"
+make vm-connect-uefi CMD="uname -a"
+make vm-connect-bios CMD="cat /proc/mdstat"
+make vm-show-ip
 ```
+
+O alvo `vm-show-ip` exibe o estado atual do cache de IPs (`VM_IP_UEFI` e `VM_IP_BIOS`) em `scripts/vm/.cache/vm-ips.env`.
+
+Se `CMD` não for informado, o script exibe ajuda com:
+
+- finalidade do parâmetro `CMD`;
+- IP detectado da VM (`VM_IP_UEFI` / `VM_IP_BIOS` em cache local);
+- hostname live esperado por contexto (`debian-trixie-zbm-<tipo>-<uefi|bios>`);
+- comando sugerido para acesso interativo manual quando necessário.
+
+### Hostname dinâmico no Live Boot
+
+Para reduzir ambiguidade entre VMs, o hostname da imagem live agora é ajustado em runtime por contexto:
+
+- firmware: `uefi` ou `bios`;
+- tipo de máquina: detectado por `systemd-detect-virt` (ex.: `kvm`, `qemu`) ou `physical`.
+
+Formato final:
+
+```text
+debian-trixie-zbm-<tipo>-<firmware>
+```
+
+Exemplos comuns em laboratório:
+
+- `debian-trixie-zbm-kvm-uefi`
+- `debian-trixie-zbm-kvm-bios`
+
+Importante: essa mudança entra em vigor após rebuild da ISO e novo boot da VM (`make build-iso` + `make test-vm-uefi`/`make test-vm-bios`).
 
 ### Exemplo de Uso Estratégico
 
@@ -205,7 +235,7 @@ make vm-connect-bios VM_CMD="cat /proc/mdstat"
 make test-vm-all
 
 # Terminal 2: Agente monitorando BIOS
-make vm-connect-bios VM_CMD="mdadm --detail /dev/md0" > raid_report.txt
+make vm-connect-bios CMD="mdadm --detail /dev/md0" > raid_report.txt
 ```
 
 ---
@@ -233,10 +263,18 @@ Inicia VM isolada com:
 
 ### make vm-connect-uefi / make vm-connect-bios
 
-Conecta ao console serial da VM:
+Executa comando remoto via SSH com bootstrap automático:
 
-- **Sem argumento:** Modo interativo (Ctrl+C para sair)
-- **Com `VM_CMD`:** Envia comando e retorna saída
+- **Com `CMD`:** Executa análise remota de forma não interativa
+- **Sem `CMD`:** Exibe ajuda, IP detectado e instrução para acesso interativo manual
+- **Detecção de IP:** Fast-path via `virsh domifaddr` com fallback para leases DHCP
+
+Variáveis úteis de performance:
+
+- `VM_IP_DETECT_ATTEMPTS` (padrão: `6`)
+- `VM_IP_DETECT_INTERVAL` (padrão: `1` segundo)
+- `VM_DHCP_TIMEOUT` (padrão: `12` segundos no conector legado)
+- `VM_LIVE_BOOT_WAIT` (padrão: `30`, usado apenas quando bootstrap serial é necessário)
 
 ### make test-vm-all
 

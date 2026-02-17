@@ -228,11 +228,11 @@
 | Atributo         | Valor                                                                                   |
 | ---------------- | --------------------------------------------------------------------------------------- |
 | **Localização**  | `scripts/vm/vm-connect-agent-llm.sh`                                                    |
-| **Linhas**       | 80                                                                                      |
-| **Propósito**    | Gateway para agentes LLM interagirem com VM                                             |
-| **Features**     | Auto-bootstrap SSH via serial (copia chave, configura sshd, habilita root login)        |
-| **Variáveis**    | AUTO_BOOTSTRAP_SSH, VM_CMD, VM_IP, VM_SSH_PASSWORD                                      |
-| **Fluxo**        | Garante chave local → detecta IP → bootstrap via serial → delega para vm-connect-ssh.sh |
+| **Linhas**       | ~260                                                                                    |
+| **Propósito**    | Gateway SSH para agentes LLM executarem análises não interativas em VMs BIOS/UEFI      |
+| **Features**     | Cache de IP por firmware, espera configurável de boot live e bootstrap SSH via serial   |
+| **Variáveis**    | AUTO_BOOTSTRAP_SSH, VM_CMD (via `CMD` no Make), VM_IP, VM_SSH_PASSWORD, VM_LIVE_BOOT_WAIT |
+| **Fluxo**        | Carrega cache de IP → detecta/bootstrapa SSH → exige comando → delega para vm-connect-ssh.sh |
 | **Complexidade** | Média                                                                                   |
 | **Estado**       | ✅ FUNCIONAL                                                                            |
 | **Problema**     | ✅ CORRIGIDO - Typo 'connent' → 'connect'                                      |

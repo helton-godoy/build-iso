@@ -210,8 +210,8 @@ make test-vm-bios     # Testa ISO em VM BIOS
 make test-vm-all      # Testa ambas as VMs simultaneamente
 
 # Conexão e Debug
-make vm-connect-uefi  # Conecta ao console serial UEFI
-make vm-connect-bios  # Conecta ao console serial BIOS
+make vm-connect-uefi CMD="lsblk -f"  # Executa análise remota na VM UEFI
+make vm-connect-bios CMD="zpool status"  # Executa análise remota na VM BIOS
 
 # Gerenciamento
 make vm-list          # Lista VMs em execução

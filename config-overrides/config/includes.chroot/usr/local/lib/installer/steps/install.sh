@@ -38,7 +38,7 @@ step_install() {
     fi
   fi
 
-  local disk disks_csv pool topo comp dedup strategy ashift arc_mode arc_max suite mirror retries timeout swap_mib bootloader plan_mode
+  local disk disks_csv pool topo comp dedup strategy ashift arc_mode arc_max suite mirror retries timeout swap_mib bootloader plan_mode source_mode
   disk="$(sanitize_path "$(state_kv_get install_disk)")"
   disks_csv="$(sanitize_ws "$(state_kv_get install_disks)")"
   pool="$(sanitize_ws "$(state_kv_get zfs_pool_name)")"
@@ -56,7 +56,9 @@ step_install() {
   swap_mib="$(sanitize_ws "$(state_kv_get install_swap_mib)")"
   bootloader="$(sanitize_id "$(state_kv_get bootloader)")"
   plan_mode="$(sanitize_id "${INSTALLER_PLAN_MODE:-$INSTALLER_PLAN_MODE_DEFAULT}")"
+  source_mode="$(sanitize_id "$(state_kv_get install_source_mode)")"
   [[ -z "$plan_mode" ]] && plan_mode="$INSTALLER_PLAN_MODE_DEFAULT"
+  [[ -z "$source_mode" ]] && source_mode="online"
 
   [[ -z "$suite" ]] && suite="stable"
   [[ -z "$mirror" ]] && mirror="http://deb.debian.org/debian"
@@ -124,6 +126,7 @@ step_install() {
     "  ${UI_BULLET:-•} SWAP MiB:    $swap_mib" \
     "  ${UI_BULLET:-•} Suite:       $suite" \
     "  ${UI_BULLET:-•} Mirror:      $mirror" \
+    "  ${UI_BULLET:-•} Source mode: $source_mode" \
     "  ${UI_BULLET:-•} Bootloader:  $bootloader" \
     "" \
     "  ${UI_BULLET:-•} Será alterado: partições, pool ZFS e sistema base nos discos selecionados." \
@@ -135,6 +138,17 @@ step_install() {
     if ! install_plan_preflight "$topo" "$disk_count"; then
       return 1
     fi
+  fi
+
+  if [[ "$source_mode" == "offline" ]]; then
+    if ! installutils_require_offline_squashfs >/dev/null; then
+      ui_error "Modo offline ativo, mas artefato local não foi encontrado."
+      return 1
+    fi
+  fi
+
+  if ! install_validate_runtime_requirements "$source_mode"; then
+    return 1
   fi
 
   if ! ui_confirm "CONFIRMAR e iniciar (destrutivo)?" "Instalar" "Cancelar"; then
@@ -151,10 +165,10 @@ step_install() {
     install_mount_esp_and_write_fstab "$disk" "$swap_mib" || return 1
 
   ui_process_step "Instalando sistema base (Debian $suite)..." \
-    install_debootstrap_and_apt "$suite" "$mirror" "$retries" "$timeout" || return 1
+    install_debootstrap_and_apt "$suite" "$mirror" "$retries" "$timeout" "$source_mode" || return 1
 
   ui_process_step "Configurando Kernel e ZFS..." \
-    install_kernel_zfs_and_base_tools || return 1
+    install_kernel_zfs_and_base_tools "$source_mode" || return 1
 
   ui_process_step "Otimizando performance (ARC)..." \
     install_apply_arc_tuning "$arc_mode" "$arc_max" || return 1
@@ -662,7 +676,7 @@ install_mount_esp_and_write_fstab() {
 
 install_debootstrap_and_apt() {
   # Single responsibility: debootstrap + apt configuration
-  # Args: suite mirror retries timeout
+  # Args: suite mirror retries timeout source_mode
   local suite
   suite="$(sanitize_ws "${1-stable}")"
   local mirror
@@ -671,29 +685,42 @@ install_debootstrap_and_apt() {
   retries="$(sanitize_ws "${3-5}")"
   local timeout
   timeout="$(sanitize_ws "${4-30}")"
+  local source_mode
+  source_mode="$(sanitize_id "${5-online}")"
 
   local proxy
   proxy="$(sanitize_ws "$(state_kv_get install_proxy)")"
 
-  installutils_write_sources_list "$INSTALL_TARGET_ROOT_DEFAULT" "$suite" "$mirror" "main contrib non-free non-free-firmware" || return 1
-  installutils_apt_configure_retries "$INSTALL_TARGET_ROOT_DEFAULT" "$retries" "$timeout" || return 1
-  installutils_write_apt_proxy_conf "$INSTALL_TARGET_ROOT_DEFAULT" "$proxy" || return 1
+  if [[ "$source_mode" == "offline" ]]; then
+    local squashfs_path
+    squashfs_path="$(installutils_require_offline_squashfs)" || return 1
+    installutils_extract_offline_rootfs "$INSTALL_TARGET_ROOT_DEFAULT" "$squashfs_path" || return 1
+  else
+    installutils_write_sources_list "$INSTALL_TARGET_ROOT_DEFAULT" "$suite" "$mirror" "main contrib non-free non-free-firmware" || return 1
+    installutils_apt_configure_retries "$INSTALL_TARGET_ROOT_DEFAULT" "$retries" "$timeout" || return 1
+    installutils_write_apt_proxy_conf "$INSTALL_TARGET_ROOT_DEFAULT" "$proxy" || return 1
 
-  # Base include set ensures enough tooling
-  local include="ca-certificates,gnupg,apt-transport-https,systemd-sysv"
-  installutils_debootstrap_base "$INSTALL_TARGET_ROOT_DEFAULT" "$suite" "$mirror" "$include" || return 1
+    # Base include set ensures enough tooling
+    local include="ca-certificates,gnupg,apt-transport-https,systemd-sysv"
+    installutils_debootstrap_base "$INSTALL_TARGET_ROOT_DEFAULT" "$suite" "$mirror" "$include" || return 1
+  fi
 
   installutils_bind_mounts "$INSTALL_TARGET_ROOT_DEFAULT" || return 1
 }
 
 install_kernel_zfs_and_base_tools() {
   # Single responsibility: install kernel + zfs + essentials inside target, then unmount binds kept for post_install
-  installutils_install_kernel_and_zfs "$INSTALL_TARGET_ROOT_DEFAULT" || return 1
+  local source_mode
+  source_mode="$(sanitize_id "${1-online}")"
+
+  installutils_install_kernel_and_zfs "$INSTALL_TARGET_ROOT_DEFAULT" "$source_mode" || return 1
 
   # Basic tooling for boot/install/post steps
-  installutils_apt_install_packages "$INSTALL_TARGET_ROOT_DEFAULT" "vim-tiny less curl wget openssh-server" || true
-  installutils_apt_install_packages "$INSTALL_TARGET_ROOT_DEFAULT" "grub-efi-amd64 grub-pc efibootmgr" || true
-  installutils_apt_install_packages "$INSTALL_TARGET_ROOT_DEFAULT" "refind" || true
+  if [[ "$source_mode" != "offline" ]]; then
+    installutils_apt_install_packages "$INSTALL_TARGET_ROOT_DEFAULT" "vim-tiny less curl wget openssh-server" || true
+    installutils_apt_install_packages "$INSTALL_TARGET_ROOT_DEFAULT" "grub-efi-amd64 grub-pc efibootmgr" || true
+    installutils_apt_install_packages "$INSTALL_TARGET_ROOT_DEFAULT" "refind" || true
+  fi
 }
 
 install_apply_arc_tuning() {
@@ -706,6 +733,38 @@ install_apply_arc_tuning() {
   zfsutils_apply_arc_tuning_target_file "$INSTALL_TARGET_ROOT_DEFAULT" "$mode" "$max" || return 1
 }
 
+install_validate_runtime_requirements() {
+  local source_mode
+  source_mode="$(sanitize_id "${1-online}")"
+
+  local -a required=(
+    awk grep sed
+    lsblk sgdisk wipefs mkfs.vfat
+    zpool zfs chroot
+  )
+
+  if [[ "$source_mode" == "offline" ]]; then
+    required+=(unsquashfs)
+  else
+    required+=(debootstrap apt-get)
+  fi
+
+  local -a missing=()
+  local cmd
+  for cmd in "${required[@]}"; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      missing+=("$cmd")
+    fi
+  done
+
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    ui_error "Dependências ausentes para instalação: ${missing[*]}"
+    return 1
+  fi
+
+  return 0
+}
+
 # Export internals for spinner subshell
 export -f install_prepare_disks
 export -f install_create_zfs
@@ -713,6 +772,7 @@ export -f install_mount_esp_and_write_fstab
 export -f install_debootstrap_and_apt
 export -f install_kernel_zfs_and_base_tools
 export -f install_apply_arc_tuning
+export -f install_validate_runtime_requirements
 export -f install_validate_topology_disk_count
 export -f install_plan_preflight
 export -f install_build_data_vdev_spec

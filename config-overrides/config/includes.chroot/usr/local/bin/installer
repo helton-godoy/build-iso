@@ -1,4 +1,4 @@
- #!/usr/bin/env bash
+#!/usr/bin/env bash
 set -o errexit
 set -o nounset
 set -o pipefail
@@ -197,19 +197,30 @@ lazy_source_deps() {
     # @REQ: INSTALLER_STEP_INVOKE
     # @FAIL: INSTALLER_DEP_NOT_FOUND
     # @DATA: IN STEP_DEPS, LIBS_DIR
-    local deps; deps="$(sanitize_ws "${1-}")"
+    local deps_raw
+    local deps
     local dep
-    if [[ -z "$deps" ]]; then
+
+    deps_raw="$(sanitize_ws "${1-}")"
+    if [[ -z "$deps_raw" ]]; then
         return 0
     fi
-    while IFS=',' read -r dep; do
+
+    # @ID: INSTALLER_DEPS_NORMALIZE
+    # @STEP: Normaliza lista de dependencias aceitando separacao por espaco ou virgula.
+    # @REQ: INSTALLER_LAZY_SOURCE_DEPS
+    # @FAIL: INSTALLER_DEP_NOT_FOUND
+    # @DATA: IN deps_raw
+    deps="${deps_raw//,/ }"
+
+    for dep in $deps; do
         dep="$(sanitize_ws "$dep")"
-        if [[ -z "$dep" ]]; then
-            continue
-        fi
+        [[ -z "$dep" ]] && continue
+
         if [[ "$dep" != /* ]]; then
             dep="$LIBS_DIR/$dep"
         fi
+
         if [[ -f "$dep" ]]; then
             # shellcheck disable=SC1090
             source "$dep"
@@ -219,9 +230,10 @@ lazy_source_deps() {
             # @REQ: INSTALLER_LAZY_SOURCE_DEPS
             # @FAIL: INSTALLER_STEP_FAILED
             # @DATA: OUT LOG_FILE
-            log_line "WARN" "Dependência não encontrada: $dep"
+            log_line "ERROR" "Dependência não encontrada: $dep"
+            return 1
         fi
-    done <<<"$deps"
+    done
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -256,25 +268,25 @@ register_all_steps() {
     register_step   "admin_policy"   "07"    "Administração (Root/Sudo)"   "Política de root e senha root opcional"   "user_account"   "disk_select"   "auth-utils.sh"   "admin_policy.sh"   "step_admin_policy"
 
 #                 |░ID░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░|░HANDLER░░░░░░░░░░░|
-    register_step   "disk_select"   "08"    "Disco de Destino"   "Detectar e selecionar o disco alvo"   "admin_policy"   "disk_wipe_confirm"   "disk-utils.sh,install-plan-utils.sh"   "disk_select.sh"   "step_disk_select"
+  register_step   "disk_select"   "08"    "Disco de Destino"   "Detectar e selecionar o disco alvo"   "admin_policy"   "disk_wipe_confirm"   "disk-utils.sh install-plan-utils.sh"   "disk_select.sh"   "step_disk_select"
 
 #                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
-    register_step   "disk_wipe_confirm"   "09"    "Confirmação de Wipe"   "Confirmação forte para apagar dados"   "disk_select"   "zfs_strategy"   "disk-utils.sh,install-plan-utils.sh"   "disk_wipe_confirm.sh"   "step_disk_wipe_confirm"
+  register_step   "disk_wipe_confirm"   "09"    "Confirmação de Wipe"   "Confirmação forte para apagar dados"   "disk_select"   "zfs_strategy"   "disk-utils.sh install-plan-utils.sh"   "disk_wipe_confirm.sh"   "step_disk_wipe_confirm"
 
 #                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
-    register_step   "zfs_strategy"   "10"    "Estratégia ZFS"   "Automático (recomendado) ou Avançado"   "disk_wipe_confirm"   "zfs_auto_topology"   "zfs-utils.sh,install-plan-utils.sh"   "zfs_strategy.sh"   "step_zfs_strategy"
+  register_step   "zfs_strategy"   "10"    "Estratégia ZFS"   "Automático (recomendado) ou Avançado"   "disk_wipe_confirm"   "zfs_auto_topology"   "zfs-utils.sh install-plan-utils.sh"   "zfs_strategy.sh"   "step_zfs_strategy"
 
 #                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
-    register_step   "zfs_auto_topology"   "11"    "ZFS: Topologia do Pool"   "Stripe/Mirror/RAIDZ conforme discos"   "zfs_strategy"   "zfs_auto_properties"   "zfs-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh"   "zfs_auto_topology.sh"   "step_zfs_auto_topology"
+  register_step   "zfs_auto_topology"   "11"    "ZFS: Topologia do Pool"   "Stripe/Mirror/RAIDZ conforme discos"   "zfs_strategy"   "zfs_auto_properties"   "zfs-utils.sh disks-identify-suporte-types.sh install-plan-utils.sh"   "zfs_auto_topology.sh"   "step_zfs_auto_topology"
 
 #                 |░ID░░░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░|
-    register_step   "zfs_auto_properties"   "12"    "ZFS: Propriedades"   "Compressão, dedup, ARC e avançado"   "zfs_auto_topology"   "zfs_aux_setup"   "zfs-utils.sh,install-plan-utils.sh"   "zfs_auto_properties.sh"   "step_zfs_auto_properties"
+  register_step   "zfs_auto_properties"   "12"    "ZFS: Propriedades"   "Compressão, dedup, ARC e avançado"   "zfs_auto_topology"   "zfs_aux_setup"   "zfs-utils.sh install-plan-utils.sh"   "zfs_auto_properties.sh"   "step_zfs_auto_properties"
 
 #                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░░░░|░NEXT░░░░░░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░░░|
-    register_step   "zfs_aux_setup"   "13"    "Discos Auxiliares"   "Cache, Log e Spare"   "zfs_auto_properties"   "zfs_auto_datasets"   "zfs-utils.sh,disk-utils.sh,state-utils.sh"   "zfs_aux_setup.sh"   "step_zfs_aux_setup"
+  register_step   "zfs_aux_setup"   "13"    "Discos Auxiliares"   "Cache, Log e Spare"   "zfs_auto_properties"   "zfs_auto_datasets"   "zfs-utils.sh disk-utils.sh state-utils.sh"   "zfs_aux_setup.sh"   "step_zfs_aux_setup"
 
 #                 |░ID░░░░░░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░░░░░░|
-    register_step   "zfs_auto_datasets"   "14"    "ZFS: Datasets"   "Preset padrão/servidor/custom"   "zfs_aux_setup"   "boot"   "zfs-utils.sh,disk-utils.sh,install-plan-utils.sh"   "zfs_auto_datasets.sh"   "step_zfs_auto_datasets"
+  register_step   "zfs_auto_datasets"   "14"    "ZFS: Datasets"   "Preset padrão/servidor/custom"   "zfs_aux_setup"   "boot"   "zfs-utils.sh disk-utils.sh install-plan-utils.sh"   "zfs_auto_datasets.sh"   "step_zfs_auto_datasets"
 
 #                 |░ID░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░░░|░DEPS░░░░░░░░░░░|░MODULE░░░░░░░░░░|░HANDLER░░░░░░░░░░|
     register_step   "zfs_manual"   "15"    "ZFS: Manual (Avançado)"   "VDEVs, pools, datasets e propriedades"   "zfs_strategy"   "boot"   "zfs-utils.sh"   "zfs_manual.sh"   "step_zfs_manual"
@@ -283,13 +295,13 @@ register_all_steps() {
     register_step   "boot"   "16"    "Boot"   "UEFI/BIOS, bootloader e parâmetros"   "zfs_auto_datasets"   "review"   "boot-utils.sh"   "boot.sh"   "step_boot"
 
 #                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░|░NEXT░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░|░HANDLER░░░░░░|
-    register_step   "review"    "17"    "Revisão"   "Resumo, validações e checkpoint"   "boot"   "install"   "validate-utils.sh,install-plan-utils.sh"   "review.sh"   "step_review"
+  register_step   "review"    "17"    "Revisão"   "Resumo, validações e checkpoint"   "boot"   "install"   "validate-utils.sh install-plan-utils.sh"   "review.sh"   "step_review"
 
 #                 |░ID░░░░░░░░|░ORDER░|░TITLE░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░|░PREV░░░░░|░NEXT░░░░░░░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░|░HANDLER░░░░░░░|
-    register_step   "install"   "18"    "Instalação"   "Execução e progresso"   "review"   "post_install"   "install-utils.sh,disk-utils.sh,zfs-utils.sh,boot-utils.sh,validate-utils.sh,disks-identify-suporte-types.sh,install-plan-utils.sh"   "install.sh"   "step_install"
+  register_step   "install"   "18"    "Instalação"   "Execução e progresso"   "review"   "post_install"   "install-utils.sh disk-utils.sh zfs-utils.sh boot-utils.sh validate-utils.sh disks-identify-suporte-types.sh install-plan-utils.sh"   "install.sh"   "step_install"
 
 #                 |░ID░░░░░░░░░░░░░|░ORDER░|░TITLE░░░░░░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░|░NEXT░░░░░|░DEPS░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|░MODULE░░░░░░░░░░░░|░HANDLER░░░░░░░░░░░░|
-    register_step   "post_install"   "19"    "Pós-instalação"   "Ajustes finais: apt, serviços, pacotes"   "install"   "finish"   "post-utils.sh,finalize-chroot.sh,setup-zbm-config.sh"   "post_install.sh"   "step_post_install"
+  register_step   "post_install"   "19"    "Pós-instalação"   "Ajustes finais: apt, serviços, pacotes"   "install"   "finish"   "post-utils.sh finalize-chroot.sh setup-zbm-config.sh"   "post_install.sh"   "step_post_install"
 
 #                 |░ID░░░░░░░|░ORDER░|░TITLE░░░░░░░|░DESC░░░░░░░░░░░░░░░░░░░░|░PREV░░░░░░░░░░░|░NEXT░|░DEPS░|░MODULE░░░░░░|░HANDLER░░░░░░|
     register_step   "finish"   "20"    "Concluído"   "Resumo final e reboot"   "post_install"   ""     ""     "finish.sh"   "step_finish"
@@ -302,7 +314,8 @@ register_all_steps() {
 compute_next_step() {
     local id; id="$(sanitize_id "${1-}")"
     local next; next="$(sanitize_id "${STEP_NEXT[$id]-}")"
-    local strategy; strategy="$(sanitize_ws "${install_zfs_strategy-}")"
+    local strategy
+    strategy="$(sanitize_id "$(state_kv_get install_zfs_strategy)")"
 
     # Router rule: if strategy == manual, jump to zfs_manual
     if [[ "$id" == "zfs_strategy" ]]; then
@@ -326,7 +339,8 @@ compute_next_step() {
 compute_prev_step() {
     local id; id="$(sanitize_id "${1-}")"
     local prev; prev="$(sanitize_id "${STEP_PREV[$id]-}")"
-    local strategy; strategy="$(sanitize_ws "${install_zfs_strategy-}")"
+    local strategy
+    strategy="$(sanitize_id "$(state_kv_get install_zfs_strategy)")"
 
     if [[ "$id" == "boot" ]]; then
         if [[ "$(sanitize_id "$strategy")" == "manual" ]]; then
@@ -589,11 +603,17 @@ main() {
     ui_require || return 1
     state_prepare || return 1
 
-    local parse_rc
-    if ! parse_args "$@"; then
+    local parse_rc=0
+    if parse_args "$@"; then
+        parse_rc=0
+    else
+        parse_rc=$?
+    fi
+
+    if [[ "$parse_rc" == "1" ]]; then
         return 1
     fi
-    parse_rc=$?
+
     if [[ "$parse_rc" == "2" ]]; then
         return 0
     fi

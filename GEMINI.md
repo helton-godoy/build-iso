@@ -86,8 +86,8 @@ make setup-vm         # Instala dependências KVM
 make test-vm-all      # Testa UEFI + BIOS simultaneamente
 
 # Conexão
-make vm-connect-uefi  # Conecta ao console serial UEFI
-make vm-connect-bios  # Conecta ao console serial BIOS
+make vm-connect-uefi CMD="lsblk -f"  # Executa análise remota na VM UEFI
+make vm-connect-bios CMD="zpool status"  # Executa análise remota na VM BIOS
 
 # NAS / Samba / AD
 make validate-ad      # Validação AD/SMB pós-join
@@ -106,6 +106,7 @@ make verify-docs      # Valida tags de doc
 
 ### Shell Scripting
 
+- **Skill Mandatória:** Sempre utilize a skill `shell-gum-elite` para o desenvolvimento de shell scripts neste projeto. Siga rigorosamente seus padrões de design (Premium UX), qualidade (lint/test) e arquitetura modular.
 - **Shebang:** `#!/usr/bin/env bash` (preferencial) ou `#!/bin/sh`.
 - **Segurança:** Sempre use `set -euo pipefail` no início dos scripts.
 - **Estilo:** Indentação de 2 espaços, variáveis em maiúsculas (`CONSTANTE`) ou minúsculas (`variavel`), funções no formato `verbo_objeto`.

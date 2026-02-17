@@ -79,7 +79,7 @@ Não existem testes unitários para o tempo de boot, mas podemos usar o script d
 
 1. Execute `make build-iso` para gerar uma nova imagem com as alterações.
 2. Execute `make test-vm-all`.
-3. Use `make vm-connect-uefi` e observe o tempo desde o início do boot até o prompt de login/autologin aparecer.
+3. Use `make vm-connect-uefi CMD=\"echo boot-ok && hostname\"` e observe o tempo desde o início do boot até o sistema responder via SSH.
 
 ### Verificação Manual
 

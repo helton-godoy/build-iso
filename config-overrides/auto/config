@@ -5,10 +5,13 @@ DEBIAN_VERSION="trixie"
 ISO_NAME="debian-trixie-zbm"
 ARCH="amd64"
 LOCALE="pt_BR.UTF-8"
-TIMEZONE="America/Sao_Paulo"
+TIMEZONE="America/Cuiaba"
 KEYBOARD="br"
 MIRROR_CHROOT="http://ftp.br.debian.org/debian/"
 MIRROR_BINARY="http://ftp.br.debian.org/debian/"
+SQUASHFS_COMPRESSION_TYPE="${SQUASHFS_COMPRESSION_TYPE:-zstd}"
+SQUASHFS_COMPRESSION_LEVEL="${SQUASHFS_COMPRESSION_LEVEL:-15}"
+ISO_COMPRESSION_TYPE="${ISO_COMPRESSION_TYPE:-xz}"
 
 lb config noauto \
     --mode debian \
@@ -26,8 +29,9 @@ lb config noauto \
     --bootloaders "syslinux,grub-efi" \
     --binary-images iso-hybrid \
     --checksums sha256 \
-    --compression xz \
-    --chroot-squashfs-compression-type zstd \
+    --compression "${ISO_COMPRESSION_TYPE}" \
+    --chroot-squashfs-compression-type "${SQUASHFS_COMPRESSION_TYPE}" \
+    --chroot-squashfs-compression-level "${SQUASHFS_COMPRESSION_LEVEL}" \
     --zsync false \
     --apt-recommends true \
     --apt-indices false \

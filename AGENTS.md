@@ -56,6 +56,7 @@ Automatização de implantação Debian com ZFS-on-root e ZFSBootMenu, suportand
 
 ### Shell Scripts
 
+- **Skill Mandatória:** Sempre utilize a skill `shell-gum-elite` para o desenvolvimento de shell scripts neste projeto. Siga rigorosamente seus padrões de design (Premium UX), qualidade (lint/test) e arquitetura modular.
 - Shebang: `#!/usr/bin/env bash` (bashisms) ou `#!/bin/sh` (POSIX)
 - Sempre: `set -euo pipefail`
 - Variáveis: `CONSTANTE` (maiusculas), `variavel` (minusculas)
@@ -200,8 +201,8 @@ make build-iso
 make test-vm-all
 
 # 3. Validar instalação automatizada
-# (Via console serial)
-make vm-connect-uefi
+# (Via comando remoto não interativo)
+make vm-connect-uefi CMD="echo ready && hostname"
 ```
 
 ## PARTIÇÕES (HYBRIDO UEFI+BIOS)
@@ -438,9 +439,10 @@ ui_warn "Mensagem de aviso"
 
 ### 1. Analise de Tarefa
 
-1. Leia o contexto do projeto em AGENTS.md
-2. Identifique arquivos relevantes
-3. Planeje as mudancas necessarias
+1. Leia o contexto do projeto em AGENTS.md.
+2. **Skill Obrigatória:** Identifique se o desenvolvimento envolve shell scripts e, em caso afirmativo, utilize AGORA a skill `shell-gum-elite`.
+3. Identifique arquivos relevantes.
+4. Planeje as mudancas necessarias.
 
 ### 2. Implementacao
 

@@ -26,4 +26,3 @@ zfs-test
 
 # Biblioteca para quem desenvolve programas em Go que precisam manipular o ZFS.
 golang-go-zfs-dev
-

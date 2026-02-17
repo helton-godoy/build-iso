@@ -1,4 +1,6 @@
 build-essential
+bc
+debootstrap
 dkms
 dosfstools
 efibootmgr

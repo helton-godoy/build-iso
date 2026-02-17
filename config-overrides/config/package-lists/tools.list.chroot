@@ -11,6 +11,7 @@ console-setup
 coreutils
 curl
 ethtool
+expect
 firmware-atheros
 firmware-iwlwifi
 firmware-libertas
@@ -42,9 +43,9 @@ nano
 openssh-server
 pciutils
 pv
+qemu-guest-agent
 rsync
 sed
-squashfs-tools
 sudo
 sshpass
 tzdata

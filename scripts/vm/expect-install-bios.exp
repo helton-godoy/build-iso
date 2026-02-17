@@ -1,0 +1,162 @@
+#!/usr/bin/env expect
+
+# Automated interactive installer run over SSH (BIOS VM)
+# Usage:
+#   expect scripts/vm/expect-install-bios.exp <vm-ip>
+
+set timeout 14400
+
+if {[llength $argv] < 1} {
+  puts stderr "Usage: expect $argv0 <vm-ip>"
+  exit 2
+}
+
+set vm_ip [lindex $argv 0]
+set vm_user [expr {[info exists env(INSTALL_VM_USER)] ? $env(INSTALL_VM_USER) : "root"}]
+set full_name [expr {[info exists env(INSTALL_FULL_NAME)] ? $env(INSTALL_FULL_NAME) : "Helton Silva"}]
+set username [expr {[info exists env(INSTALL_USERNAME)] ? $env(INSTALL_USERNAME) : "helton"}]
+set password [expr {[info exists env(INSTALL_PASSWORD)] ? $env(INSTALL_PASSWORD) : "helton123"}]
+set hostname [expr {[info exists env(INSTALL_HOSTNAME)] ? $env(INSTALL_HOSTNAME) : "nas-test-bios"}]
+set timezone [expr {[info exists env(INSTALL_TIMEZONE)] ? $env(INSTALL_TIMEZONE) : "America/Cuiaba"}]
+
+log_user 1
+exp_internal 0
+
+spawn ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${vm_user}@${vm_ip}
+
+expect {
+  -re {[$#] $} { send -- "rm -rf /run/fileserver-installer\r" }
+  -re {assword:} {
+    puts stderr {[ERR] SSH pediu senha; configure chave para root antes do teste.}
+    exit 3
+  }
+  timeout {
+    puts stderr {[ERR] Timeout aguardando shell SSH}
+    exit 124
+  }
+}
+
+send -- "INSTALLER_PLAIN_UI=1 /usr/local/bin/installer\r"
+
+proc expect_step {pattern response} {
+  expect {
+    -re $pattern {
+      send -- "$response\r"
+    }
+    timeout {
+      puts stderr "[ERR] Timeout aguardando prompt: $pattern"
+      exit 124
+    }
+    eof {
+      puts stderr "[ERR] EOF inesperado aguardando prompt: $pattern"
+      exit 6
+    }
+  }
+}
+
+expect_step {Iniciar instala..o\?.*\(padr.o: .*\):} ""
+
+expect_step {Selecione o locale do sistema:} "pt_BR.UTF-8"
+expect_step {Escolha \[1\]:} "pt_BR.UTF-8"
+
+expect_step {Selecione o layout do teclado:} ""
+expect_step {Escolha \[1\]:} ""
+
+expect_step {Hostname:.*:} "$hostname"
+expect_step {Dom.nio \(opcional\):.*:} ""
+
+expect_step {M.todo de configura..o:} ""
+expect_step {Escolha \[1\]:} ""
+expect_step {Proxy \(opcional\):.*:} ""
+
+expect_step {Selecione o fuso hor.rio:} "$timezone"
+expect_step {Escolha \[1\]:} "$timezone"
+expect_step {Ativar NTP\?.*\(padr.o: .*\):} ""
+expect_step {Servidor NTP \(opcional\):.*:} ""
+
+expect_step {Nome completo:.*:} "$full_name"
+expect_step {Nome de usu.rio:.*:} "$username"
+expect_step {Senha do usu.rio.*:} "$password"
+expect_step {Confirmar senha.*:} "$password"
+
+expect_step {Usar pol.tica padr.o com sudo\?.*\(padr.o: .*\):} ""
+expect_step {Usar a mesma senha do usu.rio para root\?.*\(padr.o: .*\):} ""
+
+expect_step {Selecione o\(s\) disco\(s\) de DADOS:} ""
+expect_step {Escolhas \(ex: 1,3\) \[1\]:} "1"
+
+expect_step {Confirmar: \[APAGAR\]:} "APAGAR"
+
+expect_step {Modo:} ""
+expect_step {Escolha \[1\]:} ""
+expect_step {Perfil de uso:} ""
+expect_step {Escolha \[1\]:} ""
+
+expect_step {Topologia do pool ZFS:} ""
+expect_step {Escolha \[1\]:} ""
+expect_step {Compression:} ""
+expect_step {Escolha \[1\]:} ""
+expect_step {Ashift:} ""
+expect_step {Escolha \[1\]:} ""
+expect_step {Ajustes avançados para performance e compatibilidade\?.*\(padr.o: .*\):} ""
+
+expect_step {Adicionar SLOG .*\?.*\(padr.o: .*\):} ""
+expect_step {Adicionar L2ARC .*\?.*\(padr.o: .*\):} ""
+expect_step {Adicionar SPECIAL .*\?.*\(padr.o: .*\):} ""
+expect_step {Adicionar DEDUP .*\?.*\(padr.o: .*\):} ""
+expect_step {Adicionar SPARE .*\?.*\(padr.o: .*\):} ""
+
+expect_step {Preset de datasets:} ""
+expect_step {Escolha \[1\]:} ""
+expect_step {Aplicar propriedades recomendadas automaticamente\?.*\(padr.o: .*\):} ""
+
+expect_step {Bootloader:} ""
+expect_step {Escolha \[1\]:} ""
+expect_step {Par.metros do kernel \(opcional\):.*:} ""
+
+expect_step {Iniciar instala..o agora\?.*\(padr.o: .*\):} ""
+expect_step {CONFIRMAR e iniciar \(destrutivo\)\?.*\(padr.o: .*\):} ""
+
+set timeout 21600
+expect {
+  -re {\[OK\] Instala..o finalizada.*} {}
+  -re {Loop de navega..o excedeu limite de seguran.a} {
+    puts stderr {[ERR] Installer loop safety limit reached}
+    exit 5
+  }
+  -re {\[ERRO\].*|\[FAIL\].*|\[ERROR\].*} {
+    puts stderr {[ERR] Installer reported an error during install run}
+    exp_continue
+  }
+  timeout {
+    puts stderr {[ERR] Timeout aguardando finalização da instalação}
+    exit 124
+  }
+  eof {
+    puts stderr {[ERR] EOF antes de mensagem final de instalação}
+    exit 6
+  }
+}
+
+expect_step {Reiniciar agora\?.*\(padr.o: .*\):} ""
+
+set saw_finish 1
+
+expect {
+  eof {}
+  timeout {
+    puts stderr {[ERR] Timeout aguardando encerramento da sessão após reboot}
+    exit 124
+  }
+}
+
+catch wait result
+set exit_code [lindex $result 3]
+
+if {$saw_finish == 0} {
+  puts stderr {[ERR] Instalação não atingiu etapa final}
+  exit 6
+}
+
+puts "OK: Expect finalizado com exit code $exit_code"
+exit 0
