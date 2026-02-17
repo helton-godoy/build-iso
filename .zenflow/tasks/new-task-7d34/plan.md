@@ -175,6 +175,7 @@ shellcheck config-overrides/config/includes.chroot/usr/local/lib/installer/steps
 ```
 
 ### [ ] Step: Atualizar Etapas network.sh e time.sh
+<!-- chat-id: 3a080059-c2c0-4c16-adc1-5f9195ee047e -->
 **Arquivos**:
 - `config-overrides/config/includes.chroot/usr/local/lib/installer/steps/network.sh`
 - `config-overrides/config/includes.chroot/usr/local/lib/installer/steps/time.sh`
