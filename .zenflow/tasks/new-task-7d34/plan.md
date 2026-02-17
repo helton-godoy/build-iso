@@ -45,7 +45,8 @@ Plano de implementação criado baseado nas especificações técnicas e requisi
 
 ## FASE 1: Preparação e Bibliotecas UI (8-10h)
 
-### [ ] Step: Adicionar Dependência Expect ao Live ISO
+### [x] Step: Adicionar Dependência Expect ao Live ISO
+<!-- chat-id: ad5989a0-f567-445b-bc27-e45ee937c52e -->
 **Arquivo**: `config-overrides/config/package-lists/tools.list.chroot`
 **Atividades**:
 - Adicionar `expect` e `tcl` ao package-lists

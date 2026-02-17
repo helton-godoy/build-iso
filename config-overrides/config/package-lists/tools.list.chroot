@@ -12,6 +12,7 @@ coreutils
 curl
 ethtool
 expect
+tcl
 firmware-atheros
 firmware-iwlwifi
 firmware-libertas
