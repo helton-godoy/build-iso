@@ -58,7 +58,8 @@ just validate-configs
 grep -q "expect" config-overrides/config/package-lists/tools.list.chroot
 ```
 
-### [ ] Step: Criar Biblioteca ui-validation.sh
+### [x] Step: Criar Biblioteca ui-validation.sh
+<!-- chat-id: cb1feead-8761-49de-9933-df67e66beab2 -->
 **Arquivo**: `config-overrides/config/includes.chroot/usr/local/lib/installer/libs/ui-validation.sh`
 **Funções a implementar**:
 - `validate_hostname()` - RFC 1123
