@@ -135,96 +135,95 @@ zfs_set_bootfs() {
 # ============================================================================
 
 zfsutils_pool_exists() {
-    zfs_pool_exists "$1"
+	zfs_pool_exists "$1"
 }
 
 zfsutils_umount_all_under_altroot() {
-    local pool="$1"
-    # Tenta desmontar tudo montado sob /mnt (assumindo altroot ou mountpoints manuais)
-    zfs unmount -u "${pool}" 2>/dev/null || true
-    umount -R "$MOUNT_POINT" 2>/dev/null || true
+	local pool="$1"
+	# Tenta desmontar tudo montado sob /mnt (assumindo altroot ou mountpoints manuais)
+	zfs unmount -u "${pool}" 2>/dev/null || true
+	umount -R "$MOUNT_POINT" 2>/dev/null || true
 }
 
 zfsutils_export_pool() {
-    zpool export "$1"
+	zpool export "$1"
 }
 
 # @INST_FUNC: zfsutils_pool_create_single
 # @INST_DESC: API Adapter para criar um pool com configurações customizadas (ashift, comp, dedup).
 zfsutils_pool_create_single() {
-    local pool="$1"
-    local disk="$2"
-    local ashift="${3:-12}"
-    local comp="${4:-zstd}"
-    local dedup="${5:-off}"
-    local mountpoint="${6:-/mnt}"
-    
-    if zpool list "$pool" &>/dev/null; then
-        zpool destroy -f "$pool" || true
-    fi
-    
-    # Cria pool com propriedades
-    zpool create -f \
-        -o ashift="$ashift" \
-        -o autotrim=on \
-        -O acltype=posixacl \
-        -O canmount=off \
-        -O compression="$comp" \
-        -O dedup="$dedup" \
-        -O dnodesize=auto \
-        -O normalization=formD \
-        -O relatime=on \
-        -O xattr=sa \
-        -O mountpoint=none \
-        "$pool" "$disk"
+	local pool="$1"
+	local disk="$2"
+	local ashift="${3:-12}"
+	local comp="${4:-zstd}"
+	local dedup="${5:-off}"
+	local mountpoint="${6:-/mnt}"
+
+	if zpool list "$pool" &>/dev/null; then
+		zpool destroy -f "$pool" || true
+	fi
+
+	# Cria pool com propriedades
+	zpool create -f \
+		-o ashift="$ashift" \
+		-o autotrim=on \
+		-O acltype=posixacl \
+		-O canmount=off \
+		-O compression="$comp" \
+		-O dedup="$dedup" \
+		-O dnodesize=auto \
+		-O normalization=formD \
+		-O relatime=on \
+		-O xattr=sa \
+		-O mountpoint=none \
+		"$pool" "$disk"
 }
 
 # @INST_FUNC: zfsutils_create_root_datasets
 # @INST_DESC: API Adapter para configurar a topologia de datasets e propriedades ZBM.
 zfsutils_create_root_datasets() {
-    local pool="$1"
-    local root_ds="$2"
-    local target="$3"
-    
-    # Garante estrutura base
-    zfs create -o canmount=off -o mountpoint=none "${pool}/ROOT" 2>/dev/null || true
-    zfs set org.zfsbootmenu:commandline="quiet" "${pool}/ROOT"
-    
-    # Cria root dataset do SO
-    zfs create -o canmount=noauto -o mountpoint=/ "$root_ds"
-    
-    # Monta temporariamente no target
-    zfs set mountpoint="$target" "$root_ds"
-    zfs mount "$root_ds" 2>/dev/null || true
-    
-    # Datasets adicionais padrão
-    zfs create -o mountpoint=/home "$pool/home"
-    zfs create -o canmount=off -o mountpoint=/var "$pool/var"
-    zfs create "$pool/var/log"
-    zfs create -o com.sun:auto-snapshot=false "$pool/var/tmp"
+	local pool="$1"
+	local root_ds="$2"
+	local target="$3"
+
+	# Garante estrutura base
+	zfs create -o canmount=off -o mountpoint=none "${pool}/ROOT" 2>/dev/null || true
+	zfs set org.zfsbootmenu:commandline="quiet" "${pool}/ROOT"
+
+	# Cria root dataset do SO
+	zfs create -o canmount=noauto -o mountpoint=/ "$root_ds"
+
+	# Monta temporariamente no target
+	zfs set mountpoint="$target" "$root_ds"
+	zfs mount "$root_ds" 2>/dev/null || true
+
+	# Datasets adicionais padrão
+	zfs create -o mountpoint=/home "$pool/home"
+	zfs create -o canmount=off -o mountpoint=/var "$pool/var"
+	zfs create "$pool/var/log"
+	zfs create -o com.sun:auto-snapshot=false "$pool/var/tmp"
 }
 
 zfsutils_create_dataset_preset_default() {
-    : # Já criado acima ou implementações futuras
+	: # Já criado acima ou implementações futuras
 }
 
 zfsutils_create_dataset_preset_server() {
-    : # Stub
+	: # Stub
 }
 
 zfsutils_set_mountpoints_final() {
-    local root_ds="$1"
-    zfs set mountpoint=/ "$root_ds"
+	local root_ds="$1"
+	zfs set mountpoint=/ "$root_ds"
 }
 
 zfsutils_apply_arc_tuning_target_file() {
-    local target="$1"
-    local mode="$2"
-    local max="$3"
-    
-    if [[ -n "$max" ]]; then
-        mkdir -p "$target/etc/modprobe.d"
-        echo "options zfs zfs_arc_max=$max" > "$target/etc/modprobe.d/zfs.conf"
-    fi
-}
+	local target="$1"
+	local mode="$2"
+	local max="$3"
 
+	if [[ -n "$max" ]]; then
+		mkdir -p "$target/etc/modprobe.d"
+		echo "options zfs zfs_arc_max=$max" >"$target/etc/modprobe.d/zfs.conf"
+	fi
+}

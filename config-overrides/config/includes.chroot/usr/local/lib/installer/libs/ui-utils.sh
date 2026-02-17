@@ -50,78 +50,78 @@ export UI_CHECK='✓'
 export UI_WARN='⚠'
 
 _ui_plain_mode() {
-  [[ "${INSTALLER_PLAIN_UI:-0}" == "1" ]]
+	[[ "${INSTALLER_PLAIN_UI:-0}" == "1" ]]
 }
 
 _ui_plain_pick_one() {
-  local title="$1"
-  shift
-  local -a options=("$@")
+	local title="$1"
+	shift
+	local -a options=("$@")
 
-  echo "" >&2
-  echo "$title" >&2
-  local i=1
-  local opt
-  for opt in "${options[@]}"; do
-    printf '  %d) %s\n' "$i" "$opt" >&2
-    i=$((i + 1))
-  done
+	echo "" >&2
+	echo "$title" >&2
+	local i=1
+	local opt
+	for opt in "${options[@]}"; do
+		printf '  %d) %s\n' "$i" "$opt" >&2
+		i=$((i + 1))
+	done
 
-  local ans
-  printf 'Escolha [1]: ' >&2
-  IFS= read -r ans
-  ans="${ans:-1}"
+	local ans
+	printf 'Escolha [1]: ' >&2
+	IFS= read -r ans
+	ans="${ans:-1}"
 
-  if [[ "$ans" =~ ^[0-9]+$ ]] && ((ans >= 1 && ans <= ${#options[@]})); then
-    printf '%s' "${options[$((ans - 1))]}"
-    return 0
-  fi
+	if [[ "$ans" =~ ^[0-9]+$ ]] && ((ans >= 1 && ans <= ${#options[@]})); then
+		printf '%s' "${options[$((ans - 1))]}"
+		return 0
+	fi
 
-  opt="${options[0]}"
-  for opt in "${options[@]}"; do
-    if [[ "$ans" == "$opt" ]]; then
-      printf '%s' "$opt"
-      return 0
-    fi
-  done
+	opt="${options[0]}"
+	for opt in "${options[@]}"; do
+		if [[ "$ans" == "$opt" ]]; then
+			printf '%s' "$opt"
+			return 0
+		fi
+	done
 
-  return 1
+	return 1
 }
 
 _ui_plain_pick_many() {
-  local title="$1"
-  shift
-  local -a options=("$@")
+	local title="$1"
+	shift
+	local -a options=("$@")
 
-  echo "" >&2
-  echo "$title" >&2
-  local i=1
-  local opt
-  for opt in "${options[@]}"; do
-    printf '  %d) %s\n' "$i" "$opt" >&2
-    i=$((i + 1))
-  done
+	echo "" >&2
+	echo "$title" >&2
+	local i=1
+	local opt
+	for opt in "${options[@]}"; do
+		printf '  %d) %s\n' "$i" "$opt" >&2
+		i=$((i + 1))
+	done
 
-  local ans
-  printf 'Escolhas (ex: 1,3) [1]: ' >&2
-  IFS= read -r ans
-  ans="${ans:-1}"
-  ans="${ans// /}"
+	local ans
+	printf 'Escolhas (ex: 1,3) [1]: ' >&2
+	IFS= read -r ans
+	ans="${ans:-1}"
+	ans="${ans// /}"
 
-  local -a picked=()
-  IFS=',' read -r -a raw <<<"$ans"
-  local idx
-  for idx in "${raw[@]}"; do
-    if [[ "$idx" =~ ^[0-9]+$ ]] && ((idx >= 1 && idx <= ${#options[@]})); then
-      picked+=("${options[$((idx - 1))]}")
-    fi
-  done
+	local -a picked=()
+	IFS=',' read -r -a raw <<<"$ans"
+	local idx
+	for idx in "${raw[@]}"; do
+		if [[ "$idx" =~ ^[0-9]+$ ]] && ((idx >= 1 && idx <= ${#options[@]})); then
+			picked+=("${options[$((idx - 1))]}")
+		fi
+	done
 
-  if [[ "${#picked[@]}" -eq 0 ]]; then
-    return 1
-  fi
+	if [[ "${#picked[@]}" -eq 0 ]]; then
+		return 1
+	fi
 
-  printf '%s\n' "${picked[@]}"
+	printf '%s\n' "${picked[@]}"
 }
 
 # ═══════════════════════════════════════════════════════════
@@ -131,478 +131,478 @@ _ui_plain_pick_many() {
 # @INST_FUNC: _ui_get_width
 # @INST_DESC: Calcula a largura do conteúdo principal baseada no terminal.
 _ui_get_width() {
-  local term_width
-  term_width=$(tput cols || echo 80)
+	local term_width
+	term_width=$(tput cols || echo 80)
 
-  # Largura padrão (desktop/vm)
-  local content_width=$((term_width - 4))
+	# Largura padrão (desktop/vm)
+	local content_width=$((term_width - 4))
 
-  # Limites de legibilidade
-  [[ "$content_width" -lt 40 ]] && content_width=40
-  [[ "$content_width" -gt 100 ]] && content_width=100
+	# Limites de legibilidade
+	[[ "$content_width" -lt 40 ]] && content_width=40
+	[[ "$content_width" -gt 100 ]] && content_width=100
 
-  echo "$content_width"
+	echo "$content_width"
 }
 
 # @INST_FUNC: ui_hero
 # @INST_DESC: Exibe o cabeçalho principal da aplicação (Hero component).
 ui_hero() {
-  local title="${1:-FILESERVER INSTALLER}"
-  local subtitle="${2:-}"
+	local title="${1:-FILESERVER INSTALLER}"
+	local subtitle="${2:-}"
 
-  if _ui_plain_mode; then
-    echo "============================================================"
-    echo "$title"
-    [[ -n "$subtitle" ]] && echo "$subtitle"
-    echo "============================================================"
-    return 0
-  fi
+	if _ui_plain_mode; then
+		echo "============================================================"
+		echo "$title"
+		[[ -n "$subtitle" ]] && echo "$subtitle"
+		echo "============================================================"
+		return 0
+	fi
 
-  clear
+	clear
 
-  local width
-  width=$(_ui_get_width)
+	local width
+	width=$(_ui_get_width)
 
-  # Hero tem margem externa de 2 chars (total 4) e padding interno
-  # Para alinhar com Section (que é full width no content area),
-  # Hero deve ter a mesma largura visual total.
+	# Hero tem margem externa de 2 chars (total 4) e padding interno
+	# Para alinhar com Section (que é full width no content area),
+	# Hero deve ter a mesma largura visual total.
 
-  gum style \
-    --foreground "$DS_FILESERVER_PEAK" \
-    --border-foreground "$DS_SLATE" \
-    --border double --align center \
-    --width "$width" --margin "1 2" --padding "1 2" \
-    "$title" "$subtitle"
+	gum style \
+		--foreground "$DS_FILESERVER_PEAK" \
+		--border-foreground "$DS_SLATE" \
+		--border double --align center \
+		--width "$width" --margin "1 2" --padding "1 2" \
+		"$title" "$subtitle"
 }
 
 ui_section() {
-  local title="$1"
+	local title="$1"
 
-  if _ui_plain_mode; then
-    echo ""
-    echo "---- $title ----"
-    return 0
-  fi
+	if _ui_plain_mode; then
+		echo ""
+		echo "---- $title ----"
+		return 0
+	fi
 
-  local width
-  width=$(_ui_get_width)
+	local width
+	width=$(_ui_get_width)
 
-  echo ""
-  gum style --foreground "$DS_MIST" --bold --margin "0 2" \
-    "$(printf "$UI_H%.0s" $(seq 1 "$width"))"
-  gum style --foreground "$DS_SILVER" --bold --margin "0 2" \
-    "  $UI_ARROW $title"
-  gum style --foreground "$DS_MIST" --bold --margin "0 2" \
-    "$(printf "$UI_H%.0s" $(seq 1 "$width"))"
+	echo ""
+	gum style --foreground "$DS_MIST" --bold --margin "0 2" \
+		"$(printf "$UI_H%.0s" $(seq 1 "$width"))"
+	gum style --foreground "$DS_SILVER" --bold --margin "0 2" \
+		"  $UI_ARROW $title"
+	gum style --foreground "$DS_MIST" --bold --margin "0 2" \
+		"$(printf "$UI_H%.0s" $(seq 1 "$width"))"
 }
 
 ui_card() {
-  local title="$1"
-  shift
+	local title="$1"
+	shift
 
-  if _ui_plain_mode; then
-    echo ""
-    echo "[$title]"
-    local line
-    for line in "$@"; do
-      printf '  %s\n' "$line"
-    done
-    return 0
-  fi
+	if _ui_plain_mode; then
+		echo ""
+		echo "[$title]"
+		local line
+		for line in "$@"; do
+			printf '  %s\n' "$line"
+		done
+		return 0
+	fi
 
-  local width
-  width=$(_ui_get_width)
+	local width
+	width=$(_ui_get_width)
 
-  # Cards have border (2 chars) + padding (4 chars) + margin (4 chars)
-  # gum style --width includes border and padding but NOT margin?
-  # margin "1 2" means 2 spaces left, 2 right.
-  # width should be exactly same as Hero to align borders.
+	# Cards have border (2 chars) + padding (4 chars) + margin (4 chars)
+	# gum style --width includes border and padding but NOT margin?
+	# margin "1 2" means 2 spaces left, 2 right.
+	# width should be exactly same as Hero to align borders.
 
-  gum style \
-    --border-foreground "$DS_WHISPER" \
-    --border normal \
-    --padding "1 2" --margin "1 2" \
-    --width "$width" \
-    "$(gum style --foreground "$DS_SLATE_GLOW" --bold "$title")" \
-    "$(gum style --foreground "$DS_MIST" "$(printf "$UI_H%.0s" $(seq 1 "$((width - 6))"))")" \
-    "$@"
+	gum style \
+		--border-foreground "$DS_WHISPER" \
+		--border normal \
+		--padding "1 2" --margin "1 2" \
+		--width "$width" \
+		"$(gum style --foreground "$DS_SLATE_GLOW" --bold "$title")" \
+		"$(gum style --foreground "$DS_MIST" "$(printf "$UI_H%.0s" $(seq 1 "$((width - 6))"))")" \
+		"$@"
 }
 
 ui_guidance() {
-  local goal="${1-}"
-  local impact="${2-}"
-  local recommendation="${3-}"
-  local avoid_when="${4-}"
+	local goal="${1-}"
+	local impact="${2-}"
+	local recommendation="${3-}"
+	local avoid_when="${4-}"
 
-  ui_card "Guia da etapa" \
-    "  $UI_BULLET Objetivo: ${goal:-n/d}" \
-    "  $UI_BULLET Impacto: ${impact:-n/d}" \
-    "  $UI_BULLET Recomendado: ${recommendation:-n/d}" \
-    "  $UI_WARN Evite quando: ${avoid_when:-n/d}"
+	ui_card "Guia da etapa" \
+		"  $UI_BULLET Objetivo: ${goal:-n/d}" \
+		"  $UI_BULLET Impacto: ${impact:-n/d}" \
+		"  $UI_BULLET Recomendado: ${recommendation:-n/d}" \
+		"  $UI_WARN Evite quando: ${avoid_when:-n/d}"
 }
 
 ui_progress() {
-  local current="$1" total="$2" label="$3"
+	local current="$1" total="$2" label="$3"
 
-  if _ui_plain_mode; then
-    local pct=$((current * 100 / total))
-    echo "[${pct}%] $label"
-    return 0
-  fi
+	if _ui_plain_mode; then
+		local pct=$((current * 100 / total))
+		echo "[${pct}%] $label"
+		return 0
+	fi
 
-  local width=40
-  local filled
-  local empty
-  local pct
-  filled=$((current * width / total))
-  empty=$((width - filled))
-  pct=$((current * 100 / total))
+	local width=40
+	local filled
+	local empty
+	local pct
+	filled=$((current * width / total))
+	empty=$((width - filled))
+	pct=$((current * 100 / total))
 
-  local bar_filled
-  local bar_empty
-  bar_filled=$(printf '█%.0s' $(seq 1 $filled))
-  bar_empty=$(printf '░%.0s' $(seq 1 $empty))
+	local bar_filled
+	local bar_empty
+	bar_filled=$(printf '█%.0s' $(seq 1 $filled))
+	bar_empty=$(printf '░%.0s' $(seq 1 $empty))
 
-  gum style --foreground "$DS_SLATE" \
-    "  [$bar_filled$bar_empty] $pct%"
-  gum style --foreground "$DS_FOG" --italic \
-    "      $UI_ARROW $label"
+	gum style --foreground "$DS_SLATE" \
+		"  [$bar_filled$bar_empty] $pct%"
+	gum style --foreground "$DS_FOG" --italic \
+		"      $UI_ARROW $label"
 }
 
 # @INST_FUNC: ui_input
 # @INST_DESC: Solicita entrada de texto do usuário via 'gum input'.
 ui_input() {
-  local label="$1"
-  local placeholder="${2:-}"
-  local hint="${3:-}"
+	local label="$1"
+	local placeholder="${2:-}"
+	local hint="${3:-}"
 
-  if _ui_plain_mode; then
-    local value
-    if [[ -n "$placeholder" ]]; then
-      printf '%s [%s]: ' "$label" "$placeholder" >&2
-    else
-      printf '%s: ' "$label" >&2
-    fi
-    IFS= read -r value
-    [[ -n "$hint" ]] && printf '  %s\n' "$hint" >&2
-    echo "$value"
-    return 0
-  fi
+	if _ui_plain_mode; then
+		local value
+		if [[ -n "$placeholder" ]]; then
+			printf '%s [%s]: ' "$label" "$placeholder" >&2
+		else
+			printf '%s: ' "$label" >&2
+		fi
+		IFS= read -r value
+		[[ -n "$hint" ]] && printf '  %s\n' "$hint" >&2
+		echo "$value"
+		return 0
+	fi
 
-  gum style --foreground "$DS_CLOUD" --margin "0 2" "$label:" >&2
-  local value
-  value=$(gum input \
-    --placeholder "$placeholder" \
-    --header "" \
-    --prompt.foreground "$DS_SLATE" \
-    --placeholder.foreground "$DS_FOG" \
-    --cursor.foreground "$DS_FILESERVER_PEAK")
-  [[ -n "$hint" ]] &&
-    gum style --foreground "$DS_FOG" --italic --margin "0 2" "    $hint" >&2
-  echo "$value"
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$label:" >&2
+	local value
+	value=$(gum input \
+		--placeholder "$placeholder" \
+		--header "" \
+		--prompt.foreground "$DS_SLATE" \
+		--placeholder.foreground "$DS_FOG" \
+		--cursor.foreground "$DS_FILESERVER_PEAK")
+	[[ -n "$hint" ]] &&
+		gum style --foreground "$DS_FOG" --italic --margin "0 2" "    $hint" >&2
+	echo "$value"
 }
 
 ui_password() {
-  local label="$1"
-  local placeholder="${2:-Senha}"
-  local hint="${3:-}"
+	local label="$1"
+	local placeholder="${2:-Senha}"
+	local hint="${3:-}"
 
-  if _ui_plain_mode; then
-    local value
-    printf '%s [%s]: ' "$label" "$placeholder" >&2
-    IFS= read -r -s value
-    printf '\n' >&2
-    [[ -n "$hint" ]] && printf '  %s\n' "$hint" >&2
-    echo "$value"
-    return 0
-  fi
+	if _ui_plain_mode; then
+		local value
+		printf '%s [%s]: ' "$label" "$placeholder" >&2
+		IFS= read -r -s value
+		printf '\n' >&2
+		[[ -n "$hint" ]] && printf '  %s\n' "$hint" >&2
+		echo "$value"
+		return 0
+	fi
 
-  gum style --foreground "$DS_CLOUD" --margin "0 2" "$label:" >&2
-  local value
-  value="$(gum input \
-    --password \
-    --placeholder "$placeholder" \
-    --header "" \
-    --prompt.foreground "$DS_SLATE" \
-    --placeholder.foreground "$DS_FOG" \
-    --cursor.foreground "$DS_FILESERVER_PEAK")"
-  [[ -n "$hint" ]] &&
-    gum style --foreground "$DS_FOG" --italic --margin "0 2" "    $hint" >&2
-  echo "$value"
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$label:" >&2
+	local value
+	value="$(gum input \
+		--password \
+		--placeholder "$placeholder" \
+		--header "" \
+		--prompt.foreground "$DS_SLATE" \
+		--placeholder.foreground "$DS_FOG" \
+		--cursor.foreground "$DS_FILESERVER_PEAK")"
+	[[ -n "$hint" ]] &&
+		gum style --foreground "$DS_FOG" --italic --margin "0 2" "    $hint" >&2
+	echo "$value"
 }
 
 # @INST_FUNC: ui_select
 # @INST_DESC: Menu de seleção única via 'gum choose'.
 ui_select() {
-  local title="$1"
-  shift
-  local selection
+	local title="$1"
+	shift
+	local selection
 
-  if _ui_plain_mode; then
-    _ui_plain_pick_one "$title" "$@"
-    return $?
-  fi
+	if _ui_plain_mode; then
+		_ui_plain_pick_one "$title" "$@"
+		return $?
+	fi
 
-  gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
-  gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Use ↑/↓ para navegar e Enter para confirmar" >&2
-  echo "" >&2
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
+	gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Use ↑/↓ para navegar e Enter para confirmar" >&2
+	echo "" >&2
 
-  if [[ "$#" -eq 0 ]]; then
-    ui_error "Opções inválidas" "Nenhuma opção foi fornecida para seleção."
-    return 1
-  fi
+	if [[ "$#" -eq 0 ]]; then
+		ui_error "Opções inválidas" "Nenhuma opção foi fornecida para seleção."
+		return 1
+	fi
 
-  if ! selection="$(gum choose "$@" \
-    --height 8 \
-    --show-help \
-    --cursor "$UI_ARROW " \
-    --selected-prefix "$UI_BULLET " \
-    --unselected-prefix "• " \
-    --cursor.foreground "$DS_FILESERVER_PEAK" \
-    --item.foreground "$DS_CLOUD" \
-    --selected.foreground "$DS_SILVER" \
-    --selected.background "$DS_ELEVATION")"; then
-    return 1
-  fi
+	if ! selection="$(gum choose "$@" \
+		--height 8 \
+		--show-help \
+		--cursor "$UI_ARROW " \
+		--selected-prefix "$UI_BULLET " \
+		--unselected-prefix "• " \
+		--cursor.foreground "$DS_FILESERVER_PEAK" \
+		--item.foreground "$DS_CLOUD" \
+		--selected.foreground "$DS_SILVER" \
+		--selected.background "$DS_ELEVATION")"; then
+		return 1
+	fi
 
-  if [[ -z "$selection" ]]; then
-    selection="${1:-}"
-  fi
+	if [[ -z "$selection" ]]; then
+		selection="${1:-}"
+	fi
 
-  printf '%s' "$selection"
+	printf '%s' "$selection"
 }
 
 ui_filter_select() {
-  local title="$1"
-  shift
-  local selection
+	local title="$1"
+	shift
+	local selection
 
-  if _ui_plain_mode; then
-    _ui_plain_pick_one "$title" "$@"
-    return $?
-  fi
+	if _ui_plain_mode; then
+		_ui_plain_pick_one "$title" "$@"
+		return $?
+	fi
 
-  gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
-  gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Digite para filtrar e Enter para selecionar" >&2
-  echo "" >&2
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
+	gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Digite para filtrar e Enter para selecionar" >&2
+	echo "" >&2
 
-  if [[ "$#" -eq 0 ]]; then
-    ui_error "Opções inválidas" "Nenhuma opção foi fornecida para seleção."
-    return 1
-  fi
+	if [[ "$#" -eq 0 ]]; then
+		ui_error "Opções inválidas" "Nenhuma opção foi fornecida para seleção."
+		return 1
+	fi
 
-  if ! selection="$(printf '%s\n' "$@" | gum filter \
-    --height 12 \
-    --show-help \
-    --fuzzy \
-    --strict \
-    --header "$title" \
-    --placeholder "Digite para filtrar..." \
-    --prompt "$UI_ARROW " \
-    --indicator "$UI_BULLET" \
-    --selected-prefix "$UI_BULLET " \
-    --unselected-prefix "• " \
-    --selected-indicator.foreground "$DS_FILESERVER_PEAK" \
-    --unselected-prefix.foreground "$DS_FOG" \
-    --text.foreground "$DS_CLOUD" \
-    --cursor-text.foreground "$DS_SILVER" \
-    --match.foreground "$DS_FILESERVER_PEAK" \
-    --prompt.foreground "$DS_SLATE" \
-    --placeholder.foreground "$DS_FOG")"; then
-    return 1
-  fi
+	if ! selection="$(printf '%s\n' "$@" | gum filter \
+		--height 12 \
+		--show-help \
+		--fuzzy \
+		--strict \
+		--header "$title" \
+		--placeholder "Digite para filtrar..." \
+		--prompt "$UI_ARROW " \
+		--indicator "$UI_BULLET" \
+		--selected-prefix "$UI_BULLET " \
+		--unselected-prefix "• " \
+		--selected-indicator.foreground "$DS_FILESERVER_PEAK" \
+		--unselected-prefix.foreground "$DS_FOG" \
+		--text.foreground "$DS_CLOUD" \
+		--cursor-text.foreground "$DS_SILVER" \
+		--match.foreground "$DS_FILESERVER_PEAK" \
+		--prompt.foreground "$DS_SLATE" \
+		--placeholder.foreground "$DS_FOG")"; then
+		return 1
+	fi
 
-  printf '%s' "$selection"
+	printf '%s' "$selection"
 }
 
 ui_multiselect() {
-  local title="$1"
-  shift
-  local selection
+	local title="$1"
+	shift
+	local selection
 
-  if _ui_plain_mode; then
-    _ui_plain_pick_many "$title" "$@"
-    return $?
-  fi
+	if _ui_plain_mode; then
+		_ui_plain_pick_many "$title" "$@"
+		return $?
+	fi
 
-  gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
-  gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Espaço marca • Enter confirma • Ctrl+C cancela" >&2
-  echo "" >&2
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
+	gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Espaço marca • Enter confirma • Ctrl+C cancela" >&2
+	echo "" >&2
 
-  if [[ "$#" -eq 0 ]]; then
-    ui_error "Opções inválidas" "Nenhuma opção foi fornecida para seleção."
-    return 1
-  fi
+	if [[ "$#" -eq 0 ]]; then
+		ui_error "Opções inválidas" "Nenhuma opção foi fornecida para seleção."
+		return 1
+	fi
 
-  if ! selection="$(gum choose "$@" \
-    --no-limit \
-    --height 10 \
-    --show-help \
-    --cursor "$UI_ARROW " \
-    --selected-prefix "[$UI_BULLET] " \
-    --unselected-prefix "[ ] " \
-    --cursor-prefix "[ ] " \
-    --cursor.foreground "$DS_FILESERVER_PEAK" \
-    --item.foreground "$DS_CLOUD" \
-    --selected.foreground "$DS_SILVER" \
-    --selected.background "$DS_ELEVATION")"; then
-    return 1
-  fi
+	if ! selection="$(gum choose "$@" \
+		--no-limit \
+		--height 10 \
+		--show-help \
+		--cursor "$UI_ARROW " \
+		--selected-prefix "[$UI_BULLET] " \
+		--unselected-prefix "[ ] " \
+		--cursor-prefix "[ ] " \
+		--cursor.foreground "$DS_FILESERVER_PEAK" \
+		--item.foreground "$DS_CLOUD" \
+		--selected.foreground "$DS_SILVER" \
+		--selected.background "$DS_ELEVATION")"; then
+		return 1
+	fi
 
-  printf '%s' "$selection"
+	printf '%s' "$selection"
 }
 
 ui_filter_multiselect() {
-  local title="$1"
-  shift
-  local selection
+	local title="$1"
+	shift
+	local selection
 
-  if _ui_plain_mode; then
-    _ui_plain_pick_many "$title" "$@"
-    return $?
-  fi
+	if _ui_plain_mode; then
+		_ui_plain_pick_many "$title" "$@"
+		return $?
+	fi
 
-  gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
-  gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Digite para filtrar • Tab alterna • Enter confirma" >&2
-  echo "" >&2
+	gum style --foreground "$DS_CLOUD" --margin "0 2" "$title" >&2
+	gum style --foreground "$DS_FOG" --italic --margin "0 2" "  $UI_ARROW Digite para filtrar • Tab alterna • Enter confirma" >&2
+	echo "" >&2
 
-  if [[ "$#" -eq 0 ]]; then
-    ui_error "Opções inválidas" "Nenhuma opção foi fornecida para seleção."
-    return 1
-  fi
+	if [[ "$#" -eq 0 ]]; then
+		ui_error "Opções inválidas" "Nenhuma opção foi fornecida para seleção."
+		return 1
+	fi
 
-  # Pad options with 2 spaces for alignment
-  local -a options_padded
-  local opt
-  for opt in "$@"; do
-    options_padded+=("  $opt")
-  done
+	# Pad options with 2 spaces for alignment
+	local -a options_padded
+	local opt
+	for opt in "$@"; do
+		options_padded+=("  $opt")
+	done
 
-  if ! selection="$(printf '%s\n' "${options_padded[@]}" | gum filter \
-    --no-limit \
-    --height 12 \
-    --show-help \
-    --fuzzy \
-    --strict \
-    --header "$title" \
-    --placeholder "Digite para filtrar..." \
-    --prompt "$UI_ARROW " \
-    --indicator "$UI_BULLET" \
-    --selected-prefix "[$UI_BULLET] " \
-    --unselected-prefix "[ ] " \
-    --selected-indicator.foreground "$DS_FILESERVER_PEAK" \
-    --text.foreground "$DS_CLOUD" \
-    --cursor-text.foreground "$DS_SILVER" \
-    --match.foreground "$DS_FILESERVER_PEAK" \
-    --prompt.foreground "$DS_SLATE" \
-    --placeholder.foreground "$DS_FOG")"; then
-    return 1
-  fi
+	if ! selection="$(printf '%s\n' "${options_padded[@]}" | gum filter \
+		--no-limit \
+		--height 12 \
+		--show-help \
+		--fuzzy \
+		--strict \
+		--header "$title" \
+		--placeholder "Digite para filtrar..." \
+		--prompt "$UI_ARROW " \
+		--indicator "$UI_BULLET" \
+		--selected-prefix "[$UI_BULLET] " \
+		--unselected-prefix "[ ] " \
+		--selected-indicator.foreground "$DS_FILESERVER_PEAK" \
+		--text.foreground "$DS_CLOUD" \
+		--cursor-text.foreground "$DS_SILVER" \
+		--match.foreground "$DS_FILESERVER_PEAK" \
+		--prompt.foreground "$DS_SLATE" \
+		--placeholder.foreground "$DS_FOG")"; then
+		return 1
+	fi
 
-  # Remove the 2-space padding from the result
-  printf '%s\n' "$selection" | sed 's/^  //'
+	# Remove the 2-space padding from the result
+	printf '%s\n' "$selection" | sed 's/^  //'
 }
 
 ui_error() {
-  local title="${1:-Erro}"
-  local message="${2:-}"
+	local title="${1:-Erro}"
+	local message="${2:-}"
 
-  if _ui_plain_mode; then
-    echo "[ERRO] $title" >&2
-    [[ -n "$message" ]] && echo "$message" >&2
-    return 0
-  fi
+	if _ui_plain_mode; then
+		echo "[ERRO] $title" >&2
+		[[ -n "$message" ]] && echo "$message" >&2
+		return 0
+	fi
 
-  local width
-  width=$(_ui_get_width)
+	local width
+	width=$(_ui_get_width)
 
-  if [[ -n "$message" ]]; then
-    gum style \
-      --foreground "$DS_ERROR" \
-      --border-foreground "$DS_ERROR" \
-      --border double \
-      --padding "1 2" --margin "1 2" --align center \
-      --width "$width" \
-      "$UI_WARN $title" "" "$message"
-  else
-    gum style \
-      --foreground "$DS_ERROR" \
-      --border-foreground "$DS_ERROR" \
-      --border double \
-      --padding "1 2" --margin "1 2" --align center \
-      --width "$width" \
-      "$UI_WARN $title"
-  fi
+	if [[ -n "$message" ]]; then
+		gum style \
+			--foreground "$DS_ERROR" \
+			--border-foreground "$DS_ERROR" \
+			--border double \
+			--padding "1 2" --margin "1 2" --align center \
+			--width "$width" \
+			"$UI_WARN $title" "" "$message"
+	else
+		gum style \
+			--foreground "$DS_ERROR" \
+			--border-foreground "$DS_ERROR" \
+			--border double \
+			--padding "1 2" --margin "1 2" --align center \
+			--width "$width" \
+			"$UI_WARN $title"
+	fi
 }
 
 ui_success() {
-  local message="$1"
+	local message="$1"
 
-  if _ui_plain_mode; then
-    echo "[OK] $message"
-    return 0
-  fi
+	if _ui_plain_mode; then
+		echo "[OK] $message"
+		return 0
+	fi
 
-  local width
-  width=$(_ui_get_width)
+	local width
+	width=$(_ui_get_width)
 
-  gum style \
-    --foreground "$DS_SUCCESS" \
-    --border-foreground "$DS_SUCCESS" \
-    --border double \
-    --padding "1 2" --margin "1 2" --align center \
-    --width "$width" \
-    "$UI_CHECK $message"
+	gum style \
+		--foreground "$DS_SUCCESS" \
+		--border-foreground "$DS_SUCCESS" \
+		--border double \
+		--padding "1 2" --margin "1 2" --align center \
+		--width "$width" \
+		"$UI_CHECK $message"
 }
 
 ui_warn() {
-  local message="${1:-Aviso}"
+	local message="${1:-Aviso}"
 
-  if _ui_plain_mode; then
-    echo "[AVISO] $message" >&2
-    return 0
-  fi
+	if _ui_plain_mode; then
+		echo "[AVISO] $message" >&2
+		return 0
+	fi
 
-  local width
-  width=$(_ui_get_width)
+	local width
+	width=$(_ui_get_width)
 
-  gum style \
-    --foreground "$DS_WARNING" \
-    --border-foreground "$DS_WARNING" \
-    --border normal \
-    --padding "1 2" --margin "1 2" --align center \
-    --width "$width" \
-    "$UI_WARN $message"
+	gum style \
+		--foreground "$DS_WARNING" \
+		--border-foreground "$DS_WARNING" \
+		--border normal \
+		--padding "1 2" --margin "1 2" --align center \
+		--width "$width" \
+		"$UI_WARN $message"
 }
 
 # @INST_FUNC: ui_confirm
 # @INST_DESC: Diálogo de confirmação sim/não.
 ui_confirm() {
-  local title="$1"
-  local affirmative="${2:-Sim}"
-  local negative="${3:-Não}"
+	local title="$1"
+	local affirmative="${2:-Sim}"
+	local negative="${3:-Não}"
 
-  if _ui_plain_mode; then
-    local ans
-    printf '%s [%s/%s] (padrão: %s): ' "$title" "$affirmative" "$negative" "$affirmative" >&2
-    IFS= read -r ans
-    ans="${ans:-$affirmative}"
-    case "$ans" in
-    s | S | y | Y | sim | SIM | yes | YES | "$affirmative") return 0 ;;
-    *) return 1 ;;
-    esac
-  fi
+	if _ui_plain_mode; then
+		local ans
+		printf '%s [%s/%s] (padrão: %s): ' "$title" "$affirmative" "$negative" "$affirmative" >&2
+		IFS= read -r ans
+		ans="${ans:-$affirmative}"
+		case "$ans" in
+		s | S | y | Y | sim | SIM | yes | YES | "$affirmative") return 0 ;;
+		*) return 1 ;;
+		esac
+	fi
 
-  gum confirm "$title" \
-    --affirmative "$affirmative" \
-    --negative "$negative" \
-    --show-help \
-    --padding "0 0" \
-    --prompt.foreground "$DS_SLATE" \
-    --selected.foreground "$DS_FILESERVER_PEAK" \
-    --selected.background "$DS_ELEVATION" \
-    --unselected.foreground "$DS_FOG" \
-    --unselected.background "$DS_VOID"
+	gum confirm "$title" \
+		--affirmative "$affirmative" \
+		--negative "$negative" \
+		--show-help \
+		--padding "0 0" \
+		--prompt.foreground "$DS_SLATE" \
+		--selected.foreground "$DS_FILESERVER_PEAK" \
+		--selected.background "$DS_ELEVATION" \
+		--unselected.foreground "$DS_FOG" \
+		--unselected.background "$DS_VOID"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -613,23 +613,23 @@ ui_confirm() {
 # @INST_DESC: Executa um comando com spinner e redirecionamento de logs.
 # @INST_DEP: gum spin
 ui_process_step() {
-  local title="$1"
-  shift
-  local cmd
-  local libs_dir="${LIBS_DIR:-}"
+	local title="$1"
+	shift
+	local cmd
+	local libs_dir="${LIBS_DIR:-}"
 
-  if _ui_plain_mode; then
-    printf '[PROCESS] %s\n' "$title" >&2
-    "$@"
-    return $?
-  fi
+	if _ui_plain_mode; then
+		printf '[PROCESS] %s\n' "$title" >&2
+		"$@"
+		return $?
+	fi
 
-  # Escape arguments for safe injection into bash -c
-  cmd="$(printf "%q " "$@")"
+	# Escape arguments for safe injection into bash -c
+	cmd="$(printf "%q " "$@")"
 
-  gum spin --spinner dot --title "$title" --show-error \
-    --spinner.foreground "$DS_SLATE" \
-    --title.foreground "$DS_CLOUD" -- bash -c "
+	gum spin --spinner dot --title "$title" --show-error \
+		--spinner.foreground "$DS_SLATE" \
+		--title.foreground "$DS_CLOUD" -- bash -c "
         set -euo pipefail
         exec >>'${LOG_FILE:-/dev/null}' 2>&1
         # Source all libs to ensure environment in subshell
@@ -642,13 +642,13 @@ ui_process_step() {
 }
 
 ui_require() {
-  if _ui_plain_mode; then
-    return 0
-  fi
+	if _ui_plain_mode; then
+		return 0
+	fi
 
-  # Check if gum is available
-  if ! command -v gum >/dev/null 2>&1; then
-    echo "Erro: gum não encontrado. Instale gum." >&2
-    return 1
-  fi
+	# Check if gum is available
+	if ! command -v gum >/dev/null 2>&1; then
+		echo "Erro: gum não encontrado. Instale gum." >&2
+		return 1
+	fi
 }
