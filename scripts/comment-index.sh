@@ -11,7 +11,7 @@ OUT_DIR="${OUT_DIR:-output/comment-index}"
 FORMAT="${FORMAT:-all}"
 
 usage() {
-  cat <<'EOF'
+	cat <<'EOF'
 Usage: scripts/comment-index.sh [--root PATH] [--out-dir DIR] [--format all|index|graph]
 
 Outputs:
@@ -22,59 +22,59 @@ EOF
 }
 
 while [[ $# -gt 0 ]]; do
-  case "$1" in
-  --root)
-    ROOT="$2"
-    shift 2
-    ;;
-  --out-dir)
-    OUT_DIR="$2"
-    shift 2
-    ;;
-  --format)
-    FORMAT="$2"
-    shift 2
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *)
-    printf 'Unknown argument: %s\n' "$1" >&2
-    usage
-    exit 2
-    ;;
-  esac
+	case "$1" in
+	--root)
+		ROOT="$2"
+		shift 2
+		;;
+	--out-dir)
+		OUT_DIR="$2"
+		shift 2
+		;;
+	--format)
+		FORMAT="$2"
+		shift 2
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	*)
+		printf 'Unknown argument: %s\n' "$1" >&2
+		usage
+		exit 2
+		;;
+	esac
 done
 
 mkdir -p "$OUT_DIR"
 
 tmp_files="$(mktemp)"
 (find "$ROOT" -type f -name "*.sh" \
-  -not -path "*/.git/*" \
-  -not -path "*/live-build-workspace/*" \
-  -not -path "*/archived/*" \
-  -not -path "*/.opencode/*" \
-  -not -path "*/output/*" \
-  2>/dev/null || true) |
-  sort >"$tmp_files"
+	-not -path "*/.git/*" \
+	-not -path "*/live-build-workspace/*" \
+	-not -path "*/archived/*" \
+	-not -path "*/.opencode/*" \
+	-not -path "*/output/*" \
+	2>/dev/null || true) |
+	sort >"$tmp_files"
 
 index_txt="$OUT_DIR/comment-index.txt"
 index_jsonl="$OUT_DIR/comment-index.jsonl"
 flow_mmd="$OUT_DIR/comment-flow.mmd"
 
 generate_index() {
-  : >"$index_txt"
-  while IFS= read -r f; do
-    rel="${f#"${ROOT}"/}"
-    awk -v file="$rel" '
+	: >"$index_txt"
+	while IFS= read -r f; do
+		rel="${f#"${ROOT}"/}"
+		awk -v file="$rel" '
       match($0, /^[[:space:]]*#[[:space:]]*@([A-Z_]+):[[:space:]]*(.*)$/, m) {
         printf "%s:%d:@%s:%s\n", file, NR, m[1], m[2]
       }
     ' "$f" >>"$index_txt"
-  done <"$tmp_files"
+	done <"$tmp_files"
 
-  python3 - "$index_txt" "$index_jsonl" <<'PY'
+	python3 - "$index_txt" "$index_jsonl" <<'PY'
 import json
 import sys
 
@@ -96,7 +96,7 @@ PY
 }
 
 generate_graph() {
-  python3 - "$tmp_files" "$flow_mmd" <<'PY'
+	python3 - "$tmp_files" "$flow_mmd" <<'PY'
 import re
 import sys
 
@@ -178,19 +178,19 @@ PY
 
 case "$FORMAT" in
 all)
-  generate_index
-  generate_graph
-  ;;
+	generate_index
+	generate_graph
+	;;
 index)
-  generate_index
-  ;;
+	generate_index
+	;;
 graph)
-  generate_graph
-  ;;
+	generate_graph
+	;;
 *)
-  printf 'Formato inválido: %s\n' "$FORMAT" >&2
-  exit 2
-  ;;
+	printf 'Formato inválido: %s\n' "$FORMAT" >&2
+	exit 2
+	;;
 esac
 
 rm -f "$tmp_files"

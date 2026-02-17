@@ -17,87 +17,87 @@ install_time_seconds=""
 logs_dir="logs"
 
 latest_match() {
-  local pattern="$1"
-  local matches=()
-  local match
+	local pattern="$1"
+	local matches=()
+	local match
 
-  while IFS= read -r match; do
-    [[ -n "$match" ]] && matches+=("$match")
-  done < <(compgen -G "$pattern" || true)
+	while IFS= read -r match; do
+		[[ -n "$match" ]] && matches+=("$match")
+	done < <(compgen -G "$pattern" || true)
 
-  if [[ ${#matches[@]} -eq 0 ]]; then
-    return 1
-  fi
+	if [[ ${#matches[@]} -eq 0 ]]; then
+		return 1
+	fi
 
-  printf '%s\n' "${matches[@]}" | sort | tail -n1
+	printf '%s\n' "${matches[@]}" | sort | tail -n1
 }
 
 while [[ $# -gt 0 ]]; do
-  case "$1" in
-  --mode)
-    mode="${2:-}"
-    shift 2
-    ;;
-  --iso)
-    iso_file="${2:-}"
-    shift 2
-    ;;
-  --firmware)
-    firmware="${2:-all}"
-    shift 2
-    ;;
-  --label)
-    label="${2:-manual}"
-    shift 2
-    ;;
-  --build-time)
-    build_time_seconds="${2:-}"
-    shift 2
-    ;;
-  --boot-time)
-    boot_time_seconds="${2:-}"
-    shift 2
-    ;;
-  --install-time)
-    install_time_seconds="${2:-}"
-    shift 2
-    ;;
-  --logs-dir)
-    logs_dir="${2:-logs}"
-    shift 2
-    ;;
-  --help | -h)
-    cat <<'EOF'
+	case "$1" in
+	--mode)
+		mode="${2:-}"
+		shift 2
+		;;
+	--iso)
+		iso_file="${2:-}"
+		shift 2
+		;;
+	--firmware)
+		firmware="${2:-all}"
+		shift 2
+		;;
+	--label)
+		label="${2:-manual}"
+		shift 2
+		;;
+	--build-time)
+		build_time_seconds="${2:-}"
+		shift 2
+		;;
+	--boot-time)
+		boot_time_seconds="${2:-}"
+		shift 2
+		;;
+	--install-time)
+		install_time_seconds="${2:-}"
+		shift 2
+		;;
+	--logs-dir)
+		logs_dir="${2:-logs}"
+		shift 2
+		;;
+	--help | -h)
+		cat <<'EOF'
 Usage: collect-iso-metrics.sh [--mode baseline|current] [--iso PATH] [--firmware all|uefi|bios] [--label TEXT] [--build-time S] [--boot-time S] [--install-time S] [--logs-dir DIR]
 EOF
-    exit 0
-    ;;
-  *)
-    printf 'Argumento inválido: %s\n' "$1" >&2
-    exit 2
-    ;;
-  esac
+		exit 0
+		;;
+	*)
+		printf 'Argumento inválido: %s\n' "$1" >&2
+		exit 2
+		;;
+	esac
 done
 
 if [[ -z "$iso_file" ]]; then
-  shopt -s nullglob
-  iso_candidates=(output/*.iso)
-  shopt -u nullglob
-  if [[ ${#iso_candidates[@]} -gt 0 ]]; then
-    iso_file="${iso_candidates[0]}"
-  fi
+	shopt -s nullglob
+	iso_candidates=(output/*.iso)
+	shopt -u nullglob
+	if [[ ${#iso_candidates[@]} -gt 0 ]]; then
+		iso_file="${iso_candidates[0]}"
+	fi
 fi
 
 if [[ -z "$iso_file" || ! -f "$iso_file" ]]; then
-  printf 'ISO não encontrada. Informe --iso ou gere output/*.iso.\n' >&2
-  exit 1
+	printf 'ISO não encontrada. Informe --iso ou gere output/*.iso.\n' >&2
+	exit 1
 fi
 
 if [[ -z "$build_time_seconds" ]]; then
-  latest_build_log="$(latest_match "${logs_dir}"/live-build-*.log || true)"
-  if [[ -n "$latest_build_log" && -f "$latest_build_log" ]]; then
-    build_time_seconds="$(
-      python3 - <<PY
+	latest_build_log="$(latest_match "${logs_dir}"/live-build-*.log || true)"
+	if [[ -n "$latest_build_log" && -f "$latest_build_log" ]]; then
+		build_time_seconds="$(
+			python3 - <<PY
 import re
 from datetime import datetime
 
@@ -120,20 +120,20 @@ if first is None or last is None:
 else:
     print(int((last - first).total_seconds()))
 PY
-    )"
-  fi
+		)"
+	fi
 fi
 
 if [[ "$firmware" != "all" && -z "$boot_time_seconds" ]]; then
-  latest_test_log_dir="$(latest_match "${logs_dir}"/test-* || true)"
-  if [[ -n "$latest_test_log_dir" && -d "$latest_test_log_dir" ]]; then
-    start_log="${latest_test_log_dir}/start-${firmware}.log"
-    boot_log="${latest_test_log_dir}/boot-${firmware}.log"
-    metrics_log="${latest_test_log_dir}/metrics-${firmware}.json"
+	latest_test_log_dir="$(latest_match "${logs_dir}"/test-* || true)"
+	if [[ -n "$latest_test_log_dir" && -d "$latest_test_log_dir" ]]; then
+		start_log="${latest_test_log_dir}/start-${firmware}.log"
+		boot_log="${latest_test_log_dir}/boot-${firmware}.log"
+		metrics_log="${latest_test_log_dir}/metrics-${firmware}.json"
 
-    if [[ -f "$metrics_log" ]]; then
-      boot_time_seconds="$(
-        python3 - <<PY
+		if [[ -f "$metrics_log" ]]; then
+			boot_time_seconds="$(
+				python3 - <<PY
 import json
 from pathlib import Path
 
@@ -145,12 +145,12 @@ except Exception:
 v = data.get("boot_capture_seconds")
 print("" if v is None else int(v))
 PY
-      )"
-    fi
+			)"
+		fi
 
-    if [[ -f "$start_log" && -f "$boot_log" ]]; then
-      boot_time_seconds="$(
-        python3 - <<PY
+		if [[ -f "$start_log" && -f "$boot_log" ]]; then
+			boot_time_seconds="$(
+				python3 - <<PY
 import os
 import re
 from datetime import datetime
@@ -173,18 +173,18 @@ else:
     delta = int((end_ts - first_ts).total_seconds())
     print(max(delta, 0))
 PY
-      )"
-    fi
-  fi
+			)"
+		fi
+	fi
 fi
 
 if [[ "$firmware" != "all" && -z "$install_time_seconds" ]]; then
-  latest_test_log_dir="$(latest_match "${logs_dir}"/test-* || true)"
-  if [[ -n "$latest_test_log_dir" && -d "$latest_test_log_dir" ]]; then
-    boot_log="${latest_test_log_dir}/boot-${firmware}.log"
-    if [[ -f "$boot_log" ]]; then
-      install_time_seconds="$(
-        python3 - <<PY
+	latest_test_log_dir="$(latest_match "${logs_dir}"/test-* || true)"
+	if [[ -n "$latest_test_log_dir" && -d "$latest_test_log_dir" ]]; then
+		boot_log="${latest_test_log_dir}/boot-${firmware}.log"
+		if [[ -f "$boot_log" ]]; then
+			install_time_seconds="$(
+				python3 - <<PY
 import re
 from datetime import datetime
 
@@ -207,9 +207,9 @@ if start is None or end is None:
 else:
     print(max(int((end - start).total_seconds()), 0))
 PY
-      )"
-    fi
-  fi
+			)"
+		fi
+	fi
 fi
 
 mkdir -p "$out_dir"
@@ -221,11 +221,11 @@ squashfs_type="unknown"
 squashfs_level="unknown"
 iso_type="unknown"
 if [[ -f "$profile_file" ]]; then
-  # shellcheck disable=SC1090
-  source "$profile_file"
-  squashfs_type="${SQUASHFS_COMPRESSION_TYPE:-unknown}"
-  squashfs_level="${SQUASHFS_COMPRESSION_LEVEL:-unknown}"
-  iso_type="${ISO_COMPRESSION_TYPE:-unknown}"
+	# shellcheck disable=SC1090
+	source "$profile_file"
+	squashfs_type="${SQUASHFS_COMPRESSION_TYPE:-unknown}"
+	squashfs_level="${SQUASHFS_COMPRESSION_LEVEL:-unknown}"
+	iso_type="${ISO_COMPRESSION_TYPE:-unknown}"
 fi
 
 python3 - <<PY

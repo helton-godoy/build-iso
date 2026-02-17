@@ -15,8 +15,8 @@ baseline_files=(output/iso-metrics/baseline*.json)
 shopt -u nullglob
 
 if [[ ${#baseline_files[@]} -eq 0 ]]; then
-  printf '[ERR] nenhum arquivo baseline encontrado em output/iso-metrics/.\n' >&2
-  exit 1
+	printf '[ERR] nenhum arquivo baseline encontrado em output/iso-metrics/.\n' >&2
+	exit 1
 fi
 
 python3 - <<'PY'

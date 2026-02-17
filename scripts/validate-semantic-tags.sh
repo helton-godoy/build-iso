@@ -23,20 +23,20 @@ files_with_issues=0
 issues=""
 
 while read -r file; do
-  ((total_files++)) || true
-  echo "Verificando: $file"
-  
-  missing=""
-  for tag in $TAGS_REQUIRED; do
-    if ! grep -q "@${tag}" "$file" 2>/dev/null; then
-      missing="$missing @${tag}"
-    fi
-  done
-  
-  if [[ -n "$missing" ]]; then
-    ((files_with_issues++)) || true
-    issues="$issues\n$file:$missing"
-  fi
+	((total_files++)) || true
+	echo "Verificando: $file"
+
+	missing=""
+	for tag in $TAGS_REQUIRED; do
+		if ! grep -q "@${tag}" "$file" 2>/dev/null; then
+			missing="$missing @${tag}"
+		fi
+	done
+
+	if [[ -n "$missing" ]]; then
+		((files_with_issues++)) || true
+		issues="$issues\n$file:$missing"
+	fi
 done < <(find "$INSTALLER_DIR" -name "*.sh" -type f 2>/dev/null)
 
 echo ""
@@ -45,10 +45,10 @@ echo "Arquivos com issues:         $files_with_issues"
 echo ""
 
 if [[ $files_with_issues -gt 0 ]]; then
-  echo -e "Status: FALHA"
-  echo -e "$issues"
-  exit 1
+	echo -e "Status: FALHA"
+	echo -e "$issues"
+	exit 1
 else
-  echo "Status: SUCESSO - Todas as tags obrigatorias estao presentes!"
-  exit 0
+	echo "Status: SUCESSO - Todas as tags obrigatorias estao presentes!"
+	exit 0
 fi
