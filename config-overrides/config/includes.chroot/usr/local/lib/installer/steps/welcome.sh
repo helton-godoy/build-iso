@@ -9,7 +9,7 @@ step_welcome() {
 		"  $UI_BULLET Modo UEFI (recomendado)" \
 		"  $UI_BULLET Internet (recomendado)" \
 		"  $UI_BULLET Disco 20GB+ (mínimo)"
-	if ui_confirm "Iniciar instalação?" "Iniciar" "Sair"; then
+	if ui_confirm "Iniciar instalação?" "y"; then
 		return 0
 	fi
 	return 1

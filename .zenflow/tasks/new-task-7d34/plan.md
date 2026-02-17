@@ -121,7 +121,8 @@ grep -q "ui_choose\|ui_filter\|ui_spin\|ui_table" config-overrides/config/includ
 
 ## FASE 2: Atualização de Etapas Simples (3-4h)
 
-### [ ] Step: Atualizar Etapas Simples (welcome, finish)
+### [x] Step: Atualizar Etapas Simples (welcome, finish)
+<!-- chat-id: 8fedc7be-a5f2-42ce-8588-2e5fbfdf707b -->
 **Arquivos**: 
 - `config-overrides/config/includes.chroot/usr/local/lib/installer/steps/welcome.sh`
 - `config-overrides/config/includes.chroot/usr/local/lib/installer/steps/finish.sh`

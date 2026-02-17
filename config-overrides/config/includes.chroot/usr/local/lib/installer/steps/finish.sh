@@ -9,7 +9,7 @@ step_finish() {
 	ui_card "Próximos passos" \
 		"  $UI_WARN Remova a mídia de instalação antes de reiniciar." \
 		"  $UI_BULLET Reiniciar agora ou abrir linha de comando."
-	if ui_confirm "Reiniciar agora?" "Reiniciar" "Linha de comando"; then
+	if ui_confirm "Reiniciar agora?" "y"; then
 		state_kv_set "reboot_requested" "1" || return 1
 		return 0
 	fi
