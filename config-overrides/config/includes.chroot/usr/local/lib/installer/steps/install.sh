@@ -696,13 +696,15 @@ install_debootstrap_and_apt() {
     squashfs_path="$(installutils_require_offline_squashfs)" || return 1
     installutils_extract_offline_rootfs "$INSTALL_TARGET_ROOT_DEFAULT" "$squashfs_path" || return 1
   else
-    installutils_write_sources_list "$INSTALL_TARGET_ROOT_DEFAULT" "$suite" "$mirror" "main contrib non-free non-free-firmware" || return 1
+    local apt_components="main contrib non-free non-free-firmware"
+    installutils_write_sources_list "$INSTALL_TARGET_ROOT_DEFAULT" "$suite" "$mirror" "$apt_components" || return 1
     installutils_apt_configure_retries "$INSTALL_TARGET_ROOT_DEFAULT" "$retries" "$timeout" || return 1
     installutils_write_apt_proxy_conf "$INSTALL_TARGET_ROOT_DEFAULT" "$proxy" || return 1
 
     # Base include set ensures enough tooling
     local include="ca-certificates,gnupg,apt-transport-https,systemd-sysv"
-    installutils_debootstrap_base "$INSTALL_TARGET_ROOT_DEFAULT" "$suite" "$mirror" "$include" || return 1
+    installutils_debootstrap_base "$INSTALL_TARGET_ROOT_DEFAULT" "$suite" "$mirror" "$include" "$apt_components" || return 1
+    installutils_write_sources_list "$INSTALL_TARGET_ROOT_DEFAULT" "$suite" "$mirror" "$apt_components" || return 1
   fi
 
   installutils_bind_mounts "$INSTALL_TARGET_ROOT_DEFAULT" || return 1

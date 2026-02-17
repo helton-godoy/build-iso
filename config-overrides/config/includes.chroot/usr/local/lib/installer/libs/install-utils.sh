@@ -108,6 +108,7 @@ installutils_debootstrap_base() {
   local suite="$2"
   local mirror="$3"
   local include="$4"
+  local components="${5-main}"
 
   # Verifica se debootstrap está instalado
   if ! command -v debootstrap >/dev/null; then
@@ -115,7 +116,7 @@ installutils_debootstrap_base() {
     return 1
   fi
 
-  debootstrap --arch=amd64 --include="$include" "$suite" "$target" "$mirror"
+  debootstrap --arch=amd64 --components="$components" --include="$include" "$suite" "$target" "$mirror"
 }
 
 installutils_bind_mounts() {
