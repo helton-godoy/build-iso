@@ -62,7 +62,7 @@ scripts/
     ├── vm-start-test-all.sh          # Testa BIOS + UEFI simultaneamente
     ├── vm-start-test-boot-disk.sh    # Testa boot com disco
     ├── vm-start-test-boot-iso.sh     # Testa boot via ISO
-    ├── vm-connect-agent-llm.sh        # Gateway SSH para agentes LLM (CMD obrigatorio)
+    ├── vm-connect-agent-llm.sh       # Gateway SSH para agentes LLM (CMD obrigatorio)
     ├── vm-setup.sh                   # Setup de dependências KVM
     └── disks/
 ```
@@ -95,7 +95,7 @@ Documentação técnica e arquitetural:
 docs/
 ├── PROJECT_STRUCTURE.md              # Este documento
 ├── ARCHITECTURE.md                   # Arquitetura do projeto
-├── "Architectural Blueprint..."       # Blueprint detalhado (inglês)
+├── "Architectural Blueprint..."      # Blueprint detalhado (inglês)
 ├── PRD.md                            # Product Requirements Document
 ├── PROPOSTA-DEBIAN-ZFS.md            # Proposta técnica original
 ├── INSTALLER_GUIDE.md                # Guia do instalador
@@ -104,9 +104,9 @@ docs/
 ├── MAPA_INSTALLER.md                 # Mapa técnico do instalador
 ├── DESIGN_SYSTEM_v2.0.md             # Design System monocromático
 ├── SCRIPTS_TESTS_INVENTORY.md        # Inventário de scripts/testes
-├── AI_SPEC_DRIVEN_WORKFLOW.md         # Workflow AI/Spec-driven
+├── AI_SPEC_DRIVEN_WORKFLOW.md        # Workflow AI/Spec-driven
 ├── BUGFIX_REPORT.md                  # Relatório de correções
-├── IMPLEMENTATION_REPORT.md           # Relatório de implementação
+├── IMPLEMENTATION_REPORT.md          # Relatório de implementação
 ├── 00_SOURCE_OF_TRUTH.md             # Fonte da verdade (NAS/Samba/AD)
 ├── 10_SMB_STACK.md                   # Pilha SMB (VFS, ACLs, multichannel)
 ├── 20_ZFS_DATASET_TEMPLATES.md       # Templates ZFS (5 cenários)
