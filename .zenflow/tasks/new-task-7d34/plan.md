@@ -139,7 +139,8 @@ shellcheck config-overrides/config/includes.chroot/usr/local/lib/installer/steps
 grep -v "read -r" config-overrides/config/includes.chroot/usr/local/lib/installer/steps/welcome.sh
 ```
 
-### [ ] Step: Atualizar Etapa identity.sh
+### [x] Step: Atualizar Etapa identity.sh
+<!-- chat-id: adaab819-c829-46db-907c-8714833f9032 -->
 **Arquivo**: `config-overrides/config/includes.chroot/usr/local/lib/installer/steps/identity.sh`
 **Mudanças**:
 - Substituir `read` por `ui_input()` com validação

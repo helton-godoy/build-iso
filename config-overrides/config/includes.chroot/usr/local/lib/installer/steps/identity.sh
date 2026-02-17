@@ -5,8 +5,9 @@
 step_identity() {
 	ui_hero "$PROJECT_NAME" "$PROJECT_TAGLINE"
 	ui_section "Identidade do Sistema"
+	
 	local hn
-	hn="$(ui_input "Hostname:" "fileserver-nas")"
+	hn="$(ui_input "Hostname:" "fileserver-nas" "validate_hostname")"
 	hn="$(sanitize_ws "$hn")"
 	if [[ -z "$hn" ]]; then
 		hn="fileserver-nas"
