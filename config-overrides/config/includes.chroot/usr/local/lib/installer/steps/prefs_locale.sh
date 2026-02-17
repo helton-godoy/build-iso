@@ -28,7 +28,7 @@ step_installer_prefs_locale() {
 	fi
 
 	local lang
-	lang="$(ui_filter_select "Selecione o locale do sistema:" "${locales[@]}")"
+	lang="$(ui_filter "Selecione o idioma" "${locales[@]}")"
 	lang="$(sanitize_ws "$lang")"
 	if [[ -z "$lang" ]]; then
 		lang="pt_BR.UTF-8"

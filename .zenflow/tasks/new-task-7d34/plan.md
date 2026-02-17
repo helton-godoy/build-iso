@@ -157,7 +157,8 @@ grep -q "ui_input.*validate_hostname" config-overrides/config/includes.chroot/us
 
 ## FASE 3: Atualização de Etapas Médias (4-5h)
 
-### [ ] Step: Atualizar Etapas de Preferências (prefs_locale, prefs_keyboard)
+### [x] Step: Atualizar Etapas de Preferências (prefs_locale, prefs_keyboard)
+<!-- chat-id: b3f1b2e7-ea5d-4f04-a7b9-506e194cea8e -->
 **Arquivos**:
 - `config-overrides/config/includes.chroot/usr/local/lib/installer/steps/prefs_locale.sh`
 - `config-overrides/config/includes.chroot/usr/local/lib/installer/steps/prefs_keyboard.sh`

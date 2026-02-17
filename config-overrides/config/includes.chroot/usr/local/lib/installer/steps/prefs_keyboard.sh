@@ -33,7 +33,7 @@ step_installer_prefs_keyboard() {
 	fi
 
 	local layout
-	layout="$(ui_filter_select "Selecione o layout do teclado:" "${layouts[@]}")"
+	layout="$(ui_filter "Layout do teclado" "${layouts[@]}")"
 	layout="$(sanitize_ws "$layout")"
 	if [[ -z "$layout" ]]; then
 		layout="br"
