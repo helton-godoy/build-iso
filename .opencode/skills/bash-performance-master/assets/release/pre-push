@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -u -o pipefail
+
+zero=0000000000000000000000000000000000000000
+base=
+while read -r _local_ref _local_sha _remote_ref remote_sha; do
+  if [[ $remote_sha != "$zero" ]]; then
+    base=$remote_sha
+    break
+  fi
+done
+
+if [[ -z $base ]]; then
+  base=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || true)
+  base=${base:-origin/main}
+fi
+
+exec .github/scripts/bash-release-gate . "$base"

@@ -1,0 +1,715 @@
+#!/usr/bin/env python3
+"""Experimental small-model loop with hypothesis and regression-proof gates."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+
+class LoopError(RuntimeError):
+    pass
+
+
+def command(
+    argv: list[str], cwd: Path, timeout: int, output: Path | None = None
+) -> int:
+    try:
+        result = subprocess.run(
+            argv,
+            cwd=cwd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+            check=False,
+        )
+        text = result.stdout
+        status = result.returncode
+    except subprocess.TimeoutExpired as error:
+        text = (error.stdout or "") + "\nTIMEOUT\n"
+        status = 124
+    if output:
+        output.write_text(text)
+    return status
+
+
+def git(cwd: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=cwd, text=True, capture_output=True, check=False
+    )
+    if result.returncode:
+        raise LoopError(result.stderr.strip() or "git command failed")
+    return result.stdout
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=("preflight", "run"))
+    parser.add_argument("--project", default=".")
+    parser.add_argument("--model")
+    parser.add_argument("--task")
+    parser.add_argument("--backend", choices=("opencode", "bmad-http"), default="bmad-http")
+    parser.add_argument("--run-dir")
+    parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument("--token-budget", type=int, default=150000)
+    args = parser.parse_args()
+    project = Path(args.project).resolve()
+    if args.command == "preflight":
+        return preflight(project, args.backend)
+    if not args.model or not args.task:
+        parser.error("run requires --model and --task")
+    return run_experiment(project, args)
+
+
+def preflight(project: Path, backend: str) -> int:
+    findings = {
+        "git": bool(shutil.which("git")),
+        "bats": bool(shutil.which("bats")),
+        "project": project.is_dir(),
+        "repository": (project / ".git").exists(),
+        "opencode": bool(shutil.which("opencode")),
+    }
+    if backend == "bmad-http":
+        bmad = shutil.which("bmad-loop")
+        findings["bmad-loop"] = bool(bmad)
+        interpreter = bmad_python(Path(bmad)) if bmad else None
+        findings["bmad-python"] = bool(interpreter)
+        findings["bmad-http-adapter"] = bool(
+            interpreter
+            and subprocess.run(
+                [interpreter, "-c", "import httpx; from bmad_loop.adapters.opencode_http import OpencodeHttpAdapter"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            ).returncode
+            == 0
+        )
+    document = {
+        "schema_version": 1,
+        "backend": backend,
+        "ok": all(findings.values()),
+        "findings": [{"name": key, "ok": value} for key, value in findings.items()],
+    }
+    print(json.dumps(document, indent=2))
+    return 0 if document["ok"] else 2
+
+
+def bmad_python(executable: Path) -> str | None:
+    try:
+        first = executable.read_text().splitlines()[0]
+    except (OSError, IndexError, UnicodeDecodeError):
+        return None
+    interpreter = first[2:].strip() if first.startswith("#!") else ""
+    return interpreter if interpreter and Path(interpreter).is_file() else None
+
+
+def run_experiment(project: Path, args: argparse.Namespace) -> int:
+    if preflight(project, args.backend):
+        return 2
+    skill = Path(__file__).resolve().parent.parent
+    root = (
+        Path(args.run_dir).resolve()
+        if args.run_dir
+        else Path(tempfile.mkdtemp(prefix="bash-inference-loop.", dir=project.parent))
+    )
+    if root.exists() and any(root.iterdir()):
+        raise LoopError(f"run directory is not empty: {root}")
+    root.mkdir(parents=True, exist_ok=True)
+    worktree = root / "worktree"
+    base = git(project, "rev-parse", "HEAD").strip()
+    git(project, "worktree", "add", "--detach", str(worktree), base)
+    install_skill(skill, worktree, args.backend)
+    state: dict[str, object] = {
+        "schema_version": 1,
+        "status": "running",
+        "stage": "hypothesize",
+        "model": args.model,
+        "backend": args.backend,
+        "base_commit": base,
+        "worktree": str(worktree),
+        "started_at": int(time.time()),
+        "hypotheses_tried": 0,
+    }
+    save(root, state)
+    try:
+        hypotheses_doc = stage_json(
+            root,
+            worktree,
+            args,
+            "hypothesize",
+            hypothesis_prompt(args.task),
+            require_skill=False,
+        )
+        hypotheses = validate_hypotheses(hypotheses_doc)
+        ensure_read_only(worktree, allow_probe=False)
+        approved: dict[str, object] | None = None
+        probe: dict[str, object] | None = None
+        for hypothesis in hypotheses:
+            hypothesis_id = str(hypothesis["id"])
+            state["stage"] = f"probe-{hypothesis_id}"
+            state["hypotheses_tried"] = int(state["hypotheses_tried"]) + 1
+            save(root, state)
+            probe = stage_json(
+                root,
+                worktree,
+                args,
+                f"probe-{hypothesis_id}",
+                probe_prompt(args.task, hypothesis),
+                require_skill=True,
+            )
+            test_argv = validate_probe(probe, worktree, hypothesis_id)
+            ensure_read_only(worktree, allow_probe=True)
+            baseline_log = root / f"probe-{hypothesis_id}-baseline.txt"
+            baseline_status = command(test_argv, worktree, 120, baseline_log)
+            evidence = {
+                "status": baseline_status,
+                "output": baseline_log.read_text()[-6000:],
+            }
+            (root / f"probe-{hypothesis_id}-evidence.json").write_text(
+                json.dumps(evidence, indent=2) + "\n"
+            )
+            if baseline_status == 0 or baseline_status == 124:
+                (worktree / str(probe["probe_file"])).unlink(missing_ok=True)
+                continue
+            checkpoint = stage_json(
+                root,
+                worktree,
+                args,
+                f"checkpoint-{hypothesis_id}",
+                checkpoint_prompt(args.task, hypothesis, probe, evidence),
+                require_skill=False,
+            )
+            ensure_read_only(worktree, allow_probe=True)
+            validate_checkpoint(checkpoint)
+            if checkpoint["verdict"] == "approve":
+                approved = hypothesis
+                state["checkpoint"] = checkpoint
+                save(root, state)
+                break
+            (worktree / str(probe["probe_file"])).unlink(missing_ok=True)
+        if approved is None or probe is None:
+            raise LoopError("no hypothesis passed the negative-proof checkpoint")
+
+        state["stage"] = "implement"
+        save(root, state)
+        implementation = stage_json(
+            root,
+            worktree,
+            args,
+            "implement",
+            implementation_prompt(args.task, approved, probe),
+            require_skill=True,
+        )
+        manifest = validate_implementation(implementation, worktree)
+        ensure_product_diff(worktree)
+        fixed_log = root / "fixed-test.txt"
+        fixed_status = command(manifest["test_argv"], worktree, 180, fixed_log)
+        if fixed_status:
+            raise LoopError(f"fixed regression test failed with status {fixed_status}")
+        verify(root, worktree, skill, "fixed")
+
+        production_patch = root / "production.patch"
+        write_diff(worktree, manifest["production_files"], production_patch)
+        if production_patch.stat().st_size == 0:
+            raise LoopError("production file list produced an empty patch")
+        git(worktree, "restore", "--source", "HEAD", "--", *manifest["production_files"])
+        perturbed_log = root / "perturbed-test.txt"
+        perturbed_status = command(manifest["test_argv"], worktree, 180, perturbed_log)
+        if perturbed_status in (0, 124):
+            raise LoopError("regression test did not fail after production perturbation")
+        if command(["git", "apply", str(production_patch)], worktree, 60):
+            raise LoopError("could not restore production patch after perturbation")
+        restored_log = root / "restored-test.txt"
+        restored_status = command(manifest["test_argv"], worktree, 180, restored_log)
+        if restored_status:
+            raise LoopError("regression test failed after restoring production patch")
+
+        fingerprint = change_fingerprint(worktree)
+        review = stage_json(
+            root,
+            worktree,
+            args,
+            "review",
+            review_prompt(args.task, approved, implementation),
+            require_skill=False,
+        )
+        if fingerprint != change_fingerprint(worktree):
+            raise LoopError("read-only review modified the candidate")
+        validate_review(review)
+        if review["verdict"] != "pass":
+            raise LoopError(f"independent review verdict: {review['verdict']}")
+        verify(root, worktree, skill, "final")
+        score = scorecard(
+            root,
+            hypothesis=True,
+            negative=True,
+            fixed=True,
+            perturbation=True,
+            harness=True,
+            scope=True,
+            review=True,
+        )
+        state.update(
+            {
+                "status": "completed",
+                "stage": "completed",
+                "hypothesis": approved,
+                "implementation": implementation,
+                "review": review,
+                "score": score["score"],
+                "finished_at": int(time.time()),
+            }
+        )
+        save(root, state)
+        print(json.dumps({"ok": True, "score": score["score"], "run_dir": str(root)}))
+        return 0
+    except Exception as error:
+        state["status"] = "failed"
+        state["error"] = str(error)
+        state["finished_at"] = int(time.time())
+        save(root, state)
+        print(f"bash-inference-loop: {error}", file=sys.stderr)
+        return 1
+
+
+def install_skill(skill: Path, worktree: Path, backend: str) -> None:
+    tree = ".claude/skills" if backend == "bmad-http" else ".opencode/skills"
+    target = worktree / tree / "bash-performance-master"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(
+        skill,
+        target,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("test", "__pycache__", "*.pyc"),
+    )
+
+
+def stage_json(
+    root: Path,
+    worktree: Path,
+    args: argparse.Namespace,
+    stage: str,
+    prompt: str,
+    *,
+    require_skill: bool,
+) -> dict[str, object]:
+    transcript = root / f"{stage}.jsonl"
+    if args.backend == "bmad-http":
+        prompt_file = root / f"{stage}-prompt.txt"
+        prompt_file.write_text(prompt)
+        bmad = shutil.which("bmad-loop")
+        interpreter = bmad_python(Path(bmad)) if bmad else None
+        if not interpreter:
+            raise LoopError("cannot resolve bmad-loop Python")
+        status = command(
+            [
+                interpreter,
+                str(Path(__file__).with_name("bash-bmad-session")),
+                "--cwd",
+                str(worktree),
+                "--model",
+                args.model,
+                "--prompt-file",
+                str(prompt_file),
+                "--run-dir",
+                str(root / "bmad-transport"),
+                "--task-id",
+                stage,
+                "--timeout",
+                str(args.timeout),
+                "--output",
+                str(transcript),
+                "--token-budget",
+                str(stage_token_budget(args.token_budget, stage)),
+            ],
+            worktree,
+            args.timeout + 45,
+            root / f"{stage}-bridge.txt",
+        )
+    else:
+        status = command(
+            [
+                "opencode",
+                "run",
+                "-m",
+                args.model,
+                "--format",
+                "json",
+                "--title",
+                f"bash-infer-{stage}",
+                prompt,
+            ],
+            worktree,
+            args.timeout,
+            transcript,
+        )
+    if status:
+        raise LoopError(f"{stage} session failed with status {status}")
+    if require_skill and not skill_loaded(transcript):
+        raise LoopError(f"{stage} did not load bash-performance-master")
+    text = transcript_text(transcript)
+    if stage == "hypothesize":
+        expected_key = "hypotheses"
+    elif stage.startswith("probe-"):
+        expected_key = "probe_file"
+    elif stage.startswith("checkpoint-") or stage == "review":
+        expected_key = "verdict"
+    elif stage == "implement":
+        expected_key = "production_files"
+    else:
+        raise LoopError(f"unknown JSON stage: {stage}")
+    document = extract_json(text, expected_key)
+    (root / f"{stage}.json").write_text(json.dumps(document, indent=2) + "\n")
+    return document
+
+
+
+def stage_token_budget(maximum: int, stage: str) -> int:
+    if stage == "hypothesize":
+        return min(maximum, 40000)
+    if stage.startswith("checkpoint-"):
+        return min(maximum, 30000)
+    if stage.startswith("probe-") or stage == "review":
+        return min(maximum, 50000)
+    return maximum
+
+def transcript_text(path: Path) -> str:
+    text: list[str] = []
+    for line in path.read_text().splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") == "text":
+            value = event.get("part", {}).get("text")
+            if isinstance(value, str):
+                text.append(value)
+    return "\n".join(text)
+
+
+def skill_loaded(path: Path) -> bool:
+    for line in path.read_text().splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        part = event.get("part", {})
+        if (
+            event.get("type") == "tool_use"
+            and part.get("tool") == "skill"
+            and part.get("state", {}).get("input", {}).get("name")
+            == "bash-performance-master"
+        ):
+            return True
+    return False
+
+
+def extract_json(text: str, expected_key: str) -> dict[str, object]:
+    decoder = json.JSONDecoder()
+    candidates: list[dict[str, object]] = []
+    for index, character in enumerate(text):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict) and expected_key in value:
+            candidates.append(value)
+    if not candidates:
+        raise LoopError("session returned no JSON object")
+    return candidates[-1]
+
+
+def validate_hypotheses(document: dict[str, object]) -> list[dict[str, object]]:
+    hypotheses = document.get("hypotheses")
+    if not isinstance(hypotheses, list) or not 1 <= len(hypotheses) <= 3:
+        raise LoopError("hypotheses must contain one to three entries")
+    required = ("id", "behavior", "trigger", "expected", "actual", "candidate_files")
+    seen: set[str] = set()
+    for item in hypotheses:
+        if not isinstance(item, dict) or any(key not in item for key in required):
+            raise LoopError("hypothesis contract is incomplete")
+        identifier = str(item["id"])
+        if identifier in seen or not identifier.replace("-", "").isalnum():
+            raise LoopError("hypothesis ids must be unique and path-safe")
+        seen.add(identifier)
+        files = item["candidate_files"]
+        if not isinstance(files, list) or not files:
+            raise LoopError("candidate_files must be a non-empty array")
+    return hypotheses
+
+
+def validate_probe(
+    document: dict[str, object], worktree: Path, hypothesis_id: str
+) -> list[str]:
+    probe_file = document.get("probe_file")
+    argv = document.get("test_argv")
+    expected = f".bash-loop-probes/{hypothesis_id}.bats"
+    if probe_file != expected or not (worktree / expected).is_file():
+        raise LoopError("probe must be written to its designated Bats file")
+    return validate_test_argv(argv, worktree, expected_probe=expected)
+
+
+def validate_test_argv(
+    value: object, worktree: Path, *, expected_probe: str | None = None
+) -> list[str]:
+    if (
+        not isinstance(value, list)
+        or not 2 <= len(value) <= 8
+        or any(not isinstance(arg, str) or not arg or "\x00" in arg for arg in value)
+    ):
+        raise LoopError("test_argv must be a short string array")
+    argv = list(value)
+    if argv[0] != "bats":
+        raise LoopError("only direct Bats test execution is allowed")
+    for path_text in argv[1:]:
+        path = (worktree / path_text).resolve()
+        if worktree not in path.parents or path.suffix != ".bats":
+            raise LoopError("test_argv may reference only project Bats files")
+    if expected_probe and expected_probe not in argv[1:]:
+        raise LoopError("probe test_argv does not execute the designated probe")
+    return argv
+
+
+def validate_checkpoint(document: dict[str, object]) -> None:
+    if document.get("verdict") not in ("approve", "reject"):
+        raise LoopError("checkpoint verdict must be approve or reject")
+    for key in ("observable_failure", "negative_test_valid", "scope_is_one_change"):
+        if not isinstance(document.get(key), bool):
+            raise LoopError(f"checkpoint {key} must be boolean")
+    if document["verdict"] == "approve" and not all(
+        document[key]
+        for key in ("observable_failure", "negative_test_valid", "scope_is_one_change")
+    ):
+        raise LoopError("checkpoint approval contradicts its gates")
+
+
+def validate_implementation(
+    document: dict[str, object], worktree: Path
+) -> dict[str, object]:
+    files = document.get("production_files")
+    if not isinstance(files, list) or not files or len(files) > 4:
+        raise LoopError("production_files must contain one to four paths")
+    normalized: list[str] = []
+    for value in files:
+        if not isinstance(value, str) or not value:
+            raise LoopError("production file path is invalid")
+        path = (worktree / value).resolve()
+        if worktree not in path.parents:
+            raise LoopError("production file escapes the worktree")
+        git(worktree, "ls-files", "--error-unmatch", "--", value)
+        normalized.append(value)
+    argv = validate_test_argv(document.get("test_argv"), worktree)
+    if any(arg.startswith(".bash-loop-probes/") for arg in argv[1:]):
+        raise LoopError("implementation must promote the probe into project tests")
+    return {"production_files": normalized, "test_argv": argv}
+
+
+def validate_review(document: dict[str, object]) -> None:
+    if document.get("verdict") not in ("pass", "fix", "reject"):
+        raise LoopError("review verdict is invalid")
+    if not isinstance(document.get("findings"), list):
+        raise LoopError("review findings must be an array")
+
+
+def orchestration_path(name: str) -> bool:
+    return name.startswith((".opencode/", ".claude/", ".bash-loop-probes/"))
+
+
+def ensure_read_only(worktree: Path, *, allow_probe: bool) -> None:
+    if subprocess.run(["git", "diff", "--quiet", "HEAD", *product_pathspec()], cwd=worktree, check=False).returncode:
+        raise LoopError("read-only stage modified tracked files")
+    untracked = git(
+        worktree, "ls-files", "--others", "--exclude-standard"
+    ).splitlines()
+    allowed = (".opencode/", ".claude/")
+    if allow_probe:
+        allowed += (".bash-loop-probes/",)
+    unexpected = [name for name in untracked if not name.startswith(allowed)]
+    if unexpected:
+        raise LoopError(f"read-only stage created product files: {unexpected}")
+
+
+def ensure_product_diff(worktree: Path) -> None:
+    tracked = subprocess.run(
+        ["git", "diff", "--quiet", "HEAD", *product_pathspec()], cwd=worktree, check=False
+    ).returncode
+    untracked = [
+        name
+        for name in git(
+            worktree, "ls-files", "--others", "--exclude-standard"
+        ).splitlines()
+        if not orchestration_path(name)
+    ]
+    if tracked == 0 and not untracked:
+        raise LoopError("implementation produced no product diff")
+
+
+def write_diff(worktree: Path, files: list[str], target: Path) -> None:
+    result = subprocess.run(
+        ["git", "diff", "--binary", "HEAD", "--", *files],
+        cwd=worktree,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode:
+        raise LoopError(result.stderr.decode(errors="replace"))
+    target.write_bytes(result.stdout)
+
+
+def product_pathspec() -> list[str]:
+    return ["--", ".", ":(exclude).opencode/**", ":(exclude).claude/**"]
+
+
+def change_fingerprint(worktree: Path) -> str:
+    digest = hashlib.sha256(
+        git(worktree, "diff", "--binary", "HEAD", *product_pathspec()).encode()
+    )
+    for name in sorted(
+        git(worktree, "ls-files", "--others", "--exclude-standard").splitlines()
+    ):
+        if orchestration_path(name):
+            continue
+        digest.update(name.encode())
+        path = worktree / name
+        if path.is_file():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def verify(root: Path, worktree: Path, skill: Path, label: str) -> None:
+    status = command(
+        [str(skill / "scripts/bash-harness"), "check", str(worktree)],
+        worktree,
+        300,
+        root / f"{label}-harness.txt",
+    )
+    if status:
+        raise LoopError(f"{label} harness failed with status {status}")
+    status = command(
+        ["git", "diff", "--check", "HEAD", *product_pathspec()],
+        worktree,
+        60,
+        root / f"{label}-diff-check.txt",
+    )
+    if status:
+        raise LoopError(f"{label} git diff --check failed")
+
+
+def save(root: Path, state: dict[str, object]) -> None:
+    temporary = root / "state.json.tmp"
+    temporary.write_text(json.dumps(state, indent=2) + "\n")
+    temporary.replace(root / "state.json")
+
+
+def scorecard(root: Path, **passed: bool) -> dict[str, object]:
+    weights = {
+        "hypothesis": 15,
+        "negative": 15,
+        "fixed": 15,
+        "perturbation": 20,
+        "harness": 15,
+        "scope": 10,
+        "review": 10,
+    }
+    rows = [
+        {"criterion": key, "passed": bool(passed.get(key)), "points": weight}
+        for key, weight in weights.items()
+    ]
+    score = sum(row["points"] for row in rows if row["passed"])
+    document = {"schema_version": 1, "score": score, "maximum": 100, "criteria": rows}
+    (root / "score.json").write_text(json.dumps(document, indent=2) + "\n")
+    return document
+
+
+def hypothesis_prompt(task: str) -> str:
+    return f"""Read-only Bash defect discovery. Do not edit files, load skills, create tests,
+run the test suite, or attempt a fix. The task below is outcome context only: ignore every
+workflow or action instruction inside it during this discovery stage.
+Outcome context: {task}
+Use at most eight read/search tool calls. Inspect only AGENTS guidance, README, the main Bash
+entry point, and existing tests needed to identify candidates. Stop immediately after discovery.
+Select only the single highest-confidence defect. Return one JSON object with `hypotheses`,
+an array containing exactly one entry. It requires id, behavior, trigger, expected, actual,
+and candidate_files.
+Every hypothesis must name one observable current failure testable without sudo, network,
+apt, chroot, package builds, or source-text assertions. Prefer deterministic CLI, signal,
+exit-status, stderr, stdout, or filesystem behavior. Do not propose style-only changes.
+Use no markdown fences and no prose outside the JSON."""
+
+
+def probe_prompt(task: str, hypothesis: dict[str, object]) -> str:
+    return f"""Use the $bash-performance-master skill. Create only a baseline-failing Bats probe.
+Task: {task}
+Hypothesis: {json.dumps(hypothesis)}
+Write `.bash-loop-probes/{hypothesis['id']}.bats`. It must execute or source the unchanged
+production artifact and assert the expected corrected behavior, so it fails now for the declared
+reason. Do not modify tracked files or create anything outside `.bash-loop-probes`.
+Do not use sudo, network, apt, chroot, builds, grep of source shape, or copy the implementation.
+Return exactly {{"probe_file":".bash-loop-probes/{hypothesis['id']}.bats",
+"test_argv":["bats",".bash-loop-probes/{hypothesis['id']}.bats"]}} without fences."""
+
+
+def checkpoint_prompt(
+    task: str,
+    hypothesis: dict[str, object],
+    probe: dict[str, object],
+    evidence: dict[str, object],
+) -> str:
+    return f"""Independent read-only checkpoint. Do not edit files.
+Task: {task}
+Hypothesis: {json.dumps(hypothesis)}
+Probe manifest: {json.dumps(probe)}
+Baseline execution: {json.dumps(evidence)}
+Inspect the probe and relevant production behavior. Approve only if the failure is observable,
+the probe fails for the claimed reason rather than environment/syntax, it executes or sources
+production, and the scope is exactly one behavior. Return exactly one JSON object:
+{{"verdict":"approve|reject","observable_failure":true|false,
+"negative_test_valid":true|false,"scope_is_one_change":true|false,
+"findings":["..."]}}. No markdown fences."""
+
+
+def implementation_prompt(
+    task: str, hypothesis: dict[str, object], probe: dict[str, object]
+) -> str:
+    return f"""Use the $bash-performance-master skill and implement exactly one approved behavior.
+Task: {task}
+Approved hypothesis: {json.dumps(hypothesis)}
+Approved probe: {json.dumps(probe)}
+Inspect git status and run the skill doctor. Make the smallest production correction. Promote the
+probe into a maintained project Bats test outside `.bash-loop-probes`. Do not commit, push, use
+sudo/network/apt/chroot/builds, or format unrelated files. Run the new test and harness.
+Return one JSON object last: {{"production_files":["tracked/path"],
+"test_argv":["bats","project/test.bats"],"summary":"..."}}. No markdown fences."""
+
+
+def review_prompt(
+    task: str, hypothesis: dict[str, object], implementation: dict[str, object]
+) -> str:
+    return f"""Independent read-only adversarial review. Do not edit files.
+Task: {task}
+Approved hypothesis: {json.dumps(hypothesis)}
+Implementation manifest: {json.dumps(implementation)}
+Inspect the full diff, fixed/perturbed intent, test behavior, exit statuses, hostile inputs,
+scope, unrelated formatting, and whether tests execute production. Return exactly:
+{{"verdict":"pass|fix|reject","findings":[{{"severity":"error|warning",
+"message":"..."}}]}}. Pass only when no corrective edit is required. No markdown fences."""
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except LoopError as error:
+        print(f"bash-inference-loop: {error}", file=sys.stderr)
+        raise SystemExit(1)

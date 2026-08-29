@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -u -o pipefail
+
+die() { printf 'bash-release-init: %s\n' "$*" >&2; exit 64; }
+root=${1:-.}
+[[ -d $root ]] || die "not a directory: $root"
+root=$(cd -- "$root" && pwd -P) || die "cannot resolve project"
+script_dir=$(cd -- "${BASH_SOURCE[0]%/*}" && pwd -P)
+skill_dir=${script_dir%/scripts}
+
+install_one() {
+  local source=$1 target=$2 mode=$3
+  if [[ -e $target ]]; then
+    printf 'KEEP    %s\n' "$target"
+  else
+    mkdir -p -- "${target%/*}"
+    install -m "$mode" -- "$source" "$target"
+    printf 'CREATE  %s\n' "$target"
+  fi
+}
+
+install_one "$script_dir/bash-release-gate" "$root/.github/scripts/bash-release-gate" 0755
+install_one "$skill_dir/assets/release/version-gate.yml" "$root/.github/workflows/version-gate.yml" 0644
+install_one "$skill_dir/assets/release/pre-push" "$root/.githooks/pre-push" 0755
+printf '%s\n' \
+  'NEXT    git config core.hooksPath .githooks' \
+  'NEXT    require the GitHub check "version-gate" in branch protection'

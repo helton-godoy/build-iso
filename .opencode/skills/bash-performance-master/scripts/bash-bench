@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -u -o pipefail
+usage() { printf 'Usage: bash-bench --candidate FILE --baseline FILE [--input FILE] [--runs N]\n' >&2; }
+candidate= baseline= input=/dev/null runs=7
+while (($#)); do case $1 in --candidate) candidate=$2; shift 2;; --baseline) baseline=$2; shift 2;; --input) input=$2; shift 2;; --runs) runs=$2; shift 2;; *) usage; exit 64;; esac; done
+[[ -x $candidate && -x $baseline && -r $input && $runs =~ ^[1-9][0-9]*$ ]] || { usage; exit 64; }
+tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/bash-bench.XXXXXXXX") || exit 74; trap 'rm -rf -- "$tmpdir"' EXIT
+"$baseline" <"$input" >"$tmpdir/base.out" 2>"$tmpdir/base.err"; base_status=$?
+"$candidate" <"$input" >"$tmpdir/candidate.out" 2>"$tmpdir/candidate.err"; candidate_status=$?
+[[ $base_status == "$candidate_status" ]] || { printf 'ERROR: exit statuses differ (%s vs %s)\n' "$base_status" "$candidate_status" >&2; exit 1; }
+cmp -s "$tmpdir/base.out" "$tmpdir/candidate.out" || { printf 'ERROR: stdout differs\n' >&2; exit 1; }
+cmp -s "$tmpdir/base.err" "$tmpdir/candidate.err" || { printf 'ERROR: stderr differs\n' >&2; exit 1; }
+printf 'Equivalent output and status. Timing %s runs each (nanoseconds):\n' "$runs"
+for label in baseline candidate; do [[ $label == baseline ]] && command=$baseline || command=$candidate; total=0; for ((i=0;i<runs;i++)); do start=$(date +%s%N); "$command" <"$input" >/dev/null 2>/dev/null; end=$(date +%s%N); ((total+=end-start)); done; printf '%s average=%s\n' "$label" "$((total/runs))"; done

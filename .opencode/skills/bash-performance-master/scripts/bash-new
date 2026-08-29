@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -u -o pipefail
+usage() { printf '%s\n' 'Usage: bash-new --type TYPE --output FILE [--bash-min VERSION] [--strict portable|balanced|aggressive] [--with a,b] [--force]' '       bash-new --list-types'; }
+die() { printf 'bash-new: %s\n' "$*" >&2; exit 64; }
+script_dir=$(cd -- "${BASH_SOURCE[0]%/*}" && pwd -P)
+skill_dir=${script_dir%/scripts}
+type= output= bash_min=4.0 strict=balanced components= force=0
+while (($#)); do
+ case $1 in
+  --type) (($#>=2)) || die 'missing TYPE'; type=$2; shift 2;;
+  --output) (($#>=2)) || die 'missing FILE'; output=$2; shift 2;;
+  --bash-min) (($#>=2)) || die 'missing VERSION'; bash_min=$2; shift 2;;
+  --strict) (($#>=2)) || die 'missing PROFILE'; strict=$2; shift 2;;
+  --with) (($#>=2)) || die 'missing COMPONENTS'; components=$2; shift 2;;
+  --force) force=1; shift;;
+  --list-types) printf '%s\n' minimal cli batch-files stream-filter managed-resource; exit 0;;
+  -h|--help) usage; exit 0;; *) die "unknown argument: $1";; esac
+done
+[[ -n $type && -n $output ]] || { usage >&2; exit 64; }
+[[ $bash_min =~ ^[0-9]+([.][0-9]+)?$ ]] || die 'invalid Bash version'
+template=$skill_dir/assets/templates/$type.sh
+[[ -f $template ]] || die "unknown type: $type"
+case $strict in portable) strict_block='# Explicit status handling; no global strict mode.';; balanced) strict_block='set -u -o pipefail';; aggressive) strict_block='set -euo pipefail';; *) die "unknown strict profile: $strict";; esac
+[[ ! -e $output || $force == 1 ]] || { printf 'bash-new: target exists: %s\n' "$output" >&2; exit 73; }
+if [[ $output == */* ]]; then parent=${output%/*}; [[ -n $parent ]] || parent=/; mkdir -p -- "$parent" || exit 73; fi
+tmp=$(mktemp "${TMPDIR:-/tmp}/bash-new.XXXXXXXX") || exit 74
+trap 'rm -f -- "$tmp"' EXIT
+awk -v version="$bash_min" -v strict="$strict_block" '{gsub(/__BASH_MIN__/,version); if ($0=="__STRICT_BLOCK__") print strict; else print}' "$template" >"$tmp" || exit 74
+install -m 0755 -- "$tmp" "$output" || exit 74
+if [[ -n $components ]]; then IFS=',' read -r -a list <<<"$components"; "$script_dir/bash-add" "$output" "${list[@]}" || exit; fi
+printf 'Created %s (%s, strict=%s)\n' "$output" "$type" "$strict"

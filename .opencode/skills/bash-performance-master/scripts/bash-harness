@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -u -o pipefail
+usage() { printf '%s\n' 'Usage: bash-harness doctor [--install-plan]' '       bash-harness init [PROJECT]' '       bash-harness check [PROJECT]' '       bash-harness fix [PROJECT]'; }
+die() { printf 'bash-harness: %s\n' "$*" >&2; exit 64; }
+script_dir=$(cd -- "${BASH_SOURCE[0]%/*}" && pwd -P); skill_dir=${script_dir%/scripts}
+command_name=${1:-}; (($#)) && shift
+case $command_name in
+ doctor) exec "$script_dir/bash-doctor" "$@";;
+ init)
+   root=${1:-.}; [[ -d $root ]] || die "not a directory: $root"
+   for name in .shellcheckrc .editorconfig .bash-harness.conf; do
+     source_file=$skill_dir/assets/harness/$name; target=$root/$name
+     if [[ -e $target ]]; then printf 'KEEP    %s\n' "$target"; else install -m 0644 -- "$source_file" "$target"; printf 'CREATE  %s\n' "$target"; fi
+   done
+   ;;
+ check|fix)
+   root=${1:-.}; [[ -d $root ]] || die "not a directory: $root"
+   missing=0 failures=0 warnings=0 files=0
+   shellcheck_severity=warning; shfmt_mode=enforce; max_format_lines=200; config=$root/.bash-harness.conf
+   if [[ -f $config ]]; then
+     value=$(sed -n 's/^BP_SHELLCHECK_SEVERITY=//p' "$config" | tail -n 1)
+     [[ $value =~ ^(error|warning|info|style)$ ]] && shellcheck_severity=$value
+     value=$(sed -n 's/^BP_SHFMT_MODE=//p' "$config" | tail -n 1)
+     [[ $value =~ ^(enforce|advisory|off)$ ]] && shfmt_mode=$value
+     value=$(sed -n 's/^BP_MAX_FORMAT_LINES=//p' "$config" | tail -n 1)
+     [[ $value =~ ^[1-9][0-9]*$ ]] && max_format_lines=$value
+   fi
+   command -v shellcheck >/dev/null 2>&1 || { printf 'MISSING shellcheck\n' >&2; missing=1; }
+   [[ $shfmt_mode == off ]] || command -v shfmt >/dev/null 2>&1 || { printf 'MISSING shfmt\n' >&2; missing=1; }
+   bats_files=()
+   while IFS= read -r -d '' file; do
+     if [[ $file == *.bats ]]; then bats_files+=("$file"); continue; fi
+     case $file in *.sh|*.bash) ;; *) IFS= read -r first_line <"$file" || true; [[ $first_line == '#!'*bash* ]] || continue;; esac
+     ((files+=1)); printf 'CHECK   %s\n' "$file"
+     bash -n "$file" || { ((failures+=1)); continue; }
+     if command -v shellcheck >/dev/null 2>&1; then shellcheck --severity="$shellcheck_severity" -- "$file" || ((failures+=1)); fi
+     if [[ $shfmt_mode != off ]] && command -v shfmt >/dev/null 2>&1; then
+       format_diff=$(shfmt -d -- "$file" 2>&1); format_status=$?
+       if ((format_status != 0)); then
+         if [[ $command_name == fix ]]; then
+           changed_lines=$(awk '/^[+-][^+-]/{count++} END{print count+0}' <<<"$format_diff")
+           if ((changed_lines > max_format_lines)); then
+             printf 'ERROR   shfmt would change %s lines in %s (budget=%s); review/adopt formatting separately\n' "$changed_lines" "$file" "$max_format_lines" >&2
+             ((failures+=1))
+           else
+             shfmt -w -- "$file" || ((failures+=1))
+           fi
+         elif [[ $shfmt_mode == advisory ]]; then
+           printf 'WARN    formatting differs: %s\n' "$file" >&2; ((warnings+=1))
+         else
+           printf '%s\n' "$format_diff"; ((failures+=1))
+         fi
+       fi
+     fi
+   done < <(find "$root" -type d \( -name .git -o -name .opencode -o -name .claude -o -name node_modules -o -name vendor \) -prune -o -type f -print0)
+   if ((${#bats_files[@]})); then
+     ((files+=${#bats_files[@]}))
+     if command -v bats >/dev/null 2>&1; then printf 'TEST    %s Bats file(s)\n' "${#bats_files[@]}"; bats "${bats_files[@]}" || ((failures+=1));
+     else printf 'MISSING bats (tests discovered)\n' >&2; missing=1; fi
+   fi
+   printf 'SUMMARY files=%s failures=%s warnings=%s missing=%s\n' "$files" "$failures" "$warnings" "$missing"
+   ((failures==0)) || exit 1
+   ((missing==0)) || exit 2
+   ;;
+ -h|--help) usage;; *) usage >&2; exit 64;;
+esac

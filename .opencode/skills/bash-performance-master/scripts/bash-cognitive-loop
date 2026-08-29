@@ -1,0 +1,487 @@
+#!/usr/bin/env python3
+"""Deterministic small-model orchestration for Bash repository changes."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+
+class LoopError(RuntimeError):
+    pass
+
+
+def run(command: list[str], cwd: Path, *, timeout: int, output: Path | None = None) -> int:
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        text = (error.stdout or "") + "\nTIMEOUT\n"
+        if output:
+            output.write_text(text)
+        return 124
+    if output:
+        output.write_text(completed.stdout)
+    return completed.returncode
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=("preflight", "run"))
+    parser.add_argument("--project", default=".")
+    parser.add_argument("--model")
+    parser.add_argument("--task")
+    parser.add_argument(
+        "--backend",
+        choices=("opencode", "bmad-http", "bmad-loop"),
+        default="opencode",
+        help="opencode CLI, the BMAD HTTP/SSE transport, or a complete BMAD project",
+    )
+    parser.add_argument("--run-dir")
+    parser.add_argument("--timeout", type=int, default=900)
+    args = parser.parse_args()
+    project = Path(args.project).resolve()
+    if args.command == "preflight":
+        return preflight(project, args.backend)
+    if not args.model or not args.task:
+        parser.error("run requires --model and --task")
+    if args.backend == "bmad-loop":
+        return run_bmad(project, args)
+    return run_loop(project, args)
+
+
+def preflight(project: Path, backend: str) -> int:
+    findings: list[dict[str, object]] = []
+    require(findings, "git", shutil.which("git"))
+    require(findings, "project", project.is_dir())
+    require(findings, "repository", (project / ".git").exists())
+    if backend == "opencode":
+        require(findings, "opencode", shutil.which("opencode"))
+    elif backend == "bmad-http":
+        require(findings, "opencode", shutil.which("opencode"))
+        bmad = shutil.which("bmad-loop")
+        require(findings, "bmad-loop", bmad)
+        require(findings, "bmad-python", bmad_python(Path(bmad)) if bmad else None)
+    else:
+        require(findings, "bmad-loop", shutil.which("bmad-loop"))
+        require(findings, "tmux", shutil.which("tmux"))
+        require(findings, "bmad-config", (project / "_bmad/bmm/config.yaml").is_file())
+    document = {"schema_version": 1, "backend": backend, "ok": all(x["ok"] for x in findings), "findings": findings}
+    print(json.dumps(document, indent=2))
+    return 0 if document["ok"] else 2
+
+
+def require(findings: list[dict[str, object]], name: str, value: object) -> None:
+    findings.append({"name": name, "ok": bool(value)})
+
+
+def run_bmad(project: Path, args: argparse.Namespace) -> int:
+    if preflight(project, "bmad-loop"):
+        return 2
+    command = ["bmad-loop", "run", "--project", str(project)]
+    return subprocess.run(command, check=False).returncode
+
+
+def bmad_python(executable: Path) -> str | None:
+    try:
+        first = executable.read_text().splitlines()[0]
+    except (OSError, IndexError, UnicodeDecodeError):
+        return None
+    if not first.startswith("#!"):
+        return None
+    interpreter = first[2:].strip()
+    return interpreter if Path(interpreter).is_file() else None
+
+
+def run_loop(project: Path, args: argparse.Namespace) -> int:
+    if preflight(project, args.backend):
+        return 2
+    skill_dir = Path(__file__).resolve().parent.parent
+    root = Path(args.run_dir).resolve() if args.run_dir else Path(
+        tempfile.mkdtemp(prefix="bash-cognitive-loop.", dir=project.parent)
+    )
+    if root.exists() and any(root.iterdir()):
+        raise LoopError(f"run directory is not empty: {root}")
+    root.mkdir(parents=True, exist_ok=True)
+    worktree = root / "worktree"
+    base = git(project, "rev-parse", "HEAD").strip()
+    git(project, "worktree", "add", "--detach", str(worktree), base)
+    install_skill(skill_dir, worktree, args.backend)
+    state = {
+        "schema_version": 1,
+        "status": "running",
+        "stage": "analyze",
+        "model": args.model,
+        "base_commit": base,
+        "worktree": str(worktree),
+        "started_at": int(time.time()),
+        "attempts": 0,
+    }
+    save_state(root, state)
+    try:
+        plan = stage_json(
+            root,
+            worktree,
+            args.model,
+            "analyze",
+            analyze_prompt(args.task),
+            args.timeout,
+            args.backend,
+        )
+        validate_plan(plan)
+        ensure_no_product_diff(worktree)
+        state["plan"] = plan
+        transition(root, state, "implement")
+        stage_text(
+            root,
+            worktree,
+            args.model,
+            "implement",
+            implement_prompt(args.task, plan),
+            args.timeout,
+            args.backend,
+        )
+        ensure_diff(worktree)
+        transition(root, state, "verify")
+        verify(root, worktree, skill_dir, "verify-1")
+        transition(root, state, "review")
+        review_input = change_fingerprint(worktree)
+        review = stage_json(
+            root,
+            worktree,
+            args.model,
+            "review",
+            review_prompt(args.task, plan),
+            args.timeout,
+            args.backend,
+        )
+        if change_fingerprint(worktree) != review_input:
+            raise LoopError("read-only review modified the candidate")
+        validate_review(review)
+        state["review"] = review
+        save_state(root, state)
+        if review["verdict"] == "fix":
+            transition(root, state, "repair")
+            stage_text(
+                root,
+                worktree,
+                args.model,
+                "repair",
+                repair_prompt(args.task, review),
+                args.timeout,
+                args.backend,
+            )
+            transition(root, state, "verify-repair")
+            verify(root, worktree, skill_dir, "verify-2")
+        elif review["verdict"] == "reject":
+            raise LoopError("independent review rejected the change")
+        transition(root, state, "final-verify")
+        verify(root, worktree, skill_dir, "verify-final")
+        state["status"] = "completed"
+        state["stage"] = "completed"
+        state["finished_at"] = int(time.time())
+        save_state(root, state)
+        print(json.dumps({"ok": True, "run_dir": str(root), "worktree": str(worktree)}))
+        return 0
+    except Exception as error:
+        state["status"] = "failed"
+        state["error"] = str(error)
+        state["finished_at"] = int(time.time())
+        save_state(root, state)
+        print(f"bash-cognitive-loop: {error}", file=sys.stderr)
+        return 1
+
+
+def git(cwd: Path, *arguments: str) -> str:
+    completed = subprocess.run(
+        ["git", *arguments], cwd=cwd, text=True, capture_output=True, check=False
+    )
+    if completed.returncode:
+        raise LoopError(completed.stderr.strip() or "git command failed")
+    return completed.stdout
+
+
+def install_skill(skill_dir: Path, worktree: Path, backend: str) -> None:
+    tree = ".claude/skills" if backend == "bmad-http" else ".opencode/skills"
+    target = worktree / tree / "bash-performance-master"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(
+        skill_dir,
+        target,
+        ignore=shutil.ignore_patterns("test", "__pycache__", "*.pyc"),
+    )
+
+
+def orchestration_file(name: str) -> bool:
+    return name.startswith((".opencode/", ".claude/"))
+
+
+def transition(root: Path, state: dict[str, object], stage: str) -> None:
+    state["stage"] = stage
+    state["attempts"] = int(state["attempts"]) + 1
+    save_state(root, state)
+
+
+def save_state(root: Path, state: dict[str, object]) -> None:
+    temporary = root / "state.json.tmp"
+    temporary.write_text(json.dumps(state, indent=2) + "\n")
+    temporary.replace(root / "state.json")
+
+
+def stage_text(
+    root: Path,
+    worktree: Path,
+    model: str,
+    stage: str,
+    prompt: str,
+    timeout: int,
+    backend: str,
+) -> str:
+    transcript = root / f"{stage}.jsonl"
+    if backend == "bmad-http":
+        prompt_path = root / f"{stage}-prompt.txt"
+        prompt_path.write_text(prompt)
+        bmad = shutil.which("bmad-loop")
+        interpreter = bmad_python(Path(bmad)) if bmad else None
+        if not interpreter:
+            raise LoopError("cannot resolve the Python environment that owns bmad-loop")
+        bridge_log = root / f"{stage}-bridge.txt"
+        rc = run(
+            [
+                interpreter,
+                str(Path(__file__).with_name("bash-bmad-session")),
+                "--cwd",
+                str(worktree),
+                "--model",
+                model,
+                "--prompt-file",
+                str(prompt_path),
+                "--run-dir",
+                str(root / "bmad-transport"),
+                "--task-id",
+                stage,
+                "--timeout",
+                str(timeout),
+                "--output",
+                str(transcript),
+            ],
+            worktree,
+            timeout=timeout + 45,
+            output=bridge_log,
+        )
+    else:
+        rc = run(
+            ["opencode", "run", "-m", model, "--format", "json", "--title", f"bash-loop-{stage}", prompt],
+            worktree,
+            timeout=timeout,
+            output=transcript,
+        )
+    if rc:
+        raise LoopError(f"{stage} session failed with status {rc}")
+    (root / f"{stage}-metrics.json").write_text(
+        json.dumps(transcript_metrics(transcript), indent=2) + "\n"
+    )
+    if stage in ("implement", "repair") and not skill_was_loaded(transcript):
+        raise LoopError(f"{stage} session did not load bash-performance-master")
+    return transcript_text(transcript)
+
+
+def stage_json(
+    root: Path,
+    worktree: Path,
+    model: str,
+    stage: str,
+    prompt: str,
+    timeout: int,
+    backend: str,
+) -> dict[str, object]:
+    text = stage_text(root, worktree, model, stage, prompt, timeout, backend)
+    document = extract_json(text)
+    (root / f"{stage}.json").write_text(json.dumps(document, indent=2) + "\n")
+    return document
+
+
+def transcript_text(path: Path) -> str:
+    parts: list[str] = []
+    for line in path.read_text().splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") == "text":
+            text = event.get("part", {}).get("text")
+            if isinstance(text, str):
+                parts.append(text)
+    return "\n".join(parts)
+
+
+def skill_was_loaded(path: Path) -> bool:
+    for line in path.read_text().splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        part = event.get("part", {})
+        state = part.get("state", {})
+        if (
+            event.get("type") == "tool_use"
+            and part.get("tool") == "skill"
+            and state.get("input", {}).get("name") == "bash-performance-master"
+        ):
+            return True
+    return False
+
+
+def transcript_metrics(path: Path) -> dict[str, int]:
+    events = 0
+    maximum = 0
+    tool_calls = 0
+    for line in path.read_text().splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        events += 1
+        if event.get("type") == "tool_use":
+            tool_calls += 1
+        if event.get("type") == "step_finish":
+            total = event.get("part", {}).get("tokens", {}).get("total", 0)
+            if isinstance(total, int):
+                maximum = max(maximum, total)
+    return {"events": events, "tool_calls": tool_calls, "max_tokens": maximum}
+
+
+def extract_json(text: str) -> dict[str, object]:
+    decoder = json.JSONDecoder()
+    for index, character in enumerate(text):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    raise LoopError("session did not return a JSON object")
+
+
+def validate_plan(plan: dict[str, object]) -> None:
+    required = ("candidate", "rationale", "files", "risks", "tests")
+    if any(key not in plan for key in required):
+        raise LoopError("analysis plan does not satisfy its JSON contract")
+    if not isinstance(plan["files"], list) or not isinstance(plan["tests"], list):
+        raise LoopError("analysis plan files/tests must be arrays")
+
+
+def validate_review(review: dict[str, object]) -> None:
+    if review.get("verdict") not in ("pass", "fix", "reject"):
+        raise LoopError("review verdict must be pass, fix, or reject")
+    if not isinstance(review.get("findings"), list):
+        raise LoopError("review findings must be an array")
+
+
+def ensure_diff(worktree: Path) -> None:
+    tracked = subprocess.run(["git", "diff", "--quiet"], cwd=worktree, check=False).returncode
+    untracked = [
+        name
+        for name in git(worktree, "ls-files", "--others", "--exclude-standard").splitlines()
+        if not orchestration_file(name)
+    ]
+    if tracked == 0 and not untracked:
+        raise LoopError("implementation produced no diff")
+
+
+def ensure_no_product_diff(worktree: Path) -> None:
+    if subprocess.run(["git", "diff", "--quiet"], cwd=worktree, check=False).returncode:
+        raise LoopError("read-only analysis modified tracked files")
+    untracked = [
+        name
+        for name in git(worktree, "ls-files", "--others", "--exclude-standard").splitlines()
+        if not orchestration_file(name)
+    ]
+    if untracked:
+        raise LoopError("read-only analysis created project files")
+
+
+def change_fingerprint(worktree: Path) -> str:
+    digest = hashlib.sha256()
+    digest.update(git(worktree, "diff", "--binary", "HEAD").encode())
+    for name in sorted(git(worktree, "ls-files", "--others", "--exclude-standard").splitlines()):
+        if orchestration_file(name):
+            continue
+        digest.update(name.encode())
+        path = worktree / name
+        if path.is_file():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def verify(root: Path, worktree: Path, skill_dir: Path, label: str) -> None:
+    harness = root / f"{label}-harness.txt"
+    rc = run([str(skill_dir / "scripts/bash-harness"), "check", str(worktree)], worktree, timeout=300, output=harness)
+    if rc:
+        raise LoopError(f"{label}: bash harness failed with status {rc}")
+    diff_check = root / f"{label}-diff-check.txt"
+    rc = run(["git", "diff", "--check"], worktree, timeout=60, output=diff_check)
+    if rc:
+        raise LoopError(f"{label}: git diff --check failed")
+
+
+def analyze_prompt(task: str) -> str:
+    return f"""Read-only analysis. Do not modify files. Inspect AGENTS.md, git status and the Bash code.
+Task: {task}
+Return exactly one JSON object with keys candidate (one focused change), rationale, files (array),
+risks (array), and tests (array). Select a change whose behavior can be tested without sudo,
+network, chroot or host mutation. Do not use markdown fences."""
+
+
+def implement_prompt(task: str, plan: dict[str, object]) -> str:
+    return f"""Use the $bash-performance-master skill installed in this project.
+Implement one production-worthy change for this task: {task}
+Approved plan: {json.dumps(plan)}
+Inspect git status first. Run the skill doctor and harness. Add behavioral tests that execute or
+source production. Prove the regression test fails when the fix is temporarily perturbed, then
+restore it. Do not commit, push, modify .opencode, format unrelated files, use sudo/network/chroot,
+or use true/source-shape checks as proof. Finish with tests, harness, git diff --check and a concise report."""
+
+
+def review_prompt(task: str, plan: dict[str, object]) -> str:
+    return f"""Independent read-only adversarial review. Do not edit files.
+Task: {task}
+Plan: {json.dumps(plan)}
+Inspect the complete diff and tests. Check observable behavior, exit statuses, hostile inputs,
+signals where relevant, test tautologies, duplicated implementation, unrelated formatting and
+whether the negative regression proof is credible. Return exactly one JSON object:
+{{"verdict":"pass|fix|reject","findings":[{{"severity":"error|warning","message":"..."}}]}}.
+Use pass only when no corrective edit is required. Do not use markdown fences."""
+
+
+def repair_prompt(task: str, review: dict[str, object]) -> str:
+    return f"""Use the $bash-performance-master skill. Repair only the independent review findings.
+Task: {task}
+Review: {json.dumps(review)}
+Do not expand scope, commit, push, use sudo/network/chroot, or format unrelated files. Run the
+behavioral tests and harness before finishing."""
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except LoopError as error:
+        print(f"bash-cognitive-loop: {error}", file=sys.stderr)
+        raise SystemExit(1)

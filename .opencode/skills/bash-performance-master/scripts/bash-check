@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -u -o pipefail
+(($#==1)) || { printf 'Usage: bash-check SCRIPT\n' >&2; exit 64; }
+target=$1; [[ -f $target ]] || { printf 'ERROR BP000: not a file: %s\n' "$target" >&2; exit 66; }
+errors=0; warnings=0
+if bash -n "$target"; then printf 'OK syntax: bash -n\n'; else printf 'ERROR BP001: Bash syntax failed\n' >&2; ((errors+=1)); fi
+check() { local code=$1 pattern=$2 message=$3; if grep -En -- "$pattern" "$target"; then printf 'ERROR %s: %s\n' "$code" "$message" >&2; ((errors+=1)); fi; }
+check BP010 'for[[:space:]]+[^;]+[[:space:]]+in[[:space:]]+\$\([[:space:]]*ls([[:space:]]|\))' 'do not parse ls output'
+check BP011 '(^|[^[:alnum:]_])eval([[:space:]]|$)' 'avoid eval; use arrays or namerefs'
+check BP012 '/tmp/[A-Za-z0-9._-]+' 'use mktemp for temporary paths'
+check BP013 'declare[[:space:]]+-c' 'declare -c is not a Bash attribute'
+check BP014 '2>&-' 'closing stderr is not general-purpose suppression'
+if command -v shellcheck >/dev/null 2>&1; then if shellcheck "$target"; then printf 'OK lint: shellcheck\n'; else ((errors+=1)); fi; else printf 'SKIP lint: shellcheck not installed\n'; fi
+if grep -q 'TODO:' "$target"; then printf 'WARN BP100: generated TODO remains\n' >&2; ((warnings+=1)); fi
+if awk '''/^[[:space:]]*echo([[:space:]]|$)/ { if (previous) found=1; previous=1; next } /^[[:space:]]*($|#)/ { next } { previous=0 } END { exit !found }''' "$target"; then printf 'WARN BP101: consecutive echo commands; use one printf for a static multi-line block\n' >&2; ((warnings+=1)); fi
+printf 'SUMMARY errors=%s warnings=%s\n' "$errors" "$warnings"
+((errors==0))

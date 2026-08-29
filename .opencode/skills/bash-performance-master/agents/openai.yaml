@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bash Performance Master"
+  short_description: "Gere Bash seguro, validado e eficiente"
+  default_prompt: "Use $bash-performance-master para criar um script Bash seguro, validado e eficiente."

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -u -o pipefail
+script_dir=$(cd -- "${BASH_SOURCE[0]%/*}" && pwd -P); skill_dir=${script_dir%/scripts}; component_dir=$skill_dir/assets/components
+list() { local f; for f in "$component_dir"/*.sh; do printf '%s\n' "${f##*/}"; done | sed 's/\.sh$//'; }
+[[ ${1:-} != --list ]] || { list; exit 0; }
+(($#>=2)) || { printf 'Usage: bash-add SCRIPT COMPONENT...\n' >&2; exit 64; }
+target=$1; shift; [[ -f $target ]] || { printf 'bash-add: not a file: %s\n' "$target" >&2; exit 66; }
+grep -qx '# BP_COMPONENTS_END' "$target" || { printf 'bash-add: marker not found\n' >&2; exit 65; }
+for name in "$@"; do
+ [[ $name =~ ^[a-z0-9-]+$ ]] || { printf 'bash-add: invalid component: %s\n' "$name" >&2; exit 64; }
+ source_file=$component_dir/$name.sh; [[ -f $source_file ]] || { printf 'bash-add: unknown component: %s\n' "$name" >&2; exit 64; }
+ if grep -q "^# BP_COMPONENT: $name$" "$target"; then printf 'Already present: %s\n' "$name"; continue; fi
+ tmp=$(mktemp "${TMPDIR:-/tmp}/bash-add.XXXXXXXX") || exit 74
+ awk -v source="$source_file" '$0=="# BP_COMPONENTS_END" {while ((getline line < source)>0) print line; close(source); print ""} {print}' "$target" >"$tmp" || { rm -f -- "$tmp"; exit 74; }
+ chmod --reference="$target" "$tmp"; mv -- "$tmp" "$target" || exit 74
+ printf 'Added %s\n' "$name"
+done

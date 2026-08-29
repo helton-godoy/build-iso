@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -u -o pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: bash-release-gate PROJECT BASE_REF [VERSION_FILE ...]' \
+    'Fails when publishable changes exist but no version source changed.'
+}
+
+die() {
+  printf 'bash-release-gate: %s\n' "$*" >&2
+  exit 64
+}
+
+root=${1:-}
+base_ref=${2:-}
+[[ -n $root && -n $base_ref ]] || {
+  usage >&2
+  exit 64
+}
+shift 2
+
+[[ -d $root ]] || die "not a directory: $root"
+root=$(cd -- "$root" && pwd -P) || die "cannot resolve project: $root"
+git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
+  die "not a Git worktree: $root"
+git -C "$root" rev-parse --verify "${base_ref}^{commit}" >/dev/null 2>&1 ||
+  die "unknown base ref: $base_ref"
+
+mapfile -d '' -t changed < <(
+  git -C "$root" diff --name-only -z --diff-filter=ACMRT "$base_ref" --
+)
+((${#changed[@]})) || {
+  printf 'SKIP    no changes relative to %s\n' "$base_ref"
+  exit 0
+}
+
+version_files=("$@")
+if ((${#version_files[@]} == 0)); then
+  standard_pattern='(^|/)(VERSION|VERSION.txt|version.txt|package.json|pyproject.toml|Cargo.toml|debian/changelog)$'
+  while IFS= read -r -d '' file; do
+    if [[ $file =~ $standard_pattern ]]; then
+      version_files+=("$file")
+      continue
+    fi
+    if git -C "$root" show "$base_ref:$file" 2>/dev/null |
+      grep -Eq '(^|[^[:alnum:]_])(readonly[[:space:]]+)?[[:alnum:]_]*VERSION[[:space:]]*='; then
+      version_files+=("$file")
+    elif [[ -f $root/$file ]] &&
+      grep -Eq '(^|[^[:alnum:]_])(readonly[[:space:]]+)?[[:alnum:]_]*VERSION[[:space:]]*=' "$root/$file"; then
+      version_files+=("$file")
+    fi
+  done < <(git -C "$root" ls-files -z)
+fi
+
+((${#version_files[@]})) || {
+  printf 'BLOCK   no version source detected; pass VERSION_FILE explicitly\n' >&2
+  exit 1
+}
+
+for file in "${version_files[@]}"; do
+  file=${file#./}
+  if ! git -C "$root" diff --quiet "$base_ref" -- "$file"; then
+    printf 'PASS    version changed in %s\n' "$file"
+    exit 0
+  fi
+done
+
+printf 'BLOCK   publishable changes exist but version did not change\n' >&2
+printf 'CHECK   %s\n' "${version_files[@]}" >&2
+exit 1

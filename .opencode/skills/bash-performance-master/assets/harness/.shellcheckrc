@@ -1,0 +1,3 @@
+# Conservative project default: block warnings/errors; ratchet style separately.
+shell=bash
+severity=warning

@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Run one hermetic OpenCode turn through BMAD Loop's HTTP/SSE adapter."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from bmad_loop.adapters.base import SessionSpec
+from bmad_loop.adapters.opencode_http import OpencodeHttpAdapter
+from bmad_loop.adapters.profile import get_profile
+from bmad_loop.policy import LimitsPolicy, Policy
+
+
+def normalize_messages(source: Path, target: Path, total_tokens: int) -> None:
+    messages = json.loads(source.read_text())
+    with target.open("w") as stream:
+        for message in messages:
+            for part in message.get("parts", ()):
+                if part.get("type") == "text" and part.get("text"):
+                    event = {"type": "text", "part": {"text": part["text"]}}
+                elif part.get("type") == "tool":
+                    event = {
+                        "type": "tool_use",
+                        "part": {"tool": part.get("tool"), "state": part.get("state", {})},
+                    }
+                else:
+                    continue
+                stream.write(json.dumps(event, ensure_ascii=False) + "\n")
+        stream.write(json.dumps({"type": "step_finish", "part": {"tokens": {"total": total_tokens}}}) + "\n")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cwd", required=True)
+    parser.add_argument("--model", required=True)
+    parser.add_argument("--prompt-file", required=True)
+    parser.add_argument("--run-dir", required=True)
+    parser.add_argument("--task-id", required=True)
+    parser.add_argument("--timeout", type=int, required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--token-budget", type=int, default=100000)
+    args = parser.parse_args()
+
+    cwd = Path(args.cwd).resolve()
+    run_dir = Path(args.run_dir).resolve()
+    result_path = run_dir / "tasks" / args.task_id / "result.json"
+    prompt = Path(args.prompt_file).read_text()
+    prompt += (
+        "\n\nBMAD transport completion contract: after all requested work and reporting "
+        f"is complete, write exactly {{\"ok\":true}} to {result_path}. "
+        "This file is orchestration metadata outside the product; do not omit it."
+    )
+    adapter = OpencodeHttpAdapter(
+        run_dir=run_dir,
+        policy=Policy(limits=LimitsPolicy(stop_without_result_nudges=1)),
+        profile=get_profile("opencode"),
+    )
+    result = adapter.run(
+        SessionSpec(
+            task_id=args.task_id,
+            role="workflow",
+            prompt=prompt,
+            cwd=cwd,
+            model=args.model,
+            timeout_s=args.timeout,
+            stall_nudges_cap=1,
+            token_budget=args.token_budget,
+            token_budget_mode="enforce",
+            token_budget_grace_s=30,
+        )
+    )
+    usage = adapter.read_usage(result)
+    if result.transcript_path:
+        normalize_messages(
+            Path(result.transcript_path),
+            Path(args.output),
+            usage.total if usage else 0,
+        )
+    if result.status != "completed" or not isinstance(result.result_json, dict):
+        print(json.dumps({"status": result.status, "result": result.result_json}), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
